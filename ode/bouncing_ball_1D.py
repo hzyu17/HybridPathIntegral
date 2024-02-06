@@ -11,9 +11,11 @@ sys.path.append(root_dir)
 
 from dynamics.bouncing_ball_1D import *
 
-def ode_bouncing_ball_2d(z0, vz0, t0, tf):
+def ode_bouncing_ball_1d(z0, vz0, t0, tf):
     x_trj = []
-    while abs(vz0) > 0.01 or z0>1.0:
+    tevents = []
+    xevents = []
+    while (abs(vz0) > 5.0) or (z0>3.0):
         event_bouncing.terminal=True
         event_bouncing.direction=-1
         
@@ -34,29 +36,79 @@ def ode_bouncing_ball_2d(z0, vz0, t0, tf):
                 
         if len(x_trj) == 0:
             x_trj = x_trj_i
+            tevents = t_event
+            xevents = x_event
         else:
             x_trj = np.concatenate([x_trj, x_trj_i], axis=1)
+            tevents = np.concatenate([tevents, t_event], axis=0)
+            xevents = np.concatenate([xevents, x_event], axis=1)
         
         t0 = t_event[0]
         tf = t0 + 5.0
         
     t_ttl = np.linspace(0.0, tf, x_trj.shape[1]).flatten()
     
-    return t_ttl, x_trj
+    return t_ttl, x_trj, tevents, xevents
+
+
+## A collection of 1D bouncing balls which are sampled from a Gaussian distribution
+#  N(m0, Sig0), m0=[z0, vz0]^T, Sig0=sig0*eye(2).
+ 
+def bouncing_ball_1d_samples(z0, vz0, sig0, t0, tf, n_samples):
+    t_collections = []
+    trj_collections = []
+    tevent_collections = []
+    xevent_collections = []
+    Sig0 = sig0*np.eye(2)
+    m0 = np.array([z0, vz0], dtype=np.float64)
+    
+    for i_sample in range(n_samples):
+        x0 = m0 + scipy.linalg.sqrtm(Sig0)@np.random.randn(2)
+        z0_i, vz0_i = x0[0], x0[1]
+        t0_i = t0
+        tf_i = tf
+        
+        t_i, trj_i, tevents_i, xevents_i = ode_bouncing_ball_1d(z0_i, vz0_i, t0_i, tf_i)
+        
+        t_collections.append(t_i)
+        trj_collections.append(trj_i)
+        tevent_collections.append(tevents_i)
+        xevent_collections.append(xevents_i)
+        
+    return t_collections, trj_collections, tevent_collections, xevent_collections
 
 
 if __name__ == '__main__':
-    z0 = 10.0
+    z0 = 5.0
     vz0 = 0.0
     t0 = 0.0
     tf = 5.0
     
-    t_ttl, x_trj = ode_bouncing_ball_2d(z0, vz0, t0, tf)
+    # # ========================== Plot one trajectory ==========================
+    # t_ttl, x_trj = ode_bouncing_ball_1d(z0, vz0, t0, tf)
     
+    # plt.plot(t_ttl, x_trj.T)
+    # plt.grid(True)
+    # plt.xlabel('t')
+    # plt.legend(['z', r'$\dot z$'], shadow=True)
+    # plt.title('1D Bouncing ball simulation')
+    # plt.show()
     
-    plt.plot(t_ttl, x_trj.T)
+    # ========================== Plot collection movements ========================== 
+    # -------------------------- Plot mean --------------------------
+    t_mean, x_mean, t_event, x_event = ode_bouncing_ball_1d(z0, vz0, t0, tf)
+    plt.plot(t_mean, x_mean[0,:].T, 'r')
+    
+    # -------------------------- Plot samples --------------------------
+    sig0 = 0.2
+    n_samples = 10
+    t_collections, trj_collections, tevent_collections, xevent_collections = bouncing_ball_1d_samples(z0, vz0, sig0, t0, tf, n_samples)
+    
+    for t_i, trj_i in zip(t_collections, trj_collections):
+        plt.plot(t_i, trj_i[0,:].T, '-.', alpha=0.3)
     plt.grid(True)
     plt.xlabel('t')
-    plt.legend(['y', 'z', r'$\dot y$', r'$\dot z$'], shadow=True)
-    plt.title('1D Bouncing ball simulation')
+    # plt.legend(['z', r'$\dot z$'], shadow=True)
+    plt.title('1D Bouncing ball')
     plt.show()
+    
