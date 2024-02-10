@@ -24,6 +24,11 @@ def Rx(t, x):
     e = 0.6
     return np.array([[1.0, 0.0],[0.0, -e]], dtype=np.float64)
 
+def Rt(t, x):
+    return np.zeros(2, dtype=np.float64)
+
 def gx(t, x):
     return np.array([1.0, 0.0], dtype=np.float64)
     
+def gt(t, x):
+    return 0.0
