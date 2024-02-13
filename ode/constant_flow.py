@@ -180,7 +180,7 @@ if __name__ == '__main__':
     print(tevent_min)
     
     # ------ find the timestamp for other samples that is close to the earliest contact time ------    
-    pre_contact_index = np.argmax(np.array(t_collections) > tevent_min - 0.1, axis=1)
+    pre_contact_index = np.argmax(np.array(t_collections) > tevent_min, axis=1)
     
     # ------ plot the distribution of the samples right before the ealiest contact -----
     for sample_i in range(n_samples):
@@ -189,17 +189,14 @@ if __name__ == '__main__':
     
     # ----- plot the covariance ellipsoid -----
     # find the mean state at the first pre-contact time
-    pre_contact_index_mean = np.argmax(t_mean > tevent_min - 0.1)
+    pre_contact_index_mean = np.argmax(t_mean > tevent_min)
     pre_contact_mean = x_mean[:, pre_contact_index_mean]
     ellipse_boundary, ax3 = plot_2d_ellipsoid_boundary(pre_contact_mean, Sig0, ax3, 'r')
     
     # ======================= post-contact samples =======================
     ## ------ find the latest contact time -----
     tevent_max = np.max(np.array(tevent_collections))
-    
-    print("tevent_max")
-    print(tevent_max)
-    
+        
     # ------ find the timestamp for other samples that is close to the earliest contact time ------      
     post_contact_index = np.argmax(np.array(t_collections) > tevent_max + 0.1, axis=1)
     
