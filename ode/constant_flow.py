@@ -12,6 +12,7 @@ sys.path.append(root_dir)
 from tools.plot_ellipsoid import *
 from dynamics.constant_flow import *
 
+
 def ode_constant_flow(x1, x2, t0, tf, n_events=None, return_saltation=False):
     """Solving the ODE with hybrid events.
 
@@ -129,6 +130,7 @@ def constflow_samples(x1, x2, Sig0, t0, tf, n_samples, n_events=None):
 
 
 if __name__ == '__main__':
+    
     x1 = 0.0
     x2 = 0.0
     t0 = 0.0
