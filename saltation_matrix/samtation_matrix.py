@@ -18,4 +18,4 @@ def saltation_matrix(F1, F2, Rt, Rx, gt, gx):
     Returns:
     SaltM (matrix(n2, n1)): Saltation Matrix.
     """
-    return Rx + (F2 - Rx@F1 - Rt)@gx / (gt + np.dot(gx, F1))
+    return Rx + np.outer((F2 - Rx@F1 - Rt), gx) / (gt + np.dot(gx, F1))

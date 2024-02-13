@@ -14,15 +14,17 @@ def event_bouncing(t, x):
     return x[0]
 
 def reset_map(t, x_minus):
-    e = 0.6
+    e1 = 0.8
+    e2 = 0.6
     x_plus = np.zeros(2, dtype=np.float64)
-    x_plus[0] = x_minus[0]
-    x_plus[1] = -e*x_minus[1] 
+    x_plus[0] = e1*x_minus[0]
+    x_plus[1] = -e2*x_minus[1] 
     return x_plus
 
 def Rx(t, x):
-    e = 0.6
-    return np.array([[1.0, 0.0],[0.0, -e]], dtype=np.float64)
+    e1 = 0.8
+    e2 = 0.6
+    return np.array([[e1, 0.0],[0.0, -e2]], dtype=np.float64)
 
 def Rt(t, x):
     return np.zeros(2, dtype=np.float64)
