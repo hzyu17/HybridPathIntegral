@@ -38,8 +38,8 @@ def ode_constant_flow(x1, x2, t0, tf, n_events=None, return_saltation=False):
     xresets = []
     saltations = []
     mode_1 = True
-    event_cst_flow.terminal=True
-    event_cst_flow.direction=1
+    guard.terminal=True
+    guard.direction=1
     
     x0 = np.array([x1, x2], dtype=np.float64)    
     while (True):
@@ -47,7 +47,7 @@ def ode_constant_flow(x1, x2, t0, tf, n_events=None, return_saltation=False):
         if mode_1:
             solution = scipy.integrate.solve_ivp(dyn_f1, t_span, x0, method='RK45', 
                                                 t_eval=None, dense_output=True, 
-                                                events=event_cst_flow, vectorized=False, args=None)
+                                                events=guard, vectorized=False, args=None)
             
             t_event = solution.t_events[0][0]
             x_event = solution.y_events[0][0]
@@ -82,7 +82,7 @@ def ode_constant_flow(x1, x2, t0, tf, n_events=None, return_saltation=False):
         else:
             solution = scipy.integrate.solve_ivp(dyn_f2, t_span, x0, method='RK45', 
                                                 t_eval=None, dense_output=True, 
-                                                events=event_cst_flow, vectorized=False, args=None)
+                                                events=guard, vectorized=False, args=None)
             
             t = np.linspace(t0, tf, 300).flatten()
             x_trj_i = solution.sol(t)        

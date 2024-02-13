@@ -38,11 +38,12 @@ def ode_bouncing_ball_1d(z0, vz0, t0, tf, n_events=None, return_saltation=False)
     xresets = []
     saltations = []
     num_events = 0
+    x0 = np.array([z0, vz0], dtype=np.float64)    
+    
     while (abs(vz0) > 5.0) or (z0>2.0):
         event_bouncing.terminal=True
         event_bouncing.direction=-1
         
-        x0 = np.array([z0, vz0], dtype=np.float64)    
         t_span = (t0, tf)
         solution = scipy.integrate.solve_ivp(dyn_f, t_span, x0, method='RK45', 
                                             t_eval=None, dense_output=True, 
@@ -62,7 +63,7 @@ def ode_bouncing_ball_1d(z0, vz0, t0, tf, n_events=None, return_saltation=False)
             saltations.append(saltation)
         
         x_reset = reset_map(t_event, x_event)
-        z0, vz0 = x_reset[0], x_reset[1]
+        x0 = x_reset
         
         t = np.linspace(t0, t_event, 300).flatten()
         x_trj_i = solution.sol(t)        
