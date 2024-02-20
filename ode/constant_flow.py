@@ -50,8 +50,6 @@ def ode_constant_flow(x1, x2, t0, tf, n_events=None, return_saltation=False):
             solution = scipy.integrate.solve_ivp(dyn_f1, t_span, x0, method='RK45', 
                                                 t_eval=t_eval, dense_output=True, 
                                                 events=guard, vectorized=False, args=None)
-            # print("solution.t_events ")
-            # print(solution.t_events)
             t_event = solution.t_events[0][0]
             x_event = solution.y_events[0][0]
             
