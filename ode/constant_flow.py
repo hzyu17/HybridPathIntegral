@@ -44,11 +44,14 @@ def ode_constant_flow(x1, x2, t0, tf, n_events=None, return_saltation=False):
     x0 = np.array([x1, x2], dtype=np.float64)    
     while (True):
         t_span = (t0, tf)
+        t_eval = np.linspace(t0, tf, 1000)
+        
         if mode_1:
             solution = scipy.integrate.solve_ivp(dyn_f1, t_span, x0, method='RK45', 
-                                                t_eval=None, dense_output=True, 
+                                                t_eval=t_eval, dense_output=True, 
                                                 events=guard, vectorized=False, args=None)
-            
+            # print("solution.t_events ")
+            # print(solution.t_events)
             t_event = solution.t_events[0][0]
             x_event = solution.y_events[0][0]
             
@@ -65,8 +68,8 @@ def ode_constant_flow(x1, x2, t0, tf, n_events=None, return_saltation=False):
             
             mode_1 = False
             
-            t = np.linspace(t0, t_event, 300).flatten()
-            x_trj_i = solution.sol(t)        
+            t_i = np.linspace(t0, t_event, 1000).flatten()
+            x_trj_i = solution.sol(t_i)        
                
             x_trj = x_trj_i
             tevents = np.array([t_event])
@@ -77,21 +80,24 @@ def ode_constant_flow(x1, x2, t0, tf, n_events=None, return_saltation=False):
             x0 = x_reset
             t0 = t_event
             tf = t0 + 10.0
+            
+            t_ttl = t_i
         
         ## Mode 2
         else:
             solution = scipy.integrate.solve_ivp(dyn_f2, t_span, x0, method='RK45', 
-                                                t_eval=None, dense_output=True, 
+                                                t_eval=t_eval, dense_output=True, 
                                                 events=guard, vectorized=False, args=None)
             
-            t = np.linspace(t0, tf, 300).flatten()
-            x_trj_i = solution.sol(t)        
+            t_i = np.linspace(t0, tf, 1000).flatten()
+            x_trj_i = solution.sol(t_i)        
                     
             x_trj = np.concatenate([x_trj, x_trj_i], axis=1)
+            t_ttl = np.concatenate([t_ttl, t_i]).flatten()
             
             break
                     
-    t_ttl = np.linspace(0.0, tf, x_trj.shape[1]).flatten()
+    # t_ttl = np.linspace(0.0, tf, x_trj.shape[1]).flatten()
     
     return t_ttl, x_trj, tevents, xevents, xresets, saltations
 
@@ -114,20 +120,15 @@ def constflow_samples(x1, x2, Sig0, t0, tf, n_samples, n_events=None):
     
     for i_s in range(n_samples):
         x0 = m0 + scipy.linalg.sqrtm(Sig0)@np.random.randn(2)
-        
-        initial_distribution[i_s] = x0
-        
-        z0_i, vz0_i = x0[0], x0[1]
-        t0_i = t0
-        tf_i = tf
-        
-        t_i, trj_i, tevents_i, xevents_i, xresets_i, _ = ode_constant_flow(z0_i, vz0_i, t0_i, tf_i, n_events, False)
+               
+        t_i, trj_i, tevents_i, xevents_i, xresets_i, _ = ode_constant_flow(x0[0], x0[1], t0, tf, n_events, False)
         
         t_collections.append(t_i)
         trj_collections.append(trj_i)
         tevent_collections.append(tevents_i)
         xevent_collections.append(xevents_i)
         xreset_collections.append(xresets_i)
+        initial_distribution[i_s] = x0
              
     return t_collections, trj_collections, tevent_collections, xevent_collections, xreset_collections, initial_distribution
 
@@ -180,13 +181,13 @@ if __name__ == '__main__':
     # ======================= pre-contact samples =======================
     ## ------ find the earliest contact time -----
     tevent_min = np.min(np.array(tevent_collections))
-    
     print("tevent_min")
     print(tevent_min)
     
-    # ------ find the timestamp for other samples that is close to the earliest contact time ------    
-    pre_contact_index = np.argmax(np.array(t_collections) > tevent_min, axis=1)
-    
+    # ------ find the timestamp for other samples that is close to the earliest contact time ------ 
+    less_than_tevent_min = np.array(t_collections) <= tevent_min
+    pre_contact_index = np.max(np.where(less_than_tevent_min, np.arange(less_than_tevent_min.shape[1]), -1), axis=1)
+
     # ------ plot the distribution of the samples right before the ealiest contact -----
     for sample_i in range(n_samples):
         ax3.scatter(trj_collections[sample_i][0, pre_contact_index[sample_i]], 
@@ -196,7 +197,7 @@ if __name__ == '__main__':
     
     # ----- plot the covariance ellipsoid -----
     # find the mean state at the first pre-contact time
-    pre_contact_index_mean = np.argmax(t_mean > tevent_min)
+    pre_contact_index_mean = np.max(np.where(t_mean <= tevent_min, np.arange(len(t_mean)), -1))
     pre_contact_mean = x_mean[:, pre_contact_index_mean]
     ellipse_boundary, ax3 = plot_2d_ellipsoid_boundary(pre_contact_mean, Sig0, ax3, 'r')
     
@@ -204,22 +205,27 @@ if __name__ == '__main__':
     ## ------ find the latest contact time -----
     tevent_max = np.max(np.array(tevent_collections))
         
-    # ------ find the timestamp for other samples that is close to the earliest contact time ------      
-    post_contact_index = np.argmax(np.array(t_collections) > tevent_max + 0.1, axis=1)
+    # ------ find the timestamp for other samples that is close to the latest contact time ------      
+    post_contact_index = np.argmax(np.array(t_collections) >= tevent_max, axis=1)
     
-    # ------ plot the distribution of the samples right before the ealiest contact -----
+    # ------ plot the distribution of the samples right after the latest contact -----
     for sample_i in range(n_samples):
         ax4.scatter(trj_collections[sample_i][0, post_contact_index[sample_i]], 
                     trj_collections[sample_i][1, post_contact_index[sample_i]], s=1.2, c='b', alpha=0.5)
         
     # ----- plot the covariance ellipsoid -----
     # find the mean state at the last post-contact time
-    post_contact_index_mean = np.argmax(t_mean > tevent_max + 0.1)
+    post_contact_index_mean = np.argmax(t_mean > tevent_max)
     post_contact_mean = x_mean[:, post_contact_index_mean]
+    
     print("saltations[0]")
     print(saltations[0])
+    
     Cov_plus = saltations[0] @ Sig0 @ saltations[0].transpose()
+    
+    print("Cov_plus")
     print(Cov_plus)
+    
     _, ax4 = plot_2d_ellipsoid_boundary(post_contact_mean, Cov_plus, ax4, 'g')
     
     ax3.set_title('Pre-contact')

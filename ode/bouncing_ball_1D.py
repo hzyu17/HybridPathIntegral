@@ -46,8 +46,10 @@ def ode_bouncing_ball_1d(z0, vz0, t0, tf, n_events=None, return_saltation=False)
         event_bouncing.direction=-1
         
         t_span = (t0, tf)
+        t_eval = np.linspace(t0, tf, 1000)
+        
         solution = scipy.integrate.solve_ivp(dyn_f, t_span, x0, method='RK45', 
-                                            t_eval=None, dense_output=True, 
+                                            t_eval=t_eval, dense_output=True, 
                                             events=event_bouncing, vectorized=False, args=None)
         
         t_event = solution.t_events[0][0]
@@ -174,6 +176,7 @@ if __name__ == '__main__':
     # ======================= pre-contact samples =======================
     ## ------ find the earliest contact time -----
     tevent_min = np.min(np.array(tevent_collections))
+    tevent_argmin = np.argmin(np.array(tevent_collections))
     
     print("tevent_min")
     print(tevent_min)
@@ -185,6 +188,7 @@ if __name__ == '__main__':
     for sample_i in range(n_samples):
         ax3.scatter(trj_collections[sample_i][0, pre_contact_index[sample_i]], 
                     trj_collections[sample_i][1, pre_contact_index[sample_i]], s=1.2, c='b', alpha=0.5)
+
     
     # ----- plot the covariance ellipsoid -----
     # find the mean state at the first pre-contact time
