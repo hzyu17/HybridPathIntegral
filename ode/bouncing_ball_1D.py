@@ -1,9 +1,8 @@
 import scipy
-import os
-import sys
 import matplotlib.pyplot as plt
 
-
+import os
+import sys
 file_path = os.path.abspath(__file__)
 current_dir = os.path.dirname(file_path)
 root_dir = os.path.abspath(os.path.join(current_dir, '..'))
@@ -11,6 +10,7 @@ root_dir = os.path.abspath(os.path.join(current_dir, '..'))
 sys.path.append(root_dir)
 
 from dynamics.bouncing_ball_1D import *
+from tools.plot_ellipsoid import *
 
 def ode_bouncing_ball_1d(z0, vz0, t0, tf, n_events=None, return_saltation=False):
     """Solving the ODE with hybrid events.
@@ -40,7 +40,8 @@ def ode_bouncing_ball_1d(z0, vz0, t0, tf, n_events=None, return_saltation=False)
     num_events = 0
     x0 = np.array([z0, vz0], dtype=np.float64)    
     
-    while (abs(vz0) > 5.0) or (z0>2.0):
+    # while (abs(vz0) > 5.0) or (z0>2.0):
+    while (num_events < n_events):
         event_bouncing.terminal=True
         event_bouncing.direction=-1
         
@@ -84,8 +85,8 @@ def ode_bouncing_ball_1d(z0, vz0, t0, tf, n_events=None, return_saltation=False)
         
         num_events += 1
         
-        if (n_events is not None) and (num_events == n_events):
-            break
+        # if (n_events is not None) and (num_events == n_events):
+        #     break
         
     t_ttl = np.linspace(0.0, tf, x_trj.shape[1]).flatten()
     
@@ -132,11 +133,10 @@ if __name__ == '__main__':
     
     n_events = 2
     
-    # ========================== Plot collection movements ========================== 
-    # -------------------------- Plot mean --------------------------
-    t_mean, x_mean, t_event, x_event, x_reset, saltations = ode_bouncing_ball_1d(z0, vz0, t0, tf, n_events, True)
-    plt.plot(t_mean, x_mean[0,:].T, 'r')
+    fig1, axs = plt.subplots(2, 2)
+    ax1, ax2, ax3, ax4 = axs.flatten()
     
+    # ========================== Plot collection movements ========================== 
     # -------------------------- Plot samples --------------------------
     sig0 = 0.1
     Sig0 = sig0*np.eye(2)
@@ -146,46 +146,86 @@ if __name__ == '__main__':
     t_collections, trj_collections, tevent_collections, xevent_collections, xreset_collections = bouncing_ball_1d_samples(z0, vz0, Sig0, t0, tf, n_samples, n_events)
 
     for t_i, trj_i in zip(t_collections, trj_collections):
-        plt.plot(t_i, trj_i[0,:].T, '-.', alpha=0.1)
-    plt.grid(True)
-    plt.xlabel(r'$t$')
-    plt.ylabel(r'$z$')
-    plt.title('1D Bouncing ball')
-    plt.show()
-    
-    # ========================== z - vz plot ========================== 
-    # -------------------------- Plot mean --------------------------
-    plt.plot(x_mean[0,:].T, x_mean[1,:].T, 'r')
-    
-    # -------------------------- Plot samples --------------------------
-    for t_i, trj_i in zip(t_collections, trj_collections):
-        plt.plot(trj_i[0,:].T, trj_i[1,:].T, '-.', alpha=0.1)
+        ax1.plot(t_i, trj_i[0,:].T, '-.', alpha=0.1)
         
-    plt.grid(True)
-    plt.xlabel('z')
-    plt.ylabel(r'$\dot z$')
-    plt.show()
-    
-    # ========================= plot the pre-contact samples and post-contact samples =========================    
-    fig, (ax1, ax2) = plt.subplots(1, 2)
-    ax1.set_title('Pre-contact')
-    ax2.set_title('Post-contact')
+    # -------------------------- Plot mean --------------------------
+    t_mean, x_mean, t_event, x_event, x_reset, saltations = ode_bouncing_ball_1d(z0, vz0, t0, tf, n_events, True)
+    ax1.plot(t_mean, x_mean[0,:].T, 'r')
     
     ax1.grid(True)
+    ax1.set_xlabel(r'$t$')
+    ax1.set_ylabel(r'$z$')
+    ax1.set_title('1D Bouncing ball')
+    
+    
+    # ========================== z - vz plot ========================== 
+    # -------------------------- Plot samples --------------------------
+    for t_i, trj_i in zip(t_collections, trj_collections):
+        ax2.plot(trj_i[0,:].T, trj_i[1,:].T, '-.', alpha=0.1)
+        
+    # -------------------------- Plot mean --------------------------
+    ax2.plot(x_mean[0,:].T, x_mean[1,:].T, 'r')
+    
     ax2.grid(True)
-    
-    # -------------------------- pre-contact samples --------------------------
-    for precontact_i in xevent_collections:
-        ax1.scatter(precontact_i[0], precontact_i[1], s=0.7, c='b')
-    
-    # -------------------------- post-contact samples --------------------------
-    for postcontact_i in xreset_collections:
-        ax2.scatter(postcontact_i[0], postcontact_i[1], s=0.7, c='b')
-
-    ax1.set_xlabel(r'$z$')
-    ax1.set_ylabel(r'$\dot z$')
-    
-    ax2.set_xlabel(r'$z$')
+    ax2.set_xlabel('z')
     ax2.set_ylabel(r'$\dot z$')
+    
+    # ========================= plot the pre-contact samples and post-contact samples =========================    
+    # ======================= pre-contact samples =======================
+    ## ------ find the earliest contact time -----
+    tevent_min = np.min(np.array(tevent_collections))
+    
+    print("tevent_min")
+    print(tevent_min)
+    
+    # ------ find the timestamp for other samples that is close to the earliest contact time ------    
+    pre_contact_index = np.argmax(np.array(t_collections) > tevent_min, axis=1)
+    
+    # ------ plot the distribution of the samples right before the ealiest contact -----
+    for sample_i in range(n_samples):
+        ax3.scatter(trj_collections[sample_i][0, pre_contact_index[sample_i]], 
+                    trj_collections[sample_i][1, pre_contact_index[sample_i]], s=1.2, c='b', alpha=0.5)
+    
+    # ----- plot the covariance ellipsoid -----
+    # find the mean state at the first pre-contact time
+    pre_contact_index_mean = np.argmax(t_mean > tevent_min)
+    pre_contact_mean = x_mean[:, pre_contact_index_mean]
+    ellipse_boundary, ax3 = plot_2d_ellipsoid_boundary(pre_contact_mean, Sig0, ax3, 'r')
+    
+    # ======================= post-contact samples =======================
+    ## ------ find the latest contact time -----
+    tevent_max = np.max(np.array(tevent_collections))
+        
+    # ------ find the timestamp for other samples that is close to the earliest contact time ------      
+    post_contact_index = np.argmax(np.array(t_collections) > tevent_max + 0.1, axis=1)
+    
+    # ------ plot the distribution of the samples right before the ealiest contact -----
+    for sample_i in range(n_samples):
+        ax4.scatter(trj_collections[sample_i][0, post_contact_index[sample_i]], 
+                    trj_collections[sample_i][1, post_contact_index[sample_i]], s=1.2, c='b', alpha=0.5)
+        
+    # ----- plot the covariance ellipsoid -----
+    # find the mean state at the last post-contact time
+    post_contact_index_mean = np.argmax(t_mean > tevent_max + 0.1)
+    post_contact_mean = x_mean[:, post_contact_index_mean]
+    print("saltations[0]")
+    print(saltations[0])
+    Cov_plus = saltations[0] @ Sig0 @ saltations[0].transpose()
+    print(Cov_plus)
+    _, ax4 = plot_2d_ellipsoid_boundary(post_contact_mean, Cov_plus, ax4, 'g')
+    
+    ax3.set_title('Pre-contact')
+    ax4.set_title('Post-contact')
+    
+    ax3.grid(True)
+    ax4.grid(True)
+    
+    ax3.axis('equal')
+    ax3.set_xlabel(r'$z$')
+    ax3.set_ylabel(r'$\dot z$')
+    
+    ax4.axis('equal')
+    ax4.set_xlabel(r'$z$')
+    ax4.set_ylabel(r'$\dot z$')
     
     plt.show()

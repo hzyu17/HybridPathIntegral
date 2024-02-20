@@ -4,7 +4,7 @@
 import numpy as np
 from saltation_matrix.samtation_matrix import *
 import jax
-from jax import jacfwd, jacrev 
+from jax import jacfwd 
 
 def dyn_f1(t, x):
     return np.array([1.0, -2.0], dtype=np.float64)
@@ -15,6 +15,9 @@ def dyn_f2(t, x):
 def guard(t, x):
     return x[0] - 5.0
 guard_jit = jax.jit(guard)
+
+def linearization(x):
+    return np.zeros((2, 2), dtype=np.float64)
 
 def reset_map(t, x_minus):
     """

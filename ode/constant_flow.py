@@ -1,14 +1,13 @@
 import scipy
-import os
-import sys
 import matplotlib.pyplot as plt
 
-
+import os
+import sys
 file_path = os.path.abspath(__file__)
 current_dir = os.path.dirname(file_path)
 root_dir = os.path.abspath(os.path.join(current_dir, '..'))
-
 sys.path.append(root_dir)
+
 from tools.plot_ellipsoid import *
 from dynamics.constant_flow import *
 
@@ -111,9 +110,13 @@ def constflow_samples(x1, x2, Sig0, t0, tf, n_samples, n_events=None):
     xreset_collections = []
     
     m0 = np.array([x1, x2], dtype=np.float64)
+    initial_distribution = np.zeros([n_samples, 2], dtype=np.float64)
     
-    for _ in range(n_samples):
+    for i_s in range(n_samples):
         x0 = m0 + scipy.linalg.sqrtm(Sig0)@np.random.randn(2)
+        
+        initial_distribution[i_s] = x0
+        
         z0_i, vz0_i = x0[0], x0[1]
         t0_i = t0
         tf_i = tf
@@ -126,7 +129,7 @@ def constflow_samples(x1, x2, Sig0, t0, tf, n_samples, n_events=None):
         xevent_collections.append(xevents_i)
         xreset_collections.append(xresets_i)
              
-    return t_collections, trj_collections, tevent_collections, xevent_collections, xreset_collections
+    return t_collections, trj_collections, tevent_collections, xevent_collections, xreset_collections, initial_distribution
 
 
 if __name__ == '__main__':
@@ -147,7 +150,7 @@ if __name__ == '__main__':
     Sig0 = sig0*np.eye(2)
     
     n_samples = 500
-    t_collections, trj_collections, tevent_collections, xevent_collections, xreset_collections = constflow_samples(x1, x2, Sig0, t0, tf, n_samples, n_events=None)
+    t_collections, trj_collections, tevent_collections, xevent_collections, xreset_collections, initial_distribution = constflow_samples(x1, x2, Sig0, t0, tf, n_samples, n_events=None)
 
     for t_i, trj_i in zip(t_collections, trj_collections):
         ax1.plot(t_i, trj_i[0,:].T, '-.', alpha=0.1)
@@ -188,6 +191,8 @@ if __name__ == '__main__':
     for sample_i in range(n_samples):
         ax3.scatter(trj_collections[sample_i][0, pre_contact_index[sample_i]], 
                     trj_collections[sample_i][1, pre_contact_index[sample_i]], s=1.2, c='b', alpha=0.5)
+        
+        ax3.scatter(initial_distribution[sample_i, 0], initial_distribution[sample_i, 1], s=1.2, c='b', alpha=0.5)
     
     # ----- plot the covariance ellipsoid -----
     # find the mean state at the first pre-contact time
