@@ -12,6 +12,8 @@ sys.path.append(root_dir)
 from dynamics.bouncing_ball_1D import *
 from tools.plot_ellipsoid import *
 
+from tools.propagate_covariance import *
+
 def ode_bouncing_ball_1d(z0, vz0, t0, tf, n_events=None, return_saltation=False):
     """Solving the ODE with hybrid events.
 
@@ -39,38 +41,60 @@ def ode_bouncing_ball_1d(z0, vz0, t0, tf, n_events=None, return_saltation=False)
     saltations = []
     num_events = 0
     x0 = np.array([z0, vz0], dtype=np.float64)    
+    Sig0 = np.eye(2, dtype=np.float64)
+    
     event_bouncing.terminal=True
     event_bouncing.direction=-1
     
     while (num_events < n_events):   
+        
         t_span = (t0, tf)
         t_eval = np.linspace(t0, tf, 1000)
         
-        # ---------- Solve ODE with hybrid event detection ---------- 
-        solution = scipy.integrate.solve_ivp(dyn_f, t_span, x0, method='RK45', 
-                                            t_eval=t_eval, dense_output=True, 
-                                            events=event_bouncing, vectorized=False, args=None)
-        
-        t_event = solution.t_events[0][0]
-        x_event = solution.y_events[0][0]
-        
-        # ---------- Compute saltation matrix ---------- 
-        if return_saltation:
-            R_x = Rx(t_event, x_event)
-            R_t = Rt(t_event, x_event)
-            g_x = gx(t_event, x_event)
-            g_t = gt(t_event, x_event)
-            F_1 = dyn_f(t_event, x_event)
-            F_2 = dyn_f(t_event, x_event)
+        if return_saltation: # Compute saltation matrix and solve for covariance matrix
+            initial_conditions = np.concatenate([x0, Sig0.flatten()])  # Combine initial conditions
+            # ---------- Solve ODE for mean and covariance jointly, with hybrid event detection ---------- 
+            args = (dyn_bouncing, linearize_bouncing, 2)    
+            solution = scipy.integrate.solve_ivp(fun=lambda t, y: dxdX_solve_ivp(t, y, *args), 
+                                                t_span=t_span, 
+                                                y0=initial_conditions, method='RK45', 
+                                                t_eval=t_eval, 
+                                                dense_output=True, 
+                                                events=event_bouncing)
+            t_event = solution.t_events[0][0]
+            xX_event = solution.y_events[0][0]
+            x_event = xX_event[0:2]
+            X_event = xX_event[2:6].reshape([2, 2])
+            
+            # ---------- Compute saltation matrix ---------- 
+            R_x = Rx_bouncing(t_event, x_event)
+            R_t = Rt_bouncing(t_event, x_event)
+            g_x = gx_bouncing(t_event, x_event)
+            g_t = gt_bouncing(t_event, x_event)
+            F_1 = dyn_bouncing(t_event, x_event)
+            F_2 = dyn_bouncing(t_event, x_event)
             saltation = saltation_matrix(F_1, F_2, R_t, R_x, g_t, g_x)
             saltations.append(saltation)
+            Sig0 = saltations[0] @ X_event @ saltations[0].transpose()
+            
+        else: # Do not compute saltation matrix and do not solve for covariance matrix
+            # ---------- Solve ODE with hybrid event detection ---------- 
+            solution = scipy.integrate.solve_ivp(dyn_bouncing, t_span, x0, method='RK45', 
+                                                t_eval=t_eval, dense_output=True, 
+                                                events=event_bouncing, vectorized=False, args=None)
+            t_event = solution.t_events[0][0]
+            x_event = solution.y_events[0][0]
         
-        x_reset = reset_map(t_event, x_event)
+        x_reset = reset_map_bouncing(t_event, x_event)
         x0 = x_reset
         
-        t = np.linspace(t0, t_event, 300).flatten()
-        x_trj_i = solution.sol(t)        
-                
+        # Solve for the continuous trajectory before the contact 
+        nt = 300 # number of time discretizations
+        t = np.linspace(t0, t_event, nt).flatten()
+        
+        # The solved trajecoty, in shape (nx+nx*nx, nt)
+        x_trj_i = solution.sol(t)      
+        
         # ----------- Add the piece-wise trajectory
         if len(x_trj) == 0:
             x_trj = x_trj_i
@@ -108,13 +132,13 @@ def bouncing_ball_1d_samples(z0, vz0, Sig0, t0, tf, n_samples, n_events=None):
     
     m0 = np.array([z0, vz0], dtype=np.float64)
     
-    for i_sample in range(n_samples):
+    for _ in range(n_samples):
         x0 = m0 + scipy.linalg.sqrtm(Sig0)@np.random.randn(2)
         z0_i, vz0_i = x0[0], x0[1]
         t0_i = t0
         tf_i = tf
         
-        t_i, trj_i, tevents_i, xevents_i, xresets_i, _ = ode_bouncing_ball_1d(z0_i, vz0_i, t0_i, tf_i, n_events, False)
+        t_i, trj_i, tevents_i, xevents_i, xresets_i, _ = ode_bouncing_ball_1d(z0_i, vz0_i, t0_i, tf_i, n_events, return_saltation=False)
         
         t_collections.append(t_i)
         trj_collections.append(trj_i)
@@ -133,25 +157,26 @@ if __name__ == '__main__':
     
     n_events = 2
     
-    fig1, axs = plt.subplots(2, 2)
-    ax1, ax2, ax3, ax4 = axs.flatten()
-    
     # ========================== Plot collection movements ========================== 
     # -------------------------- Plot samples --------------------------
     sig0 = 0.1
     Sig0 = sig0*np.eye(2)
     Sig0[1, 1] = 1.0
     
-    n_samples = 500
+    n_samples = 50
     t_collections, trj_collections, tevent_collections, xevent_collections, xreset_collections = bouncing_ball_1d_samples(z0, vz0, Sig0, t0, tf, n_samples, n_events)
 
+
+    fig1, axs = plt.subplots(2, 2)
+    ax1, ax2, ax3, ax4 = axs.flatten()
+    
     for t_i, trj_i in zip(t_collections, trj_collections):
         ax1.plot(t_i, trj_i[0,:].T, '-.', alpha=0.1)
         
     # -------------------------- Plot mean --------------------------
-    t_mean, x_mean, t_event, x_event, x_reset, saltations = ode_bouncing_ball_1d(z0, vz0, t0, tf, n_events, True)
+    t_mean, x_mean, t_event, x_event, x_reset, saltations = ode_bouncing_ball_1d(z0, vz0, t0, tf, n_events, return_saltation=True)
     ax1.plot(t_mean, x_mean[0,:].T, 'r')
-    
+        
     ax1.grid(True)
     ax1.set_xlabel(r'$t$')
     ax1.set_ylabel(r'$z$')
@@ -165,6 +190,11 @@ if __name__ == '__main__':
         
     # -------------------------- Plot mean --------------------------
     ax2.plot(x_mean[0,:].T, x_mean[1,:].T, 'r')
+    # -------------------------- Plot covariance --------------------------
+    x_cov = x_mean[2:6, :].reshape([2,2,-1])
+    print(x_cov.shape)
+    for i in range(x_cov.shape[-1]):
+        ellipse_boundary, ax2 = plot_2d_ellipsoid_boundary(x_mean[:,i], x_cov[:,:,i], ax2, 'r')
     
     ax2.grid(True)
     ax2.set_xlabel('z')
@@ -214,6 +244,7 @@ if __name__ == '__main__':
     print(saltations[0])
     Cov_plus = saltations[0] @ Sig0 @ saltations[0].transpose()
     print(Cov_plus)
+    
     _, ax4 = plot_2d_ellipsoid_boundary(post_contact_mean, Cov_plus, ax4, 'g')
     
     ax3.set_title('Pre-contact')
