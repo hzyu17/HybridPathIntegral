@@ -6,9 +6,10 @@ import numpy as np
 
 def dyn_f(t, x):
     g = 9.81
-    k = 1.0
-    vz_norm = np.sqrt(x[1]*x[1])
-    return np.array([x[1], -g-k*vz_norm], dtype=np.float64)
+    # k = 1.0
+    # vz_norm = np.sqrt(x[1]*x[1])
+    # return np.array([x[1], -g-k*vz_norm], dtype=np.float64)
+    return np.array([x[1], -g], dtype=np.float64)
 
 def event_bouncing(t, x):
     return x[0]
@@ -34,3 +35,6 @@ def gx(t, x):
     
 def gt(t, x):
     return 0.0
+
+def linearize(x):
+    return np.array([[0, 1.0], [0.0, 0.0]], dtype=np.float64)

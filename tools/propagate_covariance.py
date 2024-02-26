@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import odeint
 
-from common_imports import *
+from tools.common_imports import *
 from dynamics.constant_flow import *
 from tools.plot_ellipsoid import *
 
@@ -14,6 +14,37 @@ def dxdX_odeint(z, t, *args):
     Args:
         z (array): concatenated state and flattened covariance matrix [x, X]
         t (scalar): time variable
+        args[0]: dyn (function): system dynamics 
+        args[1]: linearization (function): linearization function
+        args[2]: n (scalar): state dimension
+
+    Returns:
+        [x(t), X(t)]: solved coupled system
+    """
+    
+    dyn = args[0]
+    linearization = args[1]
+    n = args[2]
+    
+    x = z[:n]
+    X = z[n:].reshape((n, n))
+    
+    A = linearization(x)
+
+    # state dynamics
+    dx_dt = dyn(t, x)
+    
+    # covariance dynamics
+    dX_dt = A @ X + X @ np.transpose(A)
+
+    return np.concatenate([dx_dt, dX_dt.flatten()])
+
+
+def dxdX_solve_ivp(t, z, *args):
+    """
+    Args:
+        t (scalar): time variable
+        z (array): concatenated state and flattened covariance matrix [x, X]
         args[0]: dyn (function): system dynamics 
         args[1]: linearization (function): linearization function
         args[2]: n (scalar): state dimension
@@ -52,7 +83,7 @@ if __name__ == '__main__':
     # Solve the coupled system of ODEs using odeint
     # tuple: (linearization_functtion, state_dim)
     args = (dyn_f1, linearization, 2)
-    solution = odeint(dxdX_odeint, initial_conditions, t, args)
+    solution = odeint(dxdX_odeint, t=t, y0=initial_conditions, args=args)
 
     # Extract the solution for x and X
     solution_x = solution[:, :2]

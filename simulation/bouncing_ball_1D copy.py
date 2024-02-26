@@ -11,8 +11,10 @@ sys.path.append(root_dir)
 
 from dynamics.bouncing_ball_1D import *
 from tools.plot_ellipsoid import *
+from tools.propagate_covariance import *
 
-def ode_bouncing_ball_1d(z0, vz0, t0, tf, n_events=None, return_saltation=False):
+
+def ode_bouncing_ball_1d(z0, vz0, t0, tf, n_events=None, solve_covariance=False, return_saltation=False):
     """Solving the ODE with hybrid events.
 
     Args:
@@ -22,6 +24,7 @@ def ode_bouncing_ball_1d(z0, vz0, t0, tf, n_events=None, return_saltation=False)
         tf (float): Terminal time
         n_events (int): Number of events before stopping, 
                         if set to None, then the simulation will continue until tf.
+        solve_covariance(bool): If solve the covariance together with the mean trajecotry.
         return_saltation (bool): If return the saltation matrices.
 
     Returns:
@@ -36,25 +39,57 @@ def ode_bouncing_ball_1d(z0, vz0, t0, tf, n_events=None, return_saltation=False)
     tevents = []
     xevents = []
     xresets = []
+    
+    X_trj = []
+    Xevents = []
+    Xresets = []
+    
     saltations = []
     num_events = 0
-    x0 = np.array([z0, vz0], dtype=np.float64)    
     
-    # while (abs(vz0) > 5.0) or (z0>2.0):
-    while (num_events < n_events):
-        event_bouncing.terminal=True
-        event_bouncing.direction=-1
+    x0 = np.array([z0, vz0], dtype=np.float64)    
+    Sig0 = np.eye(2, dtype=np.float64).flatten()
+    
+    event_bouncing.terminal = True
+    event_bouncing.direction = -1
+    
+    while (num_events < n_events):   
+        print("num_events")
+        print(num_events)
         
         t_span = (t0, tf)
         t_eval = np.linspace(t0, tf, 1000)
         
-        solution = scipy.integrate.solve_ivp(dyn_f, t_span, x0, method='RK45', 
-                                            t_eval=t_eval, dense_output=True, 
-                                            events=event_bouncing, vectorized=False, args=None)
+        # if solve_covariance:
+        #     initial_conditions = np.concatenate([x0, Sig0])  # Combine initial conditions
         
+        #     # ---------- Solve coupled ODE for mean and covariance, with hybrid event detection ---------- 
+        #     # tuple: (linearization_functtion, state_dim)
+        #     args = (dyn_f, linearize, 2)
+            
+        #     solution = scipy.integrate.solve_ivp(fun=lambda t, y: dxdX_solve_ivp(t, y, *args), 
+        #                                         t_span=t_span, y0=initial_conditions, method='RK45', 
+        #                                         t_eval=t_eval, 
+        #                                         dense_output=True, 
+        #                                         events=event_bouncing, vectorized=False, args=None)
+            
+        #     t_event = solution.t_events[0][0]
+        #     x_X_event = solution.y_events[0][0]
+        #     x_event = x_X_event[:2]
+        #     X_event = x_X_event[2:].reshape((-1, 2, 2))
+        
+        # else:        
+        solution = scipy.integrate.solve_ivp(dyn_f, t_span, x0, method='RK45', 
+                                            t_eval=t_eval, 
+                                            dense_output=True, 
+                                            events=event_bouncing, vectorized=False, args=None)
         t_event = solution.t_events[0][0]
         x_event = solution.y_events[0][0]
         
+        print("x_event")
+        print(x_event)
+        
+        # ---------- Compute saltation matrix ---------- 
         if return_saltation:
             R_x = Rx(t_event, x_event)
             R_t = Rt(t_event, x_event)
@@ -71,26 +106,24 @@ def ode_bouncing_ball_1d(z0, vz0, t0, tf, n_events=None, return_saltation=False)
         t = np.linspace(t0, t_event, 300).flatten()
         x_trj_i = solution.sol(t)        
                 
+        # ----------- Add the piece-wise trajectory to the whole trajectory -----------
         if len(x_trj) == 0:
             x_trj = x_trj_i
             tevents = np.array([t_event])
             xevents = x_event
             xresets = x_reset
+            t_ttl = t
         else:
             x_trj = np.concatenate([x_trj, x_trj_i], axis=1)
             tevents = np.concatenate([tevents, np.array([t_event])], axis=0)
             xevents = np.concatenate([xevents, x_event], axis=0)
             xresets = np.concatenate([xresets, x_reset], axis=0)
+            t_ttl = np.concatenate([t_ttl, t]).flatten()
         
+        # ---------- Reset initial and final time after the current event ----------
         t0 = t_event
         tf = t0 + 5.0
-        
         num_events += 1
-        
-        # if (n_events is not None) and (num_events == n_events):
-        #     break
-        
-    t_ttl = np.linspace(0.0, tf, x_trj.shape[1]).flatten()
     
     return t_ttl, x_trj, tevents, xevents, xresets, saltations
 
@@ -113,10 +146,11 @@ def bouncing_ball_1d_samples(z0, vz0, Sig0, t0, tf, n_samples, n_events=None):
     for i_sample in range(n_samples):
         x0 = m0 + scipy.linalg.sqrtm(Sig0)@np.random.randn(2)
         z0_i, vz0_i = x0[0], x0[1]
+        
         t0_i = t0
         tf_i = tf
         
-        t_i, trj_i, tevents_i, xevents_i, xresets_i, _ = ode_bouncing_ball_1d(z0_i, vz0_i, t0_i, tf_i, n_events, False)
+        t_i, trj_i, tevents_i, xevents_i, xresets_i, _ = ode_bouncing_ball_1d(z0_i, vz0_i, t0_i, tf_i, n_events, solve_covariance=False, return_saltation=False)
         
         t_collections.append(t_i)
         trj_collections.append(trj_i)
@@ -151,7 +185,7 @@ if __name__ == '__main__':
         ax1.plot(t_i, trj_i[0,:].T, '-.', alpha=0.1)
         
     # -------------------------- Plot mean --------------------------
-    t_mean, x_mean, t_event, x_event, x_reset, saltations = ode_bouncing_ball_1d(z0, vz0, t0, tf, n_events, True)
+    t_mean, x_mean, t_event, x_event, x_reset, saltations = ode_bouncing_ball_1d(z0, vz0, t0, tf, n_events, solve_covariance=False, return_saltation=True)
     ax1.plot(t_mean, x_mean[0,:].T, 'r')
     
     ax1.grid(True)
