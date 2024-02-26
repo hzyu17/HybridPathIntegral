@@ -18,8 +18,8 @@ if __name__ == '__main__':
     Sig0 = np.eye(2, dtype=np.float64).flatten()
     initial_conditions = np.concatenate([x0, Sig0])  # Combine initial conditions
 
-    event_bouncing.terminal=True
-    event_bouncing.direction=-1
+    guard_bouncing.terminal=True
+    guard_bouncing.direction=-1
     
     t0 = 0
     tf = 10.0
@@ -30,13 +30,13 @@ if __name__ == '__main__':
     # Solve the coupled system of ODEs using odeint
     # tuple: (linearization_functtion, state_dim)
     
-    args = (dyn_f, linearize, 2)    
+    args = (dyn_bouncing, linearize_bouncing, 2)    
     solution = scipy.integrate.solve_ivp(fun=lambda t, y: dxdX_solve_ivp(t, y, *args), 
                                         t_span=t_span, 
                                         y0=initial_conditions, method='RK45', 
                                         t_eval=t_eval, 
                                         dense_output=True, 
-                                        events=event_bouncing)
+                                        events=guard_bouncing)
     
     t_event = solution.t_events[0][0]
     x_X_event = solution.y_events[0][0]
