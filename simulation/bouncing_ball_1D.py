@@ -14,7 +14,7 @@ from tools.plot_ellipsoid import *
 
 from tools.propagate_covariance import *
 
-def ode_bouncing_ball_1d(z0, vz0, t0, tf, nt, n_events=None, return_saltation=False, Sig0=None):
+def ode_bouncing_ball_1d(z0, vz0, t0, tf, nt, Modes, n_events=None, return_saltation=False, Sig0=None):
     """Solving the ODE with hybrid events.
 
     Args:
@@ -22,6 +22,7 @@ def ode_bouncing_ball_1d(z0, vz0, t0, tf, nt, n_events=None, return_saltation=Fa
         vz0 (numpy array): Initial velocity in z direction
         t0 (float): Initial time
         tf (float): Terminal time
+        Modes (list(functions)): The collection of all the mode functions.
         n_events (int): Number of events before stopping, 
                         if set to None, then the simulation will continue until tf.
         return_saltation (bool): If return the saltation matrices.
@@ -39,6 +40,7 @@ def ode_bouncing_ball_1d(z0, vz0, t0, tf, nt, n_events=None, return_saltation=Fa
     xevents = []
     xresets = []
     saltations = []
+    current_mode = 0
     num_events = 0
     x0 = np.array([z0, vz0], dtype=np.float64)    
     
@@ -46,6 +48,7 @@ def ode_bouncing_ball_1d(z0, vz0, t0, tf, nt, n_events=None, return_saltation=Fa
     guard_bouncing.direction=-1
     
     while (num_events < n_events):   
+        dyn = Modes[current_mode]
         
         t_span = (t0, tf)
         t_eval = np.linspace(t0, tf, 1000)
@@ -54,7 +57,7 @@ def ode_bouncing_ball_1d(z0, vz0, t0, tf, nt, n_events=None, return_saltation=Fa
             initial_conditions = np.concatenate([x0, Sig0.flatten()])  # Combine initial conditions
             
             # ---------- Solve ODE for mean and covariance jointly, with hybrid event detection ---------- 
-            args = (dyn_bouncing, linearize_bouncing, 2)    
+            args = (dyn, linearize_bouncing, 2)    
             solution = scipy.integrate.solve_ivp(fun=lambda t, y: dxdX_solve_ivp(t, y, *args), 
                                                 t_span=t_span, 
                                                 y0=initial_conditions, method='RK45', 
@@ -64,28 +67,36 @@ def ode_bouncing_ball_1d(z0, vz0, t0, tf, nt, n_events=None, return_saltation=Fa
             t_event = solution.t_events[0][0]
             xX_event = solution.y_events[0][0]
             x_event = xX_event[0:2]
-            X_event = xX_event[2:6].reshape([2, 2])
+            x_reset = reset_map_bouncing(t_event, x_event)
             
             # ---------- Compute saltation matrix ---------- 
             R_x = Rx_bouncing(t_event, x_event)
             R_t = Rt_bouncing(t_event, x_event)
             g_x = gx_bouncing(t_event, x_event)
             g_t = gt_bouncing(t_event, x_event)
-            F_1 = dyn_bouncing(t_event, x_event)
-            F_2 = dyn_bouncing(t_event, x_event)
+            F_1 = dyn(t_event, x_event)
+            F_2 = dyn(t_event, x_reset) # Important, the F2 is evaluated at the reseted state!
             saltation = saltation_matrix(F_1, F_2, R_t, R_x, g_t, g_x)
             saltations.append(saltation)
-                    
+            
+            X_event = xX_event[2:6].reshape([2, 2])
             Sig0 = saltation @ X_event @ saltation.transpose()
+            
+            print("X_event")
+            print(X_event)
+            
+            print("New Sig0")
+            print(Sig0)
             
         else: # Do not compute saltation matrix and do not solve for covariance matrix
             # ---------- Solve ODE with hybrid event detection ---------- 
-            solution = scipy.integrate.solve_ivp(dyn_bouncing, t_span, x0, method='RK45', 
+            solution = scipy.integrate.solve_ivp(dyn, t_span, x0, method='RK45', 
                                                 t_eval=t_eval, dense_output=True, 
                                                 events=guard_bouncing, vectorized=False, args=None)
             t_event = solution.t_events[0][0]
             x_event = solution.y_events[0][0]
-        
+
+        current_mode = mode_jump_bouncing(current_mode)
         x_reset = reset_map_bouncing(t_event, x_event)
         x0 = x_reset
         
@@ -120,7 +131,7 @@ def ode_bouncing_ball_1d(z0, vz0, t0, tf, nt, n_events=None, return_saltation=Fa
 ## A collection of 1D bouncing balls which are sampled from a Gaussian distribution
 #  N(m0, Sig0), m0=[z0, vz0]^T.
 
-def bouncing_ball_1d_samples(z0, vz0, Sig0, t0, tf, nt, n_samples, n_events=None):
+def bouncing_ball_1d_samples(z0, vz0, Sig0, t0, tf, nt, Modes, n_samples, n_events=None):
     """
     The bouncing ball solution for a set of sampled trajectories.
     """
@@ -136,7 +147,7 @@ def bouncing_ball_1d_samples(z0, vz0, Sig0, t0, tf, nt, n_samples, n_events=None
         x0 = m0 + scipy.linalg.sqrtm(Sig0)@np.random.randn(2)
         z0_i, vz0_i = x0[0], x0[1]
         
-        t_i, trj_i, tevents_i, xevents_i, xresets_i, _ = ode_bouncing_ball_1d(z0_i, vz0_i, t0, tf, nt, n_events, return_saltation=False, Sig0=None)
+        t_i, trj_i, tevents_i, xevents_i, xresets_i, _ = ode_bouncing_ball_1d(z0_i, vz0_i, t0, tf, nt, Modes, n_events, return_saltation=False, Sig0=None)
         
         t_collections.append(t_i)
         trj_collections.append(trj_i)
@@ -154,6 +165,7 @@ if __name__ == '__main__':
     tf = 5.0
     nt = 300
     n_events = 2
+    Modes = [dyn_bouncing]
     
     fig1, axs = plt.subplots(2, 2)
     ax1, ax2, ax3, ax4 = axs.flatten()
@@ -164,10 +176,10 @@ if __name__ == '__main__':
     Sig0[1, 1] = 1.0
     
     n_samples = 200
-    t_collections, trj_collections, tevent_collections, xevent_collections, xreset_collections = bouncing_ball_1d_samples(z0, vz0, Sig0, t0, tf, nt, n_samples, n_events)
+    t_collections, trj_collections, tevent_collections, xevent_collections, xreset_collections = bouncing_ball_1d_samples(z0, vz0, Sig0, t0, tf, nt, Modes, n_samples, n_events)
     
     # Solve for mean trajectory
-    t_mean, xX_mean, t_event, x_event, x_reset, saltations = ode_bouncing_ball_1d(z0, vz0, t0, tf, nt, n_events, return_saltation=True, Sig0=Sig0)
+    t_mean, xX_mean, t_event, x_event, x_reset, saltations = ode_bouncing_ball_1d(z0, vz0, t0, tf, nt, Modes, n_events, return_saltation=True, Sig0=Sig0)
     x_mean = xX_mean[0:2, :]
     
     # ========================== ax1: Plot z-t ========================== 

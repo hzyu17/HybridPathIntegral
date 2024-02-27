@@ -3,7 +3,6 @@
 
 from saltation_matrix.samtation_matrix import *
 import numpy as np
-import jax.numpy as jnp
 
 import jax
 from jax import jacfwd 
@@ -29,6 +28,11 @@ def reset_map_bouncing(t, x_minus):
     # x_plus.at[1].set(-e2*x_minus[1]) 
     return x_plus
 resetmap_bouncing_jit = jax.jit(reset_map_bouncing)
+
+# Mode jump: only 1 mode in this case
+def mode_jump_bouncing(current_mode):
+    mode_map = {0: 0}
+    return mode_map[current_mode]
 
 # def Rx_bouncing(t, x):
 #     return jacfwd(resetmap_bouncing_jit, argnums=(1))(t, x)
