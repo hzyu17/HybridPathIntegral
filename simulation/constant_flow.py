@@ -13,11 +13,16 @@ from dynamics.constant_flow import *
 from simulation_2D import *
 
 
-def ode_constant_flow(z0, vz0, t0, tf, nt, Modes, n_events=None, return_saltation=False, Sig0=None):
-    return simulation_2d(z0, vz0, t0, tf, nt, Modes, 
+def  ode_constant_flow_saltation(z0, vz0, t0, tf, nt, Modes, n_events=None, Sig0=None):
+    return simulation_2d_saltation(z0, vz0, t0, tf, nt, Modes, 
+                                    guard_ctflow, resetmap_ctflow, mode_jump_ctflow, 
+                                    Rx_ctflow, Rt_ctflow, gx_ctflow, gt_ctflow, linearization_ctflow, 
+                                    Sig0, guard_direction=1, n_events=n_events)
+    
+def  ode_constant_flow(z0, vz0, t0, tf, nt, Modes, n_events=None):
+    return simulation_2d(z0, vz0, t0, tf, nt, Modes,
                          guard_ctflow, resetmap_ctflow, mode_jump_ctflow, 
-                         Rx_ctflow, Rt_ctflow, gx_ctflow, gt_ctflow, linearization_ctflow, 
-                         n_events, return_saltation, Sig0, guard_direction=1)
+                         n_events, guard_direction=1)
 
 ## A collection of 1D bouncing balls which are sampled from a Gaussian distribution
 #  N(m0, Sig0), m0=[x1, x2]^T.
@@ -38,7 +43,7 @@ def constflow_samples(x1, x2, Sig0, t0, tf, nt, n_samples, Modes, n_events=None)
     for i_s in range(n_samples):
         x0 = m0 + scipy.linalg.sqrtm(Sig0)@np.random.randn(2)
         
-        t_i, trj_i, tevents_i, xevents_i, xresets_i, _ = ode_constant_flow(x0[0], x0[1], t0, tf, nt, Modes, n_events, return_saltation=False, Sig0=None)
+        t_i, trj_i, tevents_i, xevents_i, xresets_i = ode_constant_flow(x0[0], x0[1], t0, tf, nt, Modes, n_events)
         
         t_collections.append(t_i)
         trj_collections.append(trj_i)
@@ -66,7 +71,7 @@ if __name__ == '__main__':
     Modes = [dyn_f1, dyn_f2]
         
     # ========================== Plot collection movements ========================== 
-    t_mean, xX_mean, t_event, x_event, x_reset, saltations = ode_constant_flow(x1, x2, t0, tf, nt, Modes, n_events=n_events, return_saltation=True, Sig0=Sig0)
+    t_mean, xX_mean, t_event, x_event, x_reset, saltations = ode_constant_flow_saltation(x1, x2, t0, tf, nt, Modes, n_events=n_events, Sig0=Sig0)
     x_mean = xX_mean[0:2, :]
     
     n_samples = 500
@@ -132,10 +137,10 @@ if __name__ == '__main__':
     ## ------ find the latest contact time -----
     tevent_max = np.max(np.array(tevent_collections), axis=0)
         
-    # ------ find the timestamp for other samples that is close to the earliest contact time ------      
+    # ------ find the timestamp for other samples that is close to the latest contact time ------      
     post_contact_index = np.argmax(np.array(t_collections) > tevent_max[0] + 0.1, axis=1)
     
-    # ------ plot the distribution of the samples right before the ealiest contact -----
+    # ------ plot the distribution of the samples right after the latest contact -----
     for sample_i in range(n_samples):
         ax4.scatter(trj_collections[sample_i][0, post_contact_index[sample_i]], 
                     trj_collections[sample_i][1, post_contact_index[sample_i]], s=1.2, c='b', alpha=0.5)

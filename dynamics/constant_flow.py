@@ -39,4 +39,7 @@ def gx_ctflow(t, x):
     return jax.grad(guard_jit, argnums=1)(t, x)
 
 def mode_jump_ctflow(current_mode):
-    return 1
+    if current_mode == 0:
+        return 1
+    if current_mode == 1:
+        return 0

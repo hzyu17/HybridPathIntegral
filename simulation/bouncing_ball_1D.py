@@ -16,11 +16,16 @@ from tools.plot_ellipsoid import *
 
 from simulation_2D import *
 
-def ode_bouncing_ball_1d(z0, vz0, t0, tf, nt, Modes, n_events=None, return_saltation=False, Sig0=None):
-    return simulation_2d(z0, vz0, t0, tf, nt, Modes, 
-                         guard_bouncing, reset_map_bouncing, mode_jump_bouncing, 
-                         Rx_bouncing, Rt_bouncing, gx_bouncing, gt_bouncing, linearize_bouncing, 
-                         n_events, return_saltation, Sig0, guard_direction=-1)
+def ode_bouncing_ball_1d_saltation(z0, vz0, t0, tf, nt, Modes, n_events=None, Sig0=None):
+    return simulation_2d_saltation(z0, vz0, t0, tf, nt, Modes, 
+                                    guard_bouncing, reset_map_bouncing, mode_jump_bouncing, 
+                                    Rx_bouncing, Rt_bouncing, gx_bouncing, gt_bouncing, linearize_bouncing, 
+                                    Sig0, guard_direction=-1, n_events=n_events)
+    
+def ode_bouncing_ball_1d(z0, vz0, t0, tf, nt, Modes, n_events=None):
+    return simulation_2d(z0, vz0, t0, tf, nt, Modes,
+                         guard_bouncing, reset_map_bouncing, mode_jump_bouncing,
+                         n_events, guard_direction=-1)
 
 ## A collection of 1D bouncing balls which are sampled from a Gaussian distribution
 #  N(m0, Sig0), m0=[z0, vz0]^T.
@@ -41,7 +46,7 @@ def bouncing_ball_1d_samples(z0, vz0, Sig0, t0, tf, nt, Modes, n_samples, n_even
         x0 = m0 + scipy.linalg.sqrtm(Sig0)@np.random.randn(2)
         z0_i, vz0_i = x0[0], x0[1]
         
-        t_i, trj_i, tevents_i, xevents_i, xresets_i, _ = ode_bouncing_ball_1d(z0_i, vz0_i, t0, tf, nt, Modes, n_events, return_saltation=False, Sig0=None)
+        t_i, trj_i, tevents_i, xevents_i, xresets_i = ode_bouncing_ball_1d(z0_i, vz0_i, t0, tf, nt, Modes, n_events)
         
         t_collections.append(t_i)
         trj_collections.append(trj_i)
@@ -73,7 +78,7 @@ if __name__ == '__main__':
     t_collections, trj_collections, tevent_collections, xevent_collections, xreset_collections = bouncing_ball_1d_samples(z0, vz0, Sig0, t0, tf, nt, Modes, n_samples, n_events)
     
     # Solve for mean trajectory
-    t_mean, xX_mean, t_event, x_event, x_reset, saltations = ode_bouncing_ball_1d(z0, vz0, t0, tf, nt, Modes, n_events, return_saltation=True, Sig0=Sig0)
+    t_mean, xX_mean, t_event, x_event, x_reset, saltations = ode_bouncing_ball_1d_saltation(z0, vz0, t0, tf, nt, Modes, n_events, Sig0=Sig0)
     x_mean = xX_mean[0:2, :]
     
     # ========================== ax1: Plot z-t ========================== 
