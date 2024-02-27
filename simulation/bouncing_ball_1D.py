@@ -1,4 +1,4 @@
-import scipy
+# import scipy
 import matplotlib.pyplot as plt
 
 import os
@@ -12,115 +12,15 @@ sys.path.append(root_dir)
 from dynamics.bouncing_ball_1D import *
 from tools.plot_ellipsoid import *
 
-from tools.propagate_covariance import *
+# from simulation.propagate_covariance import *
+
+from simulation_2D import *
 
 def ode_bouncing_ball_1d(z0, vz0, t0, tf, nt, Modes, n_events=None, return_saltation=False, Sig0=None):
-    """Solving the ODE with hybrid events.
-
-    Args:
-        z0 (numpy array): Initial height
-        vz0 (numpy array): Initial velocity in z direction
-        t0 (float): Initial time
-        tf (float): Terminal time
-        Modes (list(functions)): The collection of all the mode functions.
-        n_events (int): Number of events before stopping, 
-                        if set to None, then the simulation will continue until tf.
-        return_saltation (bool): If return the saltation matrices.
-
-    Returns:
-        t_ttl: The total time span.
-        x_trj: The whole trajectory including the hybrid events.
-        tevents: Time of the hybrid event happening.
-        xevents: States at the hybrid event.
-        xresets: States after the reset map, for each hybrid event.
-        saltations: Collection of saltation matrices at the hybrid events.
-    """
-    x_trj = []
-    tevents = []
-    xevents = []
-    xresets = []
-    saltations = []
-    current_mode = 0
-    num_events = 0
-    x0 = np.array([z0, vz0], dtype=np.float64)    
-    
-    guard_bouncing.terminal=True
-    guard_bouncing.direction=-1
-    
-    while (num_events < n_events):   
-        dyn = Modes[current_mode]
-        
-        t_span = (t0, tf)
-        t_eval = np.linspace(t0, tf, 1000)
-        
-        if return_saltation: # Compute saltation matrix and solve for covariance matrix
-            initial_conditions = np.concatenate([x0, Sig0.flatten()])  # Combine initial conditions
-            
-            # ---------- Solve ODE for mean and covariance jointly, with hybrid event detection ---------- 
-            args = (dyn, linearize_bouncing, 2)    
-            solution = scipy.integrate.solve_ivp(fun=lambda t, y: dxdX_solve_ivp(t, y, *args), 
-                                                t_span=t_span, 
-                                                y0=initial_conditions, method='RK45', 
-                                                t_eval=t_eval, 
-                                                dense_output=True, 
-                                                events=guard_bouncing)
-            t_event = solution.t_events[0][0]
-            xX_event = solution.y_events[0][0]
-            x_event = xX_event[0:2]
-            x_reset = reset_map_bouncing(t_event, x_event)
-            
-            # ---------- Compute saltation matrix ---------- 
-            R_x = Rx_bouncing(t_event, x_event)
-            R_t = Rt_bouncing(t_event, x_event)
-            g_x = gx_bouncing(t_event, x_event)
-            g_t = gt_bouncing(t_event, x_event)
-            F_1 = dyn(t_event, x_event)
-            F_2 = dyn(t_event, x_reset) # Important, the F2 is evaluated at the reseted state!
-            saltation = saltation_matrix(F_1, F_2, R_t, R_x, g_t, g_x)
-            saltations.append(saltation)
-            
-            X_event = xX_event[2:6].reshape([2, 2])
-            Sig0 = saltation @ X_event @ saltation.transpose()
-            
-        else: # Do not compute saltation matrix and do not solve for covariance matrix
-            # ---------- Solve ODE with hybrid event detection ---------- 
-            solution = scipy.integrate.solve_ivp(dyn, t_span, x0, method='RK45', 
-                                                t_eval=t_eval, dense_output=True, 
-                                                events=guard_bouncing, vectorized=False, args=None)
-            t_event = solution.t_events[0][0]
-            x_event = solution.y_events[0][0]
-
-        current_mode = mode_jump_bouncing(current_mode)
-        x_reset = reset_map_bouncing(t_event, x_event)
-        x0 = x_reset
-        
-        # Solve for the continuous trajectory before the contact 
-        t = np.linspace(t0, t_event, nt).flatten()
-        
-        # The solved trajecoty, in shape (nx+nx*nx, nt)
-        x_trj_i = solution.sol(t)      
-        
-        # ----------- Add the piece-wise trajectory
-        if len(x_trj) == 0:
-            x_trj = x_trj_i
-            tevents = np.array([t_event])
-            xevents = x_event
-            xresets = x_reset
-            t_ttl = t
-        else:
-            x_trj = np.concatenate([x_trj, x_trj_i], axis=1)
-            tevents = np.concatenate([tevents, np.array([t_event])], axis=0)
-            xevents = np.concatenate([xevents, x_event], axis=0)
-            xresets = np.concatenate([xresets, x_reset], axis=0)
-            t_ttl = np.concatenate([t_ttl, t]).flatten()
-        
-        t0 = t_event
-        tf = t0 + 5.0
-        
-        num_events += 1
-    
-    return t_ttl, x_trj, tevents, xevents, xresets, saltations
-
+    return simulation_2d(z0, vz0, t0, tf, nt, Modes, 
+                         guard_bouncing, reset_map_bouncing, mode_jump_bouncing, 
+                         Rx_bouncing, Rt_bouncing, gx_bouncing, gt_bouncing, linearize_bouncing, 
+                         n_events, return_saltation, Sig0, guard_direction=-1)
 
 ## A collection of 1D bouncing balls which are sampled from a Gaussian distribution
 #  N(m0, Sig0), m0=[z0, vz0]^T.
@@ -158,7 +58,7 @@ if __name__ == '__main__':
     t0 = 0.0
     tf = 5.0
     nt = 300
-    n_events = 2
+    n_events = 3
     Modes = [dyn_bouncing]
     
     fig1, axs = plt.subplots(2, 2)
@@ -183,7 +83,7 @@ if __name__ == '__main__':
         
     # -------------------------- Plot mean --------------------------
     ax1.plot(t_mean, x_mean[0,:].T, 'r')
-        
+                
     ax1.grid(True)
     ax1.set_xlabel(r'$t$')
     ax1.set_ylabel(r'$z$')
@@ -209,9 +109,6 @@ if __name__ == '__main__':
     # ======================= ax3: pre-contact samples =======================
     ## ------ find the earliest contact time -----
     tevent_min = np.min(np.array(tevent_collections), axis=0)
-    
-    print("tevent_min")
-    print(tevent_min)
     
     # ------ find the timestamp for other samples that is close to the earliest contact time ------    
     pre_contact_index = np.argmax(np.array(t_collections) > tevent_min[0], axis=1)

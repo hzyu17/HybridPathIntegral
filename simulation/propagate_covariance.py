@@ -60,7 +60,7 @@ def dxdX_solve_ivp(t, z, *args):
     x = z[:n]
     X = z[n:].reshape((n, n))
     
-    A = linearization(x)
+    A, B = linearization(x)
 
     # state dynamics
     dx_dt = dyn(t, x)

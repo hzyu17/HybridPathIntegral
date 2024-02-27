@@ -10,7 +10,7 @@ root_dir = os.path.abspath(os.path.join(current_dir, '..'))
 sys.path.append(root_dir)
 
 from dynamics.bouncing_ball_1D import *
-from tools.propagate_covariance import *
+from simulation.propagate_covariance import *
 
 
 if __name__ == '__main__':

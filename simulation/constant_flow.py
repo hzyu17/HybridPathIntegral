@@ -10,100 +10,19 @@ sys.path.append(root_dir)
 
 from tools.plot_ellipsoid import *
 from dynamics.constant_flow import *
+from simulation_2D import *
 
 
-def ode_constant_flow(x1, x2, t0, tf, n_events=None, return_saltation=False):
-    """Solving the ODE with hybrid events.
-
-    Args:
-        x1 (numpy array): Initial position
-        x2 (numpy array): Initial velocity
-        t0 (float): Initial time
-        tf (float): Terminal time
-        n_events (int): Number of events before stopping, 
-                        if set to None, then the simulation will continue until tf.
-        return_saltation (bool): If return the saltation matrices.
-
-    Returns:
-        t_ttl: The total time span.
-        x_trj: The whole trajectory including the hybrid events.
-        tevents: Time of the hybrid event happening.
-        xevents: States at the hybrid event.
-        xresets: States after the reset map, for each hybrid event.
-        saltations: Collection of saltation matrices at the hybrid events.
-    """
-    x_trj = []
-    tevents = []
-    xevents = []
-    xresets = []
-    saltations = []
-    mode_1 = True
-    guard.terminal=True
-    guard.direction=1
-    
-    x0 = np.array([x1, x2], dtype=np.float64)    
-    while (True):
-        t_span = (t0, tf)
-        t_eval = np.linspace(t0, tf, 1000)
-        
-        if mode_1:
-            solution = scipy.integrate.solve_ivp(dyn_f1, t_span, x0, method='RK45', 
-                                                t_eval=t_eval, dense_output=True, 
-                                                events=guard, vectorized=False, args=None)
-            t_event = solution.t_events[0][0]
-            x_event = solution.y_events[0][0]
-            
-            if return_saltation:
-                R_x = Rx(t_event, x_event)
-                R_t = Rt(t_event, x_event)
-                g_x = gx(t_event, x_event)
-                g_t = gt(t_event, x_event)
-                F_1 = dyn_f1(t_event, x_event)
-                F_2 = dyn_f2(t_event, x_event)
-                saltations.append(saltation_matrix(F_1, F_2, R_t, R_x, g_t, g_x))
-            
-            x_reset = reset_map(t_event, x_event)
-            
-            mode_1 = False
-            
-            t_i = np.linspace(t0, t_event, 1000).flatten()
-            x_trj_i = solution.sol(t_i)        
-               
-            x_trj = x_trj_i
-            tevents = np.array([t_event])
-            xevents = x_event
-            xresets = x_reset
-            
-            # reset the conditions for the solver
-            x0 = x_reset
-            t0 = t_event
-            tf = t0 + 10.0
-            
-            t_ttl = t_i
-        
-        ## Mode 2
-        else:
-            solution = scipy.integrate.solve_ivp(dyn_f2, t_span, x0, method='RK45', 
-                                                t_eval=t_eval, dense_output=True, 
-                                                events=guard, vectorized=False, args=None)
-            
-            t_i = np.linspace(t0, tf, 1000).flatten()
-            x_trj_i = solution.sol(t_i)        
-                    
-            x_trj = np.concatenate([x_trj, x_trj_i], axis=1)
-            t_ttl = np.concatenate([t_ttl, t_i]).flatten()
-            
-            break
-                    
-    # t_ttl = np.linspace(0.0, tf, x_trj.shape[1]).flatten()
-    
-    return t_ttl, x_trj, tevents, xevents, xresets, saltations
-
+def ode_constant_flow(z0, vz0, t0, tf, nt, Modes, n_events=None, return_saltation=False, Sig0=None):
+    return simulation_2d(z0, vz0, t0, tf, nt, Modes, 
+                         guard_ctflow, resetmap_ctflow, mode_jump_ctflow, 
+                         Rx_ctflow, Rt_ctflow, gx_ctflow, gt_ctflow, linearization_ctflow, 
+                         n_events, return_saltation, Sig0, guard_direction=1)
 
 ## A collection of 1D bouncing balls which are sampled from a Gaussian distribution
 #  N(m0, Sig0), m0=[x1, x2]^T.
 
-def constflow_samples(x1, x2, Sig0, t0, tf, n_samples, n_events=None):
+def constflow_samples(x1, x2, Sig0, t0, tf, nt, n_samples, Modes, n_events=None):
     """
     The bouncing ball solution for a set of sampled trajectories.
     """
@@ -118,8 +37,8 @@ def constflow_samples(x1, x2, Sig0, t0, tf, n_samples, n_events=None):
     
     for i_s in range(n_samples):
         x0 = m0 + scipy.linalg.sqrtm(Sig0)@np.random.randn(2)
-               
-        t_i, trj_i, tevents_i, xevents_i, xresets_i, _ = ode_constant_flow(x0[0], x0[1], t0, tf, n_events, False)
+        
+        t_i, trj_i, tevents_i, xevents_i, xresets_i, _ = ode_constant_flow(x0[0], x0[1], t0, tf, nt, Modes, n_events, return_saltation=False, Sig0=None)
         
         t_collections.append(t_i)
         trj_collections.append(trj_i)
@@ -137,19 +56,23 @@ if __name__ == '__main__':
     x2 = 0.0
     t0 = 0.0
     tf = 20.0
-        
-    # ========================== Plot collection movements ========================== 
-    t_mean, x_mean, t_event, x_event, x_reset, saltations = ode_constant_flow(x1, x2, t0, tf, n_events=None, return_saltation=True)
-    fig1, axs = plt.subplots(2, 2)
-    
-    ax1, ax2, ax3, ax4 = axs.flatten()
+    nt = 300
+    n_events = 1
     
     # -------------------------- Plot samples --------------------------
     sig0 = 0.1
     Sig0 = sig0*np.eye(2)
     
+    Modes = [dyn_f1, dyn_f2]
+        
+    # ========================== Plot collection movements ========================== 
+    t_mean, x_mean, t_event, x_event, x_reset, saltations = ode_constant_flow(x1, x2, t0, tf, nt, Modes, n_events=n_events, return_saltation=True, Sig0=Sig0)
+    fig1, axs = plt.subplots(2, 2)
+    
+    ax1, ax2, ax3, ax4 = axs.flatten()
+    
     n_samples = 500
-    t_collections, trj_collections, tevent_collections, xevent_collections, xreset_collections, initial_distribution = constflow_samples(x1, x2, Sig0, t0, tf, n_samples, n_events=None)
+    t_collections, trj_collections, tevent_collections, xevent_collections, xreset_collections, initial_distribution = constflow_samples(x1, x2, Sig0, t0, tf, nt, n_samples, Modes, n_events=n_events)
 
     for t_i, trj_i in zip(t_collections, trj_collections):
         ax1.plot(t_i, trj_i[0,:].T, '-.', alpha=0.1)

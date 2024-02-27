@@ -7,12 +7,19 @@ import numpy as np
 import jax
 from jax import jacfwd 
 
+e1 = 1.0
+e2 = 0.6
+g = 9.81
+m = 1.0
+
 def dyn_bouncing(t, x):
-    g = 9.81
     # k = 1.0
     # vz_norm = np.sqrt(x[1]*x[1])
     # return np.array([x[1], -g-k*vz_norm], dtype=np.float64)
     return np.array([x[1], -g], dtype=np.float64)
+
+def dyn_bouncing_controlled(t, x, u):
+    return np.array([x[1], u/m-g], dtype=np.float64)
 
 def guard_bouncing(t, x):
     return x[0]
@@ -48,8 +55,6 @@ def mode_jump_bouncing(current_mode):
 
 
 def Rx_bouncing(t, x):
-    e1 = 1.0
-    e2 = 0.6
     return np.array([[e1, 0.0],[0.0, -e2]], dtype=np.float64)
 
 def Rt_bouncing(t, x):
@@ -62,4 +67,13 @@ def gt_bouncing(t, x):
     return 0.0
 
 def linearize_bouncing(x):
-    return np.array([[0, 1.0], [0.0, 0.0]], dtype=np.float64)
+    """
+    Linearization.
+    Args:
+        x: state
+
+    Returns:
+        A, B: linear system matrices.
+    """
+    
+    return np.array([[0, 1.0], [0.0, 0.0]], dtype=np.float64), np.array([0, 1.0/m])

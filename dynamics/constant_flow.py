@@ -12,28 +12,31 @@ def dyn_f1(t, x):
 def dyn_f2(t, x):
     return np.array([1.0, 3.0], dtype=np.float64)
 
-def guard(t, x):
+def guard_ctflow(t, x):
     return x[0] - 5.0
-guard_jit = jax.jit(guard)
+guard_jit = jax.jit(guard_ctflow)
 
-def linearization(x):
+def linearization_ctflow(x):
     return np.zeros((2, 2), dtype=np.float64)
 
-def reset_map(t, x_minus):
+def resetmap_ctflow(t, x_minus):
     """
     Identity reset map.
     """
     return x_minus
-reset_map_jit = jax.jit(reset_map)
+reset_map_jit = jax.jit(resetmap_ctflow)
 
-def Rx(t, x):
+def Rx_ctflow(t, x):
     return jacfwd(reset_map_jit, argnums=(1))(t, x)
 
-def Rt(t, x):
+def Rt_ctflow(t, x):
     return jacfwd(reset_map_jit, argnums=(0))(t, x)
 
-def gt(t, x):
+def gt_ctflow(t, x):
     return jax.grad(guard_jit, argnums=0)(t, x)
 
-def gx(t, x):
+def gx_ctflow(t, x):
     return jax.grad(guard_jit, argnums=1)(t, x)
+
+def mode_jump_ctflow(current_mode):
+    return 1
