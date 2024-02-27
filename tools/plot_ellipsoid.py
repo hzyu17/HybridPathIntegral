@@ -34,7 +34,7 @@ def plot_2d_ellipsoid_boundary(mean, covariance, ax=None, color='blue'):
 
     # Plot the ellipsoid boundary
     ellipse_boundary = Ellipse(xy=mean, width=width, height=height,
-                               angle=angle, fill=False, edgecolor=color, linewidth=1.0)
+                               angle=angle, fill=False, edgecolor=color, linewidth=0.5)
 
     # Add the Ellipse boundary to the plot
     ax.add_patch(ellipse_boundary)

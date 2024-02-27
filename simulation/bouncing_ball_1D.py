@@ -82,12 +82,6 @@ def ode_bouncing_ball_1d(z0, vz0, t0, tf, nt, Modes, n_events=None, return_salta
             X_event = xX_event[2:6].reshape([2, 2])
             Sig0 = saltation @ X_event @ saltation.transpose()
             
-            print("X_event")
-            print(X_event)
-            
-            print("New Sig0")
-            print(Sig0)
-            
         else: # Do not compute saltation matrix and do not solve for covariance matrix
             # ---------- Solve ODE with hybrid event detection ---------- 
             solution = scipy.integrate.solve_ivp(dyn, t_span, x0, method='RK45', 
@@ -175,7 +169,7 @@ if __name__ == '__main__':
     Sig0 = sig0*np.eye(2)
     Sig0[1, 1] = 1.0
     
-    n_samples = 200
+    n_samples = 500
     t_collections, trj_collections, tevent_collections, xevent_collections, xreset_collections = bouncing_ball_1d_samples(z0, vz0, Sig0, t0, tf, nt, Modes, n_samples, n_events)
     
     # Solve for mean trajectory
@@ -204,7 +198,7 @@ if __name__ == '__main__':
     ax2.plot(x_mean[0,:].T, x_mean[1,:].T, 'r')
     
     # -------------------------- Plot covariance --------------------------   
-    for i in range(0, n_events*nt, 10):
+    for i in range(0, n_events*nt, 20):
         _, ax2 = plot_2d_ellipsoid_boundary(xX_mean[0:2,i], xX_mean[2:6,i].reshape([2,2]), ax2, 'k')
     
     ax2.grid(True)
@@ -233,8 +227,6 @@ if __name__ == '__main__':
     pre_contact_mean = xX_mean[0:2, pre_contact_index_mean]
     pre_contact_cov = xX_mean[2:6, pre_contact_index_mean].reshape([2,2])
     
-    print("pre_contact_cov")
-    print(pre_contact_cov)
     _, ax3 = plot_2d_ellipsoid_boundary(pre_contact_mean, pre_contact_cov, ax3, 'r')
     
     # plot the pre-contact time covariance in the covariance trajectory
