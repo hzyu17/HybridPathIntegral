@@ -17,7 +17,7 @@ def guard_ctflow(t, x):
 guard_jit = jax.jit(guard_ctflow)
 
 def linearization_ctflow(x):
-    return np.zeros((2, 2), dtype=np.float64)
+    return np.zeros((2, 2), dtype=np.float64), np.zeros(2)
 
 def resetmap_ctflow(t, x_minus):
     """
