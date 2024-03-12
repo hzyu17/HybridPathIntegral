@@ -1,8 +1,18 @@
 ## 1 dimensional bouncing ball dynamics
 # x = [z, \dot z]
+import os
+import sys
+file_path = os.path.abspath(__file__)
+current_dir = os.path.dirname(file_path)
+root_dir = os.path.abspath(os.path.join(current_dir, '..'))
+
+sys.path.append(root_dir)
 
 from saltation_matrix.samtation_matrix import *
 import numpy as np
+
+import sympy as sp
+from sympy.matrices import Matrix
 
 import jax
 from jax import jacfwd 
@@ -13,10 +23,28 @@ g = 9.81
 m = 1.0
 
 def dyn_bouncing(t, x):
-    # k = 1.0
-    # vz_norm = np.sqrt(x[1]*x[1])
-    # return np.array([x[1], -g-k*vz_norm], dtype=np.float64)
-    return np.array([x[1], -g], dtype=np.float64)
+    
+    # Define the symbolic variables
+    z, z_dot, u = sp.symbols('z z_dot u')
+    
+    # Defining the dynamics
+    dynamics = Matrix([x[1], -g])
+    dyn_func = sp.lambdify((z, z_dot), dynamics, 'numpy')
+    
+    return dyn_func(x[0], x[1]).flatten()
+
+
+def linearize_bouncing(x):
+    """
+    Linearization.
+    Args:
+        x: state
+
+    Returns:
+        A, B: linear system matrices.
+    """
+    
+    return np.array([[0, 1.0], [0.0, 0.0]], dtype=np.float64), np.array([0, 1.0/m])
 
 def dyn_bouncing_controlled(t, x, u):
     return np.array([x[1], u/m-g], dtype=np.float64)
@@ -66,14 +94,3 @@ def gx_bouncing(t, x):
 def gt_bouncing(t, x):
     return 0.0
 
-def linearize_bouncing(x):
-    """
-    Linearization.
-    Args:
-        x: state
-
-    Returns:
-        A, B: linear system matrices.
-    """
-    
-    return np.array([[0, 1.0], [0.0, 0.0]], dtype=np.float64), np.array([0, 1.0/m])
