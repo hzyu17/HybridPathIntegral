@@ -12,6 +12,9 @@ sys.path.append(root_dir)
 
 from dynamics.bouncing_ball_1D import *
 
+# plotting
+import matplotlib.pyplot as plt
+
 
 def dyn_bouncing(t, x, *args):
     """
@@ -50,6 +53,218 @@ def symbolic_dynamics_bouncing():
     B_disc_func = sp.lambdify((states,inputs,dt),B_disc)
     return (f_disc_func,A_disc_func,B_disc_func)
 
+
+def symbolic_dynamics_bouncing_stochastic():
+    g = 9.81
+    z,z_dot,u,dt,dW,epsilon = sp.symbols('z z_dot u dt dW epsilon')
+
+    # Define the states and inputs
+    inputs = Matrix([u])
+    states = Matrix([z, z_dot])
+    
+    # Defining the dynamics of the system
+    f = Matrix([z_dot, u-g])
+
+    # Discretize the dynamics usp.sing euler integration
+    f_disc = states+f*dt + sp.sqrt(epsilon)*dW
+    
+    # Take the jacobian with respect to states and inputs
+    A_disc = f_disc.jacobian(states)
+    B_disc = f_disc.jacobian(inputs)
+
+    f_disc_func = sp.lambdify((states,inputs,dt,epsilon,dW),f_disc)
+    A_disc_func = sp.lambdify((states,inputs,dt),A_disc)
+    B_disc_func = sp.lambdify((states,inputs,dt),B_disc)
+    return (f_disc_func,A_disc_func,B_disc_func)
+
+
+def rollout_bouncing_stochastic_feedback(x0, Kt, kt, t0, tf, epsilon):
+    nt, nu, nx = Kt.shape
+    
+    dt = (tf - t0) / (nt-1.0)
+    # Define the time span and discretizations
+    t_eval = np.linspace(t0, tf, nt)
+    
+    # Integration of the stochastic system
+    xt = x0
+    
+    # returning trajectory
+    xt_trj = np.zeros((nt, nx), dtype=np.float64)
+    xt_trj[0] = xt
+    
+    # guard_thres = 1e-4
+    dt_shrinkingrate = 0.5
+    dt_int = dt
+    
+    # Generate the randomness
+    GaussianNoise = np.random.randn(nt, nu)
+    for i in range(nt-1):
+        u = Kt[i]@xt + kt[i]
+        
+        args = (u, )
+        
+        # One step integration
+        t = t_eval[i]
+        
+        dW = np.sqrt(dt_int)*GaussianNoise[i]
+        
+        # ---- solver for the deterministic part
+        t_plus = t + dt_int
+        t_span = (t, t_plus)
+        t_eval = np.linspace(t, t_plus, nt)
+        
+        solution = scipy.integrate.solve_ivp(fun=lambda t, y: dyn_bouncing(t, y, *args), 
+                                            t_span=t_span, y0=xt, method='RK45', 
+                                            t_eval=t_eval, dense_output=True)
+        # Solve for the continuous trajectory before the contact 
+        t_sol = np.linspace(t, t_plus, nt).flatten()
+        
+        # The solved trajecoty, in shape (nx+nx*nx, nt)
+        f_disc = solution.sol(t_sol) 
+        x_next_det = f_disc[:, -1]
+        xt_next = x_next_det + np.sqrt(epsilon)*dW
+        
+        # /---- solver for the deterministic part
+        
+        # Guard condition: direction is -1     
+        if (guard_bouncing(t, xt)>0) and (guard_bouncing(t_plus, xt_next)<=0): # Hit the guard function.
+            xt_swch = xt_next
+            
+            # Sandwich rule to find finer grind 
+            cnt = 0
+            while (True):
+                cnt += 1
+                xt_last = xt_swch
+                
+                # Too far from the guard, shrink the step size.
+                dt_int = dt_int * dt_shrinkingrate
+                dW = np.sqrt(dt_int)*GaussianNoise[i]
+                               
+                # ---- solver for the deterministic part
+                t_plus = t + dt_int
+                t_span = (t, t_plus)
+                t_eval = np.linspace(t, t_plus, nt)
+                
+                solution = scipy.integrate.solve_ivp(fun=lambda t, y: dyn_bouncing(t, y, *args), 
+                                                    t_span=t_span, y0=xt, method='RK45', 
+                                                    t_eval=t_eval, dense_output=True)
+                # Solve for the continuous trajectory before the contact 
+                t_sol = np.linspace(t, t_plus, nt).flatten()
+                
+                # The solved trajecoty, in shape (nx+nx*nx, nt)
+                f_disc = solution.sol(t_sol) 
+                x_next_det = f_disc[:, -1]
+                xt_swch = x_next_det + np.sqrt(epsilon)*dW
+                # /---- solver for the deterministic part
+                
+                if (guard_bouncing(t, xt_swch)>0) or (cnt==10): # Until the guard condition is no longer met.
+                    # The reset map is called on the last integration for which the guard is not met.
+                    # print("xt ", xt)
+                    # print("xt_last ", xt_last)
+                    xt_next = reset_map_bouncing(t, xt_last)
+                    dt_int = dt
+                    break
+        xt = xt_next
+        xt_trj[i+1] = xt
+    
+    return xt_trj
+
+
+def rollout_bouncing_stochastic(x0, ut, t0, tf, epsilon):
+
+    nt, nu = ut.shape
+    nx = len(x0)
+    
+    dt = (tf - t0) / (nt-1.0)
+    # Define the time span and discretizations
+    t_eval = np.linspace(t0, tf, nt)
+    
+    # Integration of the stochastic system
+    xt = x0
+    
+    # returning trajectory
+    xt_trj = np.zeros((nt, nx), dtype=np.float64)
+    xt_trj[0] = xt
+    
+    # guard_thres = 1e-4
+    dt_shrinkingrate = 0.3
+    dt_int = dt
+    
+    # Generate the randomness
+    GaussianNoise = np.random.randn(nt, nu)
+    for i in range(nt-1):
+        u = ut[i]
+        u_next = ut[i+1]
+        args = (u, )
+        
+        # One step integration
+        t = t_eval[i]
+        t_next = t_eval[i+1]
+        
+        dW = np.sqrt(dt_int)*GaussianNoise[i]
+        
+        # ---- solver for the deterministic part
+        t_plus = t + dt_int
+        t_span = (t, t_plus)
+        t_eval = np.linspace(t, t_plus, nt)
+        
+        solution = scipy.integrate.solve_ivp(fun=lambda t, y: dyn_bouncing(t, y, *args), 
+                                            t_span=t_span, y0=xt, method='RK45', 
+                                            t_eval=t_eval, dense_output=True)
+        
+        # Solve for the continuous trajectory before the contact 
+        t_sol = np.linspace(t, t_plus, nt).flatten()
+        
+        # The solved trajecoty, in shape (nx+nx*nx, nt)
+        f_disc = solution.sol(t_sol) 
+        x_next_det = f_disc[:, -1]
+        
+        xt_next = x_next_det + np.sqrt(epsilon)*dW
+        # /---- solver for the deterministic part
+        
+        # Guard condition: direction is -1     
+        if (guard_bouncing(t, xt)>0) and (guard_bouncing(t_plus, xt_next)<=0): # Hit the guard function.
+            xt_swch = xt_next
+            
+            # Sandwich rule to find finer grind 
+            cnt = 0
+            while (True):
+                cnt += 1
+                xt_last = xt_swch
+                
+                # Too far from the guard, shrink the step size.
+                dt_int = dt_int * dt_shrinkingrate
+                dW = np.sqrt(dt_int)*GaussianNoise[i]
+                
+                # ---- solver for the deterministic part
+                t_span = (t, t_next)
+                t_eval = np.linspace(t, t_next, nt)
+                
+                solution = scipy.integrate.solve_ivp(fun=lambda t, y: dyn_bouncing(t, y, *args), 
+                                                    t_span=t_span, y0=xt, method='RK45', 
+                                                    t_eval=t_eval, dense_output=True)
+                # Solve for the continuous trajectory before the contact 
+                t_sol = np.linspace(t, t_next, nt).flatten()
+                
+                # The solved trajecoty, in shape (nx+nx*nx, nt)
+                f_disc = solution.sol(t_sol) 
+                x_next_det = f_disc[:, -1]
+                
+                xt_swch = x_next_det + np.sqrt(epsilon)*dW
+                # /---- solver for the deterministic part
+                
+                if (guard_bouncing(t, xt_swch)>0) or (cnt==10): # Until the guard condition is no longer met.
+                    # The reset map is called on the last integration for which the guard is not met.
+                    # print("xt ", xt)
+                    # print("xt_last ", xt_last)
+                    xt_next = reset_map_bouncing(t, xt_last)
+                    dt_int = dt
+                    break
+        xt = xt_next
+        xt_trj[i+1] = xt
+    
+    return xt_trj
+    
     
 def detect_bouncing(x0, u, t0, tf):
     # Define the dynamics using the integration
@@ -124,3 +339,19 @@ if __name__ == '__main__':
     
     print(x_next.shape)
     print(saltation)
+    
+    # stochastic rollouts
+    nt = 1000
+    nu = 1
+    ut = np.zeros((nt, nu), dtype=np.float64)
+    epsilon = 0.1
+    t0 = 0.0
+    tf = 3.0
+    t_eval = np.linspace(t0, tf, nt)
+    x0 = np.array([5.0, 1.0])
+    xt_trj = rollout_bouncing_stochastic(x0, ut, t0, tf, epsilon)
+    
+    fig, ax = plt.subplots()
+    ax.grid(True)
+    ax.plot(t_eval, xt_trj[:, 0], 'k')
+    plt.show()

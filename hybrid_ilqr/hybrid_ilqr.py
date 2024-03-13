@@ -184,7 +184,7 @@ class hybrid_ilqr:
             # Update the current state
             current_state = next_state
             
-        return (states,inputs,saltations)
+        return (states,inputs,current_feedback,current_feedforward,saltations)
     
     def solve(self):
         # ------ collect the iteration data ------
@@ -203,7 +203,17 @@ class hybrid_ilqr:
             print('Starting iteration: ',ii,', Current cost: ',current_cost)
             # Compute the backwards pass
             (k_feedforward,K_feedback,expected_reduction) = self.backwards_pass()
-            print('Expected cost reduction: ',expected_reduction)
+            
+            # # ----- without line search
+            # learning_rate = 1
+            # (new_states,new_inputs,new_saltations)=self.forwards_pass(learning_rate)
+            # self.states_ = new_states
+            # self.inputs_ = new_inputs
+            # self.saltations_ = new_saltations
+            
+            # # ----- / without line search
+            
+            # print('Expected cost reduction: ',expected_reduction)
             if(abs(expected_reduction)<low_expected_reduction):
                 # If the expected reduction is low, then end the
                 # optimization
@@ -216,7 +226,7 @@ class hybrid_ilqr:
             # armijo condition
             while(learning_rate > 0.05 and armijo_flag == 0):
                 # Compute forward pass
-                (new_states,new_inputs,new_saltations)=self.forwards_pass(learning_rate)
+                (new_states,new_inputs,new_feedback,new_feedforward,new_saltations)=self.forwards_pass(learning_rate)
                 new_cost = self.compute_cost(new_states, new_inputs)
 
                 # Calculate armijo condition
