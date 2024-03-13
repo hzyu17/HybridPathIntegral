@@ -53,14 +53,17 @@ def guard_bouncing(t, x):
     return x[0]
 guard_bouncing_jit = jax.jit(guard_bouncing)
 
+
 def reset_map_bouncing(t, x_minus):
     e1 = 1.0
     e2 = 0.6
-    coeff = np.array([[e1, 0], [0, -e2]])
-    x_plus = coeff@x_minus
-    
-    # x_plus.at[0].set(e1*x_minus[0])
-    # x_plus.at[1].set(-e2*x_minus[1]) 
+
+    if (x_minus[1] < 0):
+        coeff = np.array([[e1, 0], [0, -e2]])
+        x_plus = coeff@x_minus
+    else: # integration error
+        x_plus = x_minus
+
     return x_plus
 resetmap_bouncing_jit = jax.jit(reset_map_bouncing)
 

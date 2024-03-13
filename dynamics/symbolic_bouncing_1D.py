@@ -78,6 +78,27 @@ def symbolic_dynamics_bouncing_stochastic():
     return (f_disc_func,A_disc_func,B_disc_func)
 
 
+def stochastic_integration(x0, u, t_span, t_eval, epsilon, dW, nt):
+    args = (u, )
+    
+    solution = scipy.integrate.solve_ivp(fun=lambda t, y: dyn_bouncing(t, y, *args), 
+                                        t_span=t_span, y0=x0, method='RK45', 
+                                        t_eval=t_eval, dense_output=True)
+    
+    t0, tf = t_span[0], t_span[-1]
+    
+    # Solve for the continuous trajectory before the contact 
+    t_sol = np.linspace(t0, tf, nt).flatten()
+    
+    # The solved trajecoty, in shape (nx+nx*nx, nt)
+    f_disc = solution.sol(t_sol) 
+    x_next_det = f_disc[:, -1]
+    
+    xt_next = x_next_det + np.sqrt(epsilon)*dW
+    # /---- solver for the deterministic part
+    
+    return xt_next
+
 def rollout_bouncing_stochastic_feedback(x0, Kt, kt, t0, tf, epsilon):
     nt, nu, nx = Kt.shape
     
@@ -113,16 +134,18 @@ def rollout_bouncing_stochastic_feedback(x0, Kt, kt, t0, tf, epsilon):
         t_span = (t, t_plus)
         t_eval = np.linspace(t, t_plus, nt)
         
-        solution = scipy.integrate.solve_ivp(fun=lambda t, y: dyn_bouncing(t, y, *args), 
-                                            t_span=t_span, y0=xt, method='RK45', 
-                                            t_eval=t_eval, dense_output=True)
-        # Solve for the continuous trajectory before the contact 
-        t_sol = np.linspace(t, t_plus, nt).flatten()
+        xt_next = stochastic_integration(xt, u, t_span, t_eval, epsilon, dW, nt)
         
-        # The solved trajecoty, in shape (nx+nx*nx, nt)
-        f_disc = solution.sol(t_sol) 
-        x_next_det = f_disc[:, -1]
-        xt_next = x_next_det + np.sqrt(epsilon)*dW
+        # solution = scipy.integrate.solve_ivp(fun=lambda t, y: dyn_bouncing(t, y, *args), 
+        #                                     t_span=t_span, y0=xt, method='RK45', 
+        #                                     t_eval=t_eval, dense_output=True)
+        # # Solve for the continuous trajectory before the contact 
+        # t_sol = np.linspace(t, t_plus, nt).flatten()
+        
+        # # The solved trajecoty, in shape (nx+nx*nx, nt)
+        # f_disc = solution.sol(t_sol) 
+        # x_next_det = f_disc[:, -1]
+        # xt_next = x_next_det + np.sqrt(epsilon)*dW
         
         # /---- solver for the deterministic part
         
@@ -145,16 +168,18 @@ def rollout_bouncing_stochastic_feedback(x0, Kt, kt, t0, tf, epsilon):
                 t_span = (t, t_plus)
                 t_eval = np.linspace(t, t_plus, nt)
                 
-                solution = scipy.integrate.solve_ivp(fun=lambda t, y: dyn_bouncing(t, y, *args), 
-                                                    t_span=t_span, y0=xt, method='RK45', 
-                                                    t_eval=t_eval, dense_output=True)
-                # Solve for the continuous trajectory before the contact 
-                t_sol = np.linspace(t, t_plus, nt).flatten()
+                xt_swch = stochastic_integration(xt, u, t_span, t_eval, epsilon, dW, nt)
                 
-                # The solved trajecoty, in shape (nx+nx*nx, nt)
-                f_disc = solution.sol(t_sol) 
-                x_next_det = f_disc[:, -1]
-                xt_swch = x_next_det + np.sqrt(epsilon)*dW
+                # solution = scipy.integrate.solve_ivp(fun=lambda t, y: dyn_bouncing(t, y, *args), 
+                #                                     t_span=t_span, y0=xt, method='RK45', 
+                #                                     t_eval=t_eval, dense_output=True)
+                # # Solve for the continuous trajectory before the contact 
+                # t_sol = np.linspace(t, t_plus, nt).flatten()
+                
+                # # The solved trajecoty, in shape (nx+nx*nx, nt)
+                # f_disc = solution.sol(t_sol) 
+                # x_next_det = f_disc[:, -1]
+                # xt_swch = x_next_det + np.sqrt(epsilon)*dW
                 # /---- solver for the deterministic part
                 
                 if (guard_bouncing(t, xt_swch)>0) or (cnt==10): # Until the guard condition is no longer met.
@@ -170,7 +195,7 @@ def rollout_bouncing_stochastic_feedback(x0, Kt, kt, t0, tf, epsilon):
     return xt_trj
 
 
-def rollout_bouncing_stochastic(x0, ut, t0, tf, epsilon):
+def rollout_bouncing_stochastic(x0, ut, t0, tf, epsilon, GaussianNoise):
 
     nt, nu = ut.shape
     nx = len(x0)
@@ -190,8 +215,6 @@ def rollout_bouncing_stochastic(x0, ut, t0, tf, epsilon):
     dt_shrinkingrate = 0.3
     dt_int = dt
     
-    # Generate the randomness
-    GaussianNoise = np.random.randn(nt, nu)
     for i in range(nt-1):
         u = ut[i]
         u_next = ut[i+1]
@@ -202,24 +225,12 @@ def rollout_bouncing_stochastic(x0, ut, t0, tf, epsilon):
         t_next = t_eval[i+1]
         
         dW = np.sqrt(dt_int)*GaussianNoise[i]
-        
         # ---- solver for the deterministic part
         t_plus = t + dt_int
         t_span = (t, t_plus)
         t_eval = np.linspace(t, t_plus, nt)
         
-        solution = scipy.integrate.solve_ivp(fun=lambda t, y: dyn_bouncing(t, y, *args), 
-                                            t_span=t_span, y0=xt, method='RK45', 
-                                            t_eval=t_eval, dense_output=True)
-        
-        # Solve for the continuous trajectory before the contact 
-        t_sol = np.linspace(t, t_plus, nt).flatten()
-        
-        # The solved trajecoty, in shape (nx+nx*nx, nt)
-        f_disc = solution.sol(t_sol) 
-        x_next_det = f_disc[:, -1]
-        
-        xt_next = x_next_det + np.sqrt(epsilon)*dW
+        xt_next = stochastic_integration(xt, u, t_span, t_eval, epsilon, dW, nt)
         # /---- solver for the deterministic part
         
         # Guard condition: direction is -1     
@@ -240,17 +251,19 @@ def rollout_bouncing_stochastic(x0, ut, t0, tf, epsilon):
                 t_span = (t, t_next)
                 t_eval = np.linspace(t, t_next, nt)
                 
-                solution = scipy.integrate.solve_ivp(fun=lambda t, y: dyn_bouncing(t, y, *args), 
-                                                    t_span=t_span, y0=xt, method='RK45', 
-                                                    t_eval=t_eval, dense_output=True)
-                # Solve for the continuous trajectory before the contact 
-                t_sol = np.linspace(t, t_next, nt).flatten()
+                xt_swch = stochastic_integration(xt, u, t_span, t_eval, epsilon, dW, nt)
                 
-                # The solved trajecoty, in shape (nx+nx*nx, nt)
-                f_disc = solution.sol(t_sol) 
-                x_next_det = f_disc[:, -1]
+                # solution = scipy.integrate.solve_ivp(fun=lambda t, y: dyn_bouncing(t, y, *args), 
+                #                                     t_span=t_span, y0=xt, method='RK45', 
+                #                                     t_eval=t_eval, dense_output=True)
+                # # Solve for the continuous trajectory before the contact 
+                # t_sol = np.linspace(t, t_next, nt).flatten()
                 
-                xt_swch = x_next_det + np.sqrt(epsilon)*dW
+                # # The solved trajecoty, in shape (nx+nx*nx, nt)
+                # f_disc = solution.sol(t_sol) 
+                # x_next_det = f_disc[:, -1]
+                
+                # xt_swch = x_next_det + np.sqrt(epsilon)*dW
                 # /---- solver for the deterministic part
                 
                 if (guard_bouncing(t, xt_swch)>0) or (cnt==10): # Until the guard condition is no longer met.
@@ -353,5 +366,5 @@ if __name__ == '__main__':
     
     fig, ax = plt.subplots()
     ax.grid(True)
-    ax.plot(t_eval, xt_trj[:, 0], 'k')
+    ax.scatter(t_eval, xt_trj[:, 0], color='k', s=0.8)
     plt.show()

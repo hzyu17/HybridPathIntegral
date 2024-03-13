@@ -64,8 +64,7 @@ states[0] = init_state
 Q_k = 0.1*Q_T
 
 def compute_cost(states,inputs,target_state,trj_ref, Qk, Rk, QT):
-    
-    nt, _ = states.shape
+    nt, _ = trj_ref.shape
     # Initialize cost
     total_cost = 0.0
     for ii in range(nt):
@@ -92,7 +91,7 @@ def process_sampling(sample_i, init_state, inputs, start_time, end_time, epsilon
     return sample_i, i
 
 # Compute path costs function
-def process_compute_costs(sample_i, inputs, target_state, ref_states, i, Q_k, R_k, Q_T):
+def process_compute_costs(sample_i, inputs, target_state, ref_states, i):
     print("Computing costs: ", i)
     costs_i = compute_cost(sample_i, inputs, target_state, ref_states, Q_k, R_k, Q_T)
     return costs_i, i
@@ -103,36 +102,58 @@ nt = len(time_span)
 n_samples = 200
 epsilon = 0.2
 
-# The reference state trajectory and proposal control
+# Actual trajectory
 xt = init_state
-x_ref_i = states
-target_state_i = target_state
-start_time_i = start_time
-end_time_i = end_time
+xt_trj = np.zeros((nt, n_states))
+xt_trj[0] = xt
 
-# sampling stochastic rollouts
-sampled_trjs = np.zeros((n_samples, nt, n_states))
-PathCosts = np.zeros(n_samples, dtype=np.float64)
+inputs_i = inputs[0: 0+H_size]
+    
+for i_iter in range(nt-H_size):
+    # The reference state trajectory and proposal control
+    
+    x_ref_i = states[i_iter: i_iter+H_size]
+    target_state_i = states[i_iter+H_size]
+    start_time_i = 0.0
+    end_time_i = time_span[i_iter+H_size] - time_span[i_iter]
+    
+    # sampling stochastic rollouts
+    sampled_trjs = np.zeros((n_samples, H_size, n_states))
+    PathCosts_i = np.zeros(n_samples, dtype=np.float64)
 
-# Generate the randomness
-GaussianNoise = np.random.randn(n_samples, nt, n_inputs)
+    # Generate the randomness
+    GaussianNoise = np.random.randn(n_samples, H_size, n_inputs)
 
-# ------------- ilqr --------------
-samples_index = Parallel(n_jobs=-1)(delayed(process_sampling)(sampled_trjs[i,:,:], xt, inputs, start_time_i, end_time_i, epsilon, GaussianNoise, i) for i in range(sampled_trjs.shape[0]))
+    # ------------- ilqr --------------
+    samples_index = Parallel(n_jobs=-1)(delayed(process_sampling)(sampled_trjs[i,:,:], xt, inputs_i, start_time_i, end_time_i, epsilon, GaussianNoise, i) for i in range(sampled_trjs.shape[0]))
 
-for sample_i, index in samples_index:
-    sampled_trjs[index] = sample_i
+    for sample_i, index in samples_index:
+        sampled_trjs[index] = sample_i
 
-costs_index = Parallel(n_jobs=-1)(delayed(process_compute_costs)(sampled_trjs[i,:,:], inputs, target_state_i, x_ref_i, i, Q_k, R_k, Q_T) for i in range(sampled_trjs.shape[0]))
-for cost_i, index in costs_index:
-    PathCosts[index] = cost_i
+    costs_index = Parallel(n_jobs=-1)(delayed(process_compute_costs)(sampled_trjs[i], inputs_i, target_state_i, x_ref_i, i) for i in range(sampled_trjs.shape[0]))
+    for cost_i, index in costs_index:
+        PathCosts_i[index] = cost_i
 
-# ------------- E{cost_ilqr} -------------
-cost_ilqr = np.mean(PathCosts)
+    # ------------- E{cost_ilqr} -------------
+    cost_ilqr = np.mean(PathCosts_i)
 
-# update the control proposal using path integral 
-u_star = update_control_pathintegral(inputs, PathCosts, epsilon, dt)
-
+    # update the control proposal using path integral 
+    u_star = update_control_pathintegral(inputs_i, PathCosts_i, epsilon, dt)
+    
+    # Send the first control to actuator
+    RndN_actual = np.random.randn(nu)
+    dW_actual = np.sqrt(dt)*RndN_actual
+    
+    t_span = (start_time_i, end_time_i)
+    t_eval = np.linspace(start_time_i, end_time_i, nt)
+    
+    xt = stochastic_integration(x0, u_star, t_span, t_eval, epsilon, dW_actual, nt)
+    xt_trj[i_iter+1] = xt
+    
+    # Update the proposal control
+    inputs_i[0:-1] = u_star[1:]
+    inputs_i[-1] = np.zeros(nu)
+    
 
 # # # ================== compare the cost: path integral V.S. ilqr proposal ==================
 # sampled_trjs_PI = np.zeros((n_samples, nt, n_states))
@@ -226,50 +247,50 @@ ax2.set_title("Bouncing Ball Vertical Velocity")
 ax2.legend()
 
 
-# # =========== samples for path integral control ===========
-# # ----------- plot the stochastic sampled trajectory -----------
-# n_samples_plotted = 100
-# plot_step = n_samples // n_samples_plotted
-# for i_s in range(0, n_samples, plot_step):
-#     ax3.plot(time_span, sampled_trjs_PI[i_s, :, 0], 'r', alpha=0.1)
-# ax3.plot(time_span, sampled_trjs_PI[-1, :, 0], 'r', alpha=0.1, label='Samples')
+# =========== samples for path integral control ===========
+# ----------- plot the stochastic sampled trajectory -----------
+n_samples_plotted = 100
+plot_step = n_samples // n_samples_plotted
+for i_s in range(0, n_samples, plot_step):
+    ax3.plot(time_span, sampled_trjs_PI[i_s, :, 0], 'r', alpha=0.1)
+ax3.plot(time_span, sampled_trjs_PI[-1, :, 0], 'r', alpha=0.1, label='Samples')
 
-# # ----------- plot the path integral controlled trajectory -----------
-# ax3.plot(time_span, trj_pi[:, 0], 'r', label='Path Integral')
+# ----------- plot the path integral controlled trajectory -----------
+ax3.plot(time_span, trj_pi[:, 0], 'r', label='Path Integral')
 
-# # ----------- Plot the last iteration of iLQR controller ----------
-# states = states_iter[-1]
-# ax3.plot(time_span, states[:-1,0],'k',label='iLQR')
-# ax3.set_xlabel(r"Time")
-# ax3.set_ylabel(r"$z$")
-# ax3.set_title("Bouncing Ball Vertical Position")
+# ----------- Plot the last iteration of iLQR controller ----------
+states = states_iter[-1]
+ax3.plot(time_span, states[:-1,0],'k',label='iLQR')
+ax3.set_xlabel(r"Time")
+ax3.set_ylabel(r"$z$")
+ax3.set_title("Bouncing Ball Vertical Position")
 
-# # ----------- Plot the start and goal states -----------
-# ax3.scatter(time_span[-1], target_state[0], color='g', marker='x', s=50.0, linewidths=6, label='Target')
-# ax3.scatter(time_span[0], init_state[0], color='r', marker='x', s=50.0, linewidths=6, label='Start')
+# ----------- Plot the start and goal states -----------
+ax3.scatter(time_span[-1], target_state[0], color='g', marker='x', s=50.0, linewidths=6, label='Target')
+ax3.scatter(time_span[0], init_state[0], color='r', marker='x', s=50.0, linewidths=6, label='Start')
 
-# ax3.legend()
+ax3.legend()
 
-# # ----------- plot the stochastic sampled trajectory -----------
-# for i_s in range(0, n_samples, plot_step):
-#     ax4.plot(time_span, sampled_trjs_PI[i_s, :, 1], 'b', alpha=0.15)
-# ax4.plot(time_span, sampled_trjs_PI[-1, :, 1], 'b', alpha=0.15, label='Samples')
+# ----------- plot the stochastic sampled trajectory -----------
+for i_s in range(0, n_samples, plot_step):
+    ax4.plot(time_span, sampled_trjs_PI[i_s, :, 1], 'b', alpha=0.15)
+ax4.plot(time_span, sampled_trjs_PI[-1, :, 1], 'b', alpha=0.15, label='Samples')
 
-# # ----------- plot the path integral controlled trajectory -----------
-# ax4.plot(time_span, trj_pi[:, 1], 'r', label='Path Integral')
+# ----------- plot the path integral controlled trajectory -----------
+ax4.plot(time_span, trj_pi[:, 1], 'r', label='Path Integral')
 
-# # ----------- Plot the last iteration of iLQR controller ----------
-# ax4.plot(time_span, states[:-1,1],'k',label='iLQR')
+# ----------- Plot the last iteration of iLQR controller ----------
+ax4.plot(time_span, states[:-1,1],'k',label='iLQR')
 
-# # ----------- Plot the start and goal states -----------
-# ax4.scatter(time_span[-1], target_state[1], color='g', marker='x', s=50.0, linewidths=6, label='Target')
-# ax4.scatter(time_span[0], init_state[1], color='r', marker='x', s=50.0, linewidths=6, label='Start')
+# ----------- Plot the start and goal states -----------
+ax4.scatter(time_span[-1], target_state[1], color='g', marker='x', s=50.0, linewidths=6, label='Target')
+ax4.scatter(time_span[0], init_state[1], color='r', marker='x', s=50.0, linewidths=6, label='Start')
 
-# ax4.set_xlabel(r"Time")
-# ax4.set_ylabel(r"$\dot z$")
-# ax4.set_title("Bouncing Ball Vertical Velocity")
+ax4.set_xlabel(r"Time")
+ax4.set_ylabel(r"$\dot z$")
+ax4.set_title("Bouncing Ball Vertical Velocity")
 
-# ax4.legend()
+ax4.legend()
 
 # =========== Plot the z-\dot_z figure ===========
 fig2, (ax5, ax6) = plt.subplots(1, 2)
@@ -294,10 +315,10 @@ ax5.scatter(init_state[0], init_state[1], color='r', marker='x', s=50.0, linewid
 ax5.legend()
 
 # =========== Plot the z-\dot_z figure: PI controller ===========
-# # ----------- plot the stochastic sampled trajectory -----------
-# for i_s in range(0, n_samples, plot_step):
-#     ax6.plot(sampled_trjs_PI[i_s, :, 0], sampled_trjs_PI[i_s, :, 1], 'b', alpha=0.1)
-# ax6.plot(sampled_trjs_PI[-1, :, 0], sampled_trjs_PI[i_s, :, 1], 'b', alpha=0.1, label='Samples')
+# ----------- plot the stochastic sampled trajectory -----------
+for i_s in range(0, n_samples, plot_step):
+    ax6.plot(sampled_trjs_PI[i_s, :, 0], sampled_trjs_PI[i_s, :, 1], 'b', alpha=0.1)
+ax6.plot(sampled_trjs_PI[-1, :, 0], sampled_trjs_PI[i_s, :, 1], 'b', alpha=0.1, label='Samples')
 
 # ----------- Plot the last iteration of iLQR controller ----------
 ax6.plot(states[:-1,0], states[:-1,1],'k',label='iLQR')
