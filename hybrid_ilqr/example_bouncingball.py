@@ -3,6 +3,7 @@ import numpy as np
 import os
 import sys
 file_path = os.path.abspath(__file__)
+script_filename = os.path.splitext(os.path.basename(file_path))[0]
 current_dir = os.path.dirname(file_path)
 root_dir = os.path.abspath(os.path.join(current_dir, '..'))
 sys.path.append(root_dir)
@@ -19,11 +20,54 @@ import matplotlib.pyplot as plt
 # for paralle sampling on cpu
 from joblib import Parallel, delayed
 
+import numba
+
+import pickle as pkl
+
+class DataOneSample():
+    def __init__(self, x_trj_pi, u_trj_pi, x_trj_ilqr, u_trj_ilqr):
+        self._x_trj_pi = x_trj_pi
+        self._u_trj_pi = u_trj_pi
+        self._x_trj_ilqr = x_trj_ilqr
+        self._u_trj_ilqr = u_trj_ilqr
+        
+class ExpParams():
+    def __init__(self, init_state, target_state, start_time, end_time, dt, dt_pathintegral, epsilon, n_samples, Q_k, R_k, Q_T):
+        self._init_state = init_state
+        self._target_state = target_state
+        self._start_time = start_time
+        self._end_time = end_time
+        self._dt = dt
+        self._dt_pathintegral = dt_pathintegral
+        self._epsilon = epsilon
+        self._n_samples = n_samples
+        self._Q_k = Q_k
+        self._R_k = R_k
+        self._Q_T = Q_T
+
+class ExpData():
+    def __init__(self, params):
+        self._data = {}
+        self._data['params'] = params
+    
+    def add_data(self, iter, iter_data):
+        self._data[str(iter)] = iter_data
+        
+    def dump(self, file_name):
+        with open(file_name, 'wb') as f:
+            pkl.dump(self._data, f, pkl.HIGHEST_PROTOCOL)
+            
+    def load(self, file_name):
+        with open(file_name, 'rb') as f:
+            self._data = pkl.load(f)
+
 # Import dynamics
 (f,A,B) = symbolic_dynamics_bouncing()
 
 # Initialize timings
 dt = 0.05
+# dt_pathintegral = dt / 50.0
+dt_pathintegral = dt / 500.0
 start_time = 0
 end_time = 2.0
 time_span = np.arange(start_time, end_time, dt).flatten()
@@ -59,7 +103,18 @@ ilqr_ = hybrid_ilqr(init_state,target_state,initial_guess,dt,start_time,end_time
 # Define the cost
 # Q_k = 0.1*Q_T
 
+@njit(float64(
+    float64[:,:], float64[:,:], float64[:], float64[:,:], float64[:,:], float64[:,:], float64[:,:]), parallel=True)
 def compute_cost(states,inputs,target_state,trj_ref, Qk, Rk, QT):
+    
+    states = np.ascontiguousarray(states)
+    trj_ref = np.ascontiguousarray(trj_ref)
+    target_state = np.ascontiguousarray(target_state)
+    inputs = np.ascontiguousarray(inputs)
+    Qk = np.ascontiguousarray(Qk)
+    Rk = np.ascontiguousarray(Rk)
+    QT = np.ascontiguousarray(QT)
+    
     # Initialize cost
     total_cost = 0.0
     for ii in range(states.shape[0]):
@@ -91,13 +146,15 @@ def process_sampling_feedback(sample_i, init_state, xt_ref, ut, K_feedback, k_fe
     return sample_i, ut_cl_i, i
 
 # Compute path costs function
+@njit(numba.types.Tuple((float64, int32))(
+    float64[:,:], float64[:,:], float64[:], float64[:,:], int32, float64[:,:], float64[:,:], float64[:,:]))
 def process_compute_costs(sample_i, inputs, target_state, ref_states, i, Q_k, R_k, Q_T):
     # print("Computing costs: ", i)
     costs_i = compute_cost(sample_i, inputs, target_state, ref_states, Q_k, R_k, Q_T)
     return costs_i, i
 
 # === Do N experiments and compare the expected costs ===
-n_exp = 10
+n_exp = 200
 cost_pi_exp = np.zeros(n_exp)
 cost_ilqr_exp = np.zeros(n_exp)
 
@@ -108,10 +165,13 @@ u_trj_ilqr_exp = []
 
 # Horizon
 nt = len(time_span)
-n_samples = 500
+n_samples = 2000
 epsilon = 0.5
 
-for i_exp in range(n_exp):
+exp_params = ExpParams(init_state, target_state, start_time, end_time, dt, dt_pathintegral, epsilon, n_samples, Q_k, R_k, Q_T)
+exp_data = ExpData(exp_params)
+
+for i_exp in prange(n_exp):
 
     # The reference state trajectory and proposal control
     xt = init_state
@@ -133,13 +193,6 @@ for i_exp in range(n_exp):
         
         time_span_i = np.arange(start_time_i, end_time_i, dt).flatten()
         nt_i = nt - i + 1
-        
-        # # Initialize hybrid ilqr object
-        # ilqr_ = hybrid_ilqr(init_state_i,target_state,initial_guess,dt,start_time_i,end_time_i,detect_bouncing,f,A,B,Q_k,R_k,Q_T,parameters,n_iterations)
-
-        # # Solve
-        # (states_i,inputs_i,k_feedforward_i,K_feedback_i,current_cost,states_iter) = ilqr_.solve()
-        # states_i[0] = init_state_i
         
         states_i = states[i:,:]
         inputs_i = inputs[i:,:]
@@ -166,7 +219,7 @@ for i_exp in range(n_exp):
             PathCosts[index] = cost_i
         
         # update the control proposal using path integral 
-        u0_star = update_u0_pathintegral(sampled_controls[0, 0, :], PathCosts, epsilon, 1e-4)
+        u0_star = update_u0_pathintegral(sampled_controls[0, 0, :], PathCosts, epsilon, dt_pathintegral)
         u_star_pi[i] = u0_star
         
         # go to the next state
@@ -184,20 +237,14 @@ for i_exp in range(n_exp):
         trj_ilqr[i+1] = xt_ilqr
         u_trj_ilqr[i] = sampled_controls[0, 0]
         
-        # ------------- Re-initiate the conditions for the i-LQR controller -------------
-        start_time_i = start_time_i + dt
-        # Update initial guess 
-        initial_guess = inputs_i
-        # initial_guess[0] = u0_star
-
+        
     # Compare cost
     cost_pi = compute_cost(trj_pi, u_star_pi, target_state, states, Q_k, R_k, Q_T)
     cost_ilqr = compute_cost(trj_ilqr, u_trj_ilqr, target_state, states, Q_k, R_k, Q_T)
     
-    x_trj_pi_exp.append(trj_pi)
-    u_trj_pi_exp.append(u_star_pi)
-    x_trj_ilqr_exp.append(trj_ilqr)
-    u_trj_ilqr_exp.append(u_trj_ilqr)
+    # ---- Record data ----
+    data_i = DataOneSample(trj_pi, u_star_pi, trj_ilqr, u_trj_ilqr)
+    exp_data.add_data(i_exp, data_i)
 
     print("cost_pi:", cost_pi)
     print("cost_ilqr:", cost_ilqr)
@@ -208,40 +255,19 @@ for i_exp in range(n_exp):
 print("E[cost_pi]: ", np.mean(cost_pi_exp))
 print("E[cost_ilqr_exp]: ", np.mean(cost_ilqr_exp))
 
-# # # ================== compare the cost: path integral V.S. ilqr proposal ==================
-# sampled_trjs_PI = np.zeros((n_samples, nt, n_states))
-# PathCosts_PI = np.zeros(n_samples, dtype=np.float64)
+# =========== save data ===========
+from datetime import datetime
+current_datetime = datetime.now()
+formatted_datetime = current_datetime.strftime("%Y-%m-%d_%H-%M-%S")
+filename = f"data_{formatted_datetime}_{script_filename}.pickle"
+exp_data.dump(f"{root_dir}/data/bouncing/{filename}")
 
-# # ------------- sampling PI controller -------------
-# GaussianNoise_PI = np.random.randn(n_samples, nt, n_inputs)
-# samples_index_PI = Parallel(n_jobs=-1)(delayed(process_sampling)(sampled_trjs_PI[i,:,:], u_star, GaussianNoise_PI, i) for i in range(sampled_trjs_PI.shape[0]))
+# plotting
 
-# for sample_i, index in samples_index_PI:
-#     sampled_trjs_PI[index] = sample_i
-    
-# # ------------- E{cost_pi} -------------
-# costs_index_PI = Parallel(n_jobs=-1)(delayed(process_compute_costs)(sampled_trjs_PI[i], u_star, i) for i in range(sampled_trjs_PI.shape[0]))
-# for cost_i, index in costs_index_PI:
-#     PathCosts_PI[index] = cost_i
-    
-# cost_pi = np.mean(PathCosts_PI)
-
-# print("Cost iLQR: ", cost_ilqr)
-# print("Cost Path Integral Controller: ", cost_pi)
-
-# # # actual trajectory using the path integral control
-# GaussianNoise_new = np.random.randn(nt, n_inputs)
-# trj_pi = rollout_bouncing_stochastic(init_state, u_star, start_time, end_time, epsilon, GaussianNoise_new)
-
-# Animate
-# animate_pendulum(states,inputs,dt,parameters)
-
-fig1, axes = plt.subplots(2, 2)
-(ax1, ax2, ax3, ax4) = axes.flatten()
+fig1, axes = plt.subplots(1, 2)
+(ax1, ax2) = axes.flatten()
 ax1.grid(True)
 ax2.grid(True)
-ax3.grid(True)
-ax4.grid(True)
 
 # for i in range(len(states_iter)):
 #     states = states_iter[i]
@@ -263,14 +289,18 @@ ax4.grid(True)
 # ax1.plot(time_span, sampled_trjs[-1, :, 0], 'b', alpha=0.1, label='Samples')
 
 # # ----------- plot the path integral controlled trajectory -----------
+for i in range(len(x_trj_ilqr_exp)):
+    trj_ilqr = x_trj_ilqr_exp[i]
+    ax1.plot(time_span, trj_ilqr[:, 0], 'b', alpha=0.2)
+ax1.plot(time_span, trj_ilqr[:, 0], 'b', alpha=0.2, label='iLQR')
+
 for i in range(len(x_trj_pi_exp)):
     trj_pi = x_trj_pi_exp[i]
-    trj_ilqr = x_trj_ilqr_exp[i]
-    ax1.plot(time_span, trj_pi[:, 0], 'r', alpha=0.3, label='Path Integral')
-    ax1.plot(time_span, trj_ilqr[:, 0], 'b', alpha=0.3, label='iLQR')
+    ax1.plot(time_span, trj_pi[:, 0], 'r', alpha=0.8)
+ax1.plot(time_span, trj_pi[:, 0], 'r', alpha=0.8, label='Path Integral')
 
 # ----------- Plot the last iteration of iLQR controller ----------
-ax1.plot(time_span, states[:-1,0],'k',label='iLQR')
+ax1.plot(time_span[1:], states[1:-1,0],'k',label='iLQR-deterministic')
 ax1.set_xlabel(r"Time")
 ax1.set_ylabel(r"$z$")
 ax1.set_title("Bouncing Ball Vertical Position")
@@ -288,13 +318,18 @@ ax1.legend()
 
 # # ----------- plot the path integral controlled trajectory -----------
 for i in range(len(x_trj_pi_exp)):
-    trj_pi = x_trj_pi_exp[i]
     trj_ilqr = x_trj_ilqr_exp[i]
-    ax2.plot(time_span, trj_pi[:, 1], 'r', alpha=0.3, label='Path Integral')
-    ax2.plot(time_span, trj_ilqr[:, 1], 'b', alpha=0.3, label='iLQR')
+    ax2.plot(time_span, trj_ilqr[:, 1], 'b', alpha=0.2)
+ax2.plot(time_span, trj_ilqr[:, 1], 'b', alpha=0.2, label='iLQR')
+
+for i in range(len(x_trj_pi_exp)):
+    trj_pi = x_trj_pi_exp[i]
+    ax2.plot(time_span, trj_pi[:, 1], 'r', alpha=0.8)
+ax2.plot(time_span, trj_pi[:, 1], 'r', alpha=0.8, label='Path Integral')
+
 
 # ----------- Plot the last iteration of iLQR controller ----------
-ax2.plot(time_span, states[:-1,1],'k',label='iLQR')
+ax2.plot(time_span[1:], states[1:-1,1],'k',label='iLQR-deterministic')
 
 # ----------- Plot the start and goal states -----------
 ax2.scatter(time_span[-1], target_state[1], color='g', marker='x', s=50.0, linewidths=6, label='Target')
@@ -353,9 +388,8 @@ ax2.legend()
 # ax4.legend()
 
 # =========== Plot the z-\dot_z figure ===========
-fig2, (ax5, ax6) = plt.subplots(1, 2)
+fig2, ax5 = plt.subplots()
 ax5.grid(True)
-ax6.grid(True)
 
 # ----------- plot the stochastic sampled trajectory -----------
 # for i_s in range(0, n_samples, plot_step):
@@ -363,10 +397,20 @@ ax6.grid(True)
 # ax5.plot(sampled_trjs[-1, :, 0], sampled_trjs[i_s, :, 1], 'b', alpha=0.1, label='Samples')
 
 # ----------- Plot the last iteration of iLQR controller ----------
-ax5.plot(states[:-1,0], states[:-1,1],'k',label='iLQR')
+for i in range(len(x_trj_pi_exp)):
+    trj_ilqr = x_trj_ilqr_exp[i]
+    ax5.plot(trj_ilqr[:, 0], trj_ilqr[:, 1], 'b', alpha=0.2)
+ax5.plot(trj_ilqr[:, 0], trj_ilqr[:, 1], 'b', alpha=0.2, label='iLQR')
+  
+for i in range(len(x_trj_pi_exp)):
+    trj_pi = x_trj_pi_exp[i]
+    ax5.plot(trj_pi[:, 0], trj_pi[:, 1], 'r', alpha=0.8)
+ax5.plot(trj_pi[:, 0], trj_pi[:, 1], 'r', alpha=0.8, label='Path Integral')
+
+ax5.plot(states[1:-1,0], states[1:-1,1],'k',label='iLQR-deterministic')
 
 # ----------- plot the path integral controlled trajectory -----------
-ax5.plot(trj_pi[:, 0], trj_pi[:, 1], 'r', label='Path Integral')
+# ax5.plot(trj_pi[:, 0], trj_pi[:, 1], 'r', label='Path Integral')
 
 # ----------- Plot the start and goal states -----------
 ax5.scatter(target_state[0], target_state[1], color='g', marker='x', s=50.0, linewidths=6, label='Target')
@@ -381,16 +425,26 @@ ax5.legend()
 # ax6.plot(sampled_trjs_PI[-1, :, 0], sampled_trjs_PI[i_s, :, 1], 'b', alpha=0.1, label='Samples')
 
 # ----------- Plot the last iteration of iLQR controller ----------
-ax6.plot(states[:-1,0], states[:-1,1],'k',label='iLQR')
+# ax6.plot(states[:-1,0], states[:-1,1],'k',label='iLQR')
 
 # ----------- plot the path integral controlled trajectory -----------
-ax6.plot(trj_pi[:, 0], trj_pi[:, 1], 'r', label='Path Integral')
+# ax6.plot(trj_pi[:, 0], trj_pi[:, 1], 'r', label='Path Integral')
 
-# ----------- Plot the start and goal states -----------
-ax6.scatter(target_state[0], target_state[1], color='g', marker='x', s=50.0, linewidths=6, label='Target')
-ax6.scatter(init_state[0], init_state[1], color='r', marker='x', s=50.0, linewidths=6, label='Start')
+# for i in range(len(x_trj_pi_exp)):
+#     trj_pi = x_trj_pi_exp[i]
+#     trj_ilqr = x_trj_ilqr_exp[i]
+#     ax5.plot(trj_pi[:, 0], trj_pi[:, 1], 'r', alpha=0.3)
+#     ax5.plot(trj_ilqr[:, 0], trj_ilqr[:, 1], 'b', alpha=0.3)
+# ax5.plot(trj_pi[:, 0], trj_pi[:, 1], 'r', alpha=0.3, label='Path Integral')
+# ax5.plot(trj_ilqr[:, 0], trj_ilqr[:, 1], 'b', alpha=0.3, label='iLQR')
+# ax5.plot(states[:-1,0], states[:-1,1],'k',label='iLQR-deterministic')
 
-ax6.legend()
+
+# # ----------- Plot the start and goal states -----------
+# ax6.scatter(target_state[0], target_state[1], color='g', marker='x', s=50.0, linewidths=6, label='Target')
+# ax6.scatter(init_state[0], init_state[1], color='r', marker='x', s=50.0, linewidths=6, label='Start')
+
+# ax6.legend()
 
 # plot control inputs
 fig3, ax7 = plt.subplots(1, 1)
@@ -406,12 +460,11 @@ ax7.legend()
 # plot PathCosts
 fig3, ax8 = plt.subplots()
 ax8.grid(True)
-# ax7.bar(range(n_samples), PathCosts, width = 2, color='navy')
-ax8.bar(range(n_exp), cost_pi_exp, width = 2, color='red', alpha=0.1, label='Cost PathIntegralControl')
-ax8.bar(range(n_exp), cost_ilqr_exp, width = 2, color='navy', alpha=0.1, label='Cost PathIntegralControl')
+ax8.bar(range(n_exp), cost_ilqr_exp, width = 2, color='navy', alpha=0.1, label='Cost iLQR')
+ax8.bar(range(n_exp), cost_pi_exp, width = 2, color='red', alpha=0.5, label='Cost PathIntegralControl')
+
 ax8.set_xlabel(r"Experiment ID")
-ax8.set_ylabel(r"$Path Costs$")
+ax8.set_ylabel(r"$Costs$")
 ax8.legend()
-# ax7.set_title("Path Cost of stochastic rollouts")
 
 plt.show()
