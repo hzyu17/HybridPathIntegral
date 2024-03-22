@@ -107,20 +107,20 @@ class hybrid_ilqr:
             A_k = self.A_(current_x, current_u, self.dt_)
             B_k = self.B_(current_x, current_u, self.dt_)
             
-            if saltation is not None:
-                print("Found contact dynamics!")
-                Q_x = l_x + A_k.T @ saltation.T @ V_x
-                Q_u = l_u+B_k.T @ saltation.T @ V_x
-                Q_ux = B_k.T @ saltation.T @ V_xx @ saltation @ A_k
-                Q_uu = l_uu + B_k.T @ saltation.T @ V_xx @ saltation @ B_k
-                Q_xx = l_xx + A_k.T @ saltation.T @ V_xx @ saltation @ A_k
-
-            else:
+            if saltation is None:
                 Q_x = l_x + A_k.T@V_x
                 Q_u = l_u+B_k.T@V_x
                 Q_ux = B_k.T@V_xx@A_k
                 Q_uu = l_uu + B_k.T@V_xx@B_k
                 Q_xx = l_xx+A_k.T@V_xx@A_k
+
+            else:
+                print("Found contact dynamics!")
+                Q_x = l_x + A_k.T @ saltation.T @ V_x
+                Q_u = l_u+B_k.T @ saltation.T @ V_x
+                Q_ux = B_k.T @ saltation.T @ V_xx @ saltation @ A_k
+                Q_uu = l_uu + B_k.T @ saltation.T @ V_xx @ saltation @ B_k
+                Q_xx = l_xx + A_k.T @ saltation.T @ V_xx @ saltation @ A_k                
             
             # Compute gains
             Q_uu_inv = np.linalg.inv(Q_uu) # This can sometimes go singular
@@ -168,8 +168,6 @@ class hybrid_ilqr:
             current_feedback = self.K_feedback_[ii,:,:]@(current_state - self.states_[ii,:])
             current_input = self.inputs_[ii,:] + current_feedback + current_feedforward
             
-            # print("current_feedback: ", current_feedback)
-            
             # simulate forward
             t_ii = self.time_span_[ii]
             
@@ -202,18 +200,10 @@ class hybrid_ilqr:
         for ii in range(0,self.n_iterations_):
             print('Starting iteration: ',ii,', Current cost: ',current_cost)
             # Compute the backwards pass
-            (k_feedforward,K_feedback,expected_reduction) = self.backwards_pass()
-            
-            # # ----- without line search
-            # learning_rate = 1
-            # (new_states,new_inputs,new_saltations)=self.forwards_pass(learning_rate)
-            # self.states_ = new_states
-            # self.inputs_ = new_inputs
-            # self.saltations_ = new_saltations
-            
-            # # ----- / without line search
-            
+            (k_feedforward,K_feedback,expected_reduction) = self.backwards_pass()     
+                   
             # print('Expected cost reduction: ',expected_reduction)
+            
             if(abs(expected_reduction)<low_expected_reduction):
                 # If the expected reduction is low, then end the
                 # optimization

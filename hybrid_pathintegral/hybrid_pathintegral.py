@@ -1,12 +1,32 @@
 import numpy as np
 
 # Hybrid path integral control
+def update_u0_pathintegral(u0, PathCosts, epsilon, dt):
+    nu = len(u0)
+    n_samples = len(PathCosts)
+    
+    GaussianNoises = np.random.randn(n_samples, nu)
+    
+    # ------- numerical processing -------
+    PathCosts = PathCosts - np.min(PathCosts)
+    exp_PathCosts = np.exp(-PathCosts/epsilon)
+    sum_expPathCosts = np.sum(exp_PathCosts)
+    
+    # ------- Compute the update to control -------
+    U_update = np.zeros(nu)
+    for k in range(n_samples):
+        U_update += exp_PathCosts[k]*GaussianNoises[k]
+    U_update = np.sqrt(epsilon/dt) * U_update / sum_expPathCosts 
+    
+    return u0 + U_update
+
+
+# Hybrid path integral control
 def update_control_pathintegral(ut, PathCosts, epsilon, dt):
     nt, nu = ut.shape
     n_samples = len(PathCosts)
     
     GaussianNoises = np.random.randn(n_samples, nt, nu)
-    dWs = GaussianNoises * np.sqrt(dt*epsilon)
     
     # ------- numerical processing -------
     PathCosts = PathCosts - np.min(PathCosts)
