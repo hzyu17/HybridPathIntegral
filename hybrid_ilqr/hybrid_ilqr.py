@@ -30,12 +30,13 @@ class hybrid_ilqr:
         self.n_iterations_ = n_iterations
 
     def rollout(self):
-        states = np.zeros((self.n_timesteps_ + 1, self.n_states_))
+        states = np.zeros((self.n_timesteps_, self.n_states_))
         inputs = np.zeros((self.n_timesteps_, self.n_inputs_))
         saltations = [None for i in range(self.n_timesteps_)]
         current_state = self.init_state_
+        states[0] = current_state
 
-        for ii in range(0,self.n_timesteps_):
+        for ii in range(self.n_timesteps_-1):
             current_input = self.inputs_[ii,:]
             t_ii = self.time_span_[ii]
             
@@ -56,18 +57,18 @@ class hybrid_ilqr:
         self.saltations_ = saltations
         return states, inputs, saltations
 
-    def compute_cost(self,states,inputs):
+    def compute_cost(self,states,inputs,dt):
         # Initialize cost
         total_cost = 0.0
         for ii in range(0,self.n_timesteps_):
             current_x = states[ii,:] # Not being used currently
             current_u = inputs[ii,:].flatten()
 
-            current_cost = current_u.T@self.R_k_@current_u # Right now only considering cost in input
-            total_cost = total_cost+current_cost
+            current_cost = 0.5*current_u.T@self.R_k_@current_u # Right now only considering cost in input
+            total_cost = total_cost+current_cost*dt
         # Compute terminal cost
         terminal_difference = (self.target_state_-states[-1,:]).flatten()
-        terminal_cost = terminal_difference.T@self.Q_T_@terminal_difference
+        terminal_cost = 0.5*terminal_difference.T@self.Q_T_@terminal_difference
         total_cost = total_cost+terminal_cost
         return total_cost
 
@@ -75,6 +76,7 @@ class hybrid_ilqr:
         # First compute initial conditions (end boundary condition)
         # Value function hessian and gradient
         V_xx = self.Q_T_
+        
         end_difference = (self.states_[-1, :] - self.target_state_).flatten()
         end_difference = end_difference.flatten()  # Make sure its the right dimension
         V_x = self.Q_T_@end_difference
@@ -89,7 +91,7 @@ class hybrid_ilqr:
         expected_cost_reduction_hess = 0
 
         # for loop backwards in time
-        for idx in reversed(range(0, self.n_timesteps_)):
+        for idx in reversed(range(0, self.n_timesteps_-1)):
             # Grab the current variables in the trajectory
             current_x = self.states_[idx,:]
             current_u = self.inputs_[idx,:]
@@ -108,24 +110,27 @@ class hybrid_ilqr:
             B_k = self.B_(current_x, current_u, self.dt_)
             
             if saltation is None:
-                Q_x = l_x + A_k.T@V_x
-                Q_u = l_u+B_k.T@V_x
+                Q_x = l_x*self.dt_ + A_k.T@V_x
+                Q_u = l_u*self.dt_+ B_k.T@V_x
                 Q_ux = B_k.T@V_xx@A_k
-                Q_uu = l_uu + B_k.T@V_xx@B_k
-                Q_xx = l_xx+A_k.T@V_xx@A_k
+                Q_uu = l_uu*self.dt_ + B_k.T@V_xx@B_k
+                Q_xx = l_xx*self.dt_ + A_k.T@V_xx@A_k
 
             else:
                 print("Found contact dynamics!")
-                Q_x = l_x + A_k.T @ saltation.T @ V_x
-                Q_u = l_u+B_k.T @ saltation.T @ V_x
+                Q_x = l_x*self.dt_ + A_k.T @ saltation.T @ V_x
+                Q_u = l_u*self.dt_ + B_k.T @ saltation.T @ V_x
                 Q_ux = B_k.T @ saltation.T @ V_xx @ saltation @ A_k
-                Q_uu = l_uu + B_k.T @ saltation.T @ V_xx @ saltation @ B_k
-                Q_xx = l_xx + A_k.T @ saltation.T @ V_xx @ saltation @ A_k                
+                Q_uu = l_uu*self.dt_ + B_k.T @ saltation.T @ V_xx @ saltation @ B_k
+                Q_xx = l_xx*self.dt_ + A_k.T @ saltation.T @ V_xx @ saltation @ A_k                
             
             # Compute gains
-            Q_uu_inv = np.linalg.inv(Q_uu) # This can sometimes go singular
-            k = -Q_uu_inv@Q_u
-            K = -Q_uu_inv@Q_ux
+            # Q_uu_inv = np.linalg.inv(Q_uu) # This can sometimes go singular
+            # k = -Q_uu_inv@Q_u
+            # K = -Q_uu_inv@Q_ux
+            
+            k = -np.linalg.solve(Q_uu, Q_u)
+            K = -np.linalg.solve(Q_uu, Q_ux)
 
             # Store gains
             k_trj[idx,:] = k
@@ -141,7 +146,7 @@ class hybrid_ilqr:
             expected_cost_reduction += + current_cost_reduction
 
             # Update hessian and gradient for value function (If we arent using regularization we can simplify this computation)
-            V_x = Q_x +K.T@Q_uu@k +K.T@Q_u + Q_ux.T@k
+            V_x = Q_x +K.T@Q_uu@k + K.T@Q_u + Q_ux.T@k
             V_xx = (Q_xx+Q_ux.T@K+K.T@Q_ux+K.T@Q_uu@K)
 
         # Store expected cost reductions
@@ -155,14 +160,14 @@ class hybrid_ilqr:
         return (k_trj,K_trj,expected_cost_reduction)
 
     def forwards_pass(self, learning_rate):
-        states = np.zeros((self.n_timesteps_ + 1, self.n_states_))
+        states = np.zeros((self.n_timesteps_, self.n_states_))
         inputs = np.zeros((self.n_timesteps_, self.n_inputs_))
         current_state = self.init_state_
 
         # set the first state to be  the initial
-        states[1,:] = current_state
+        states[0,:] = current_state
         saltations = [None for i in range(self.n_timesteps_)]
-        for ii in range(0,self.n_timesteps_):
+        for ii in range(self.n_timesteps_-1):
             # Get the current gains and compute the feedforward and feedback terms
             current_feedforward = learning_rate * self.k_feedforward_[ii,:]
             current_feedback = self.K_feedback_[ii,:,:]@(current_state - self.states_[ii,:])
@@ -191,7 +196,7 @@ class hybrid_ilqr:
         # initial guess
         [states,inputs,saltations] = self.rollout()
         # Compute the current cost of the initial trajectory
-        current_cost = self.compute_cost(states,inputs)
+        current_cost = self.compute_cost(states,inputs,self.dt_)
         
         learning_speed = 0.95 # This can be modified, 0.95 is very slow
         low_learning_rate = 0.05 # if learning rate drops to this value stop the optimization
@@ -217,8 +222,10 @@ class hybrid_ilqr:
             while(learning_rate > 0.05 and armijo_flag == 0):
                 # Compute forward pass
                 (new_states,new_inputs,new_feedback,new_feedforward,new_saltations)=self.forwards_pass(learning_rate)
-                new_cost = self.compute_cost(new_states, new_inputs)
+                new_cost = self.compute_cost(new_states, new_inputs,self.dt_)
 
+                print("new_cost: ", new_cost)
+                
                 # Calculate armijo condition
                 cost_difference = (current_cost - new_cost)
                 

@@ -54,30 +54,6 @@ def symbolic_dynamics_bouncing():
     return (f_disc_func,A_disc_func,B_disc_func)
 
 
-def symbolic_dynamics_bouncing_stochastic():
-    g = 9.81
-    z,z_dot,u,dt,dW,epsilon = sp.symbols('z z_dot u dt dW epsilon')
-
-    # Define the states and inputs
-    inputs = Matrix([u])
-    states = Matrix([z, z_dot])
-    
-    # Defining the dynamics of the system
-    f = Matrix([z_dot, u-g])
-
-    # Discretize the dynamics usp.sing euler integration
-    f_disc = states+f*dt + sp.sqrt(epsilon)*dW
-    
-    # Take the jacobian with respect to states and inputs
-    A_disc = f_disc.jacobian(states)
-    B_disc = f_disc.jacobian(inputs)
-
-    f_disc_func = sp.lambdify((states,inputs,dt,epsilon,dW),f_disc)
-    A_disc_func = sp.lambdify((states,inputs,dt),A_disc)
-    B_disc_func = sp.lambdify((states,inputs,dt),B_disc)
-    return (f_disc_func,A_disc_func,B_disc_func)
-
-
 def stochastic_integration_bouncing(x0, u, t_span, t_eval, epsilon, RandN, dt, nt):
     dW = np.sqrt(dt)*RandN
     xt_next = stochastic_integration(x0, u, t_span, t_eval, epsilon, dW, nt)
@@ -117,23 +93,32 @@ def stochastic_integration_bouncing(x0, u, t_span, t_eval, epsilon, RandN, dt, n
     return xt_next
 
 def stochastic_integration(x0, u, t_span, t_eval, epsilon, dW, nt):
+    """ Rollout function assuming constant control input during the time span.
+    Returns:
+        array: stochastic integrated state at tf.
+    """
     args = (u, )
+    # ============= ode solver =============
     
-    solution = scipy.integrate.solve_ivp(fun=lambda t, y: dyn_bouncing(t, y, *args), 
-                                        t_span=t_span, y0=x0, method='RK45', 
-                                        t_eval=t_eval, dense_output=True)
+    # solution = scipy.integrate.solve_ivp(fun=lambda t, y: dyn_bouncing(t, y, *args), 
+    #                                     t_span=t_span, y0=x0, method='RK45', 
+    #                                     t_eval=t_eval, dense_output=True)
     
+    # t0, tf = t_span[0], t_span[-1]
+    
+    # # Solve for the continuous trajectory before the contact 
+    # t_sol = np.linspace(t0, tf, nt).flatten()
+    
+    # # The solved trajecoty, in shape (nx+nx*nx, nt)
+    # f_disc = solution.sol(t_sol) 
+    # x_next_det = f_disc[:, -1]
+    
+    # xt_next = x_next_det + np.sqrt(epsilon)*dW
+    
+    # ============= method 2: forward Euler =============
     t0, tf = t_span[0], t_span[-1]
-    
-    # Solve for the continuous trajectory before the contact 
-    t_sol = np.linspace(t0, tf, nt).flatten()
-    
-    # The solved trajecoty, in shape (nx+nx*nx, nt)
-    f_disc = solution.sol(t_sol) 
-    x_next_det = f_disc[:, -1]
-    
-    xt_next = x_next_det + np.sqrt(epsilon)*dW
-    # /---- solver for the deterministic part
+    dt = tf - t0
+    xt_next = x0 + dyn_bouncing(t0, x0, *args)*dt + np.sqrt(epsilon)*dW
     
     return xt_next
 
@@ -159,9 +144,18 @@ def rollout_bouncing_stochastic_feedback(x0, xt_ref, ut, Kt, kt, t0, tf, epsilon
     ut_cl = np.zeros((nt, nu))
     
     for i in range(nt-1):
+        # find the reference state following the sequence.
         x_ref = xt_ref[i]
-        u = ut[i] + Kt[i]@(xt-x_ref) + kt[i]
         
+        # if (xt[1]<0) and (x_ref[1]>0): # differen mode
+        #     print("Mode mismatch, refind the closes reference state")
+        #     # find the closest point in the ref trj as the current ref state
+        #     index_dist = [[i, np.sum((xt_ref[i] - xt)*(xt_ref[i] - xt))] for i in range(xt_ref.shape[0])]
+        #     sort_index_dist = sorted(index_dist, key=lambda x: x[1])
+        #     x_ref = xt_ref[sort_index_dist[0][0]]
+                
+        u = ut[i] + Kt[i]@(xt-x_ref) + kt[i]
+        print("u", u)
         ut_cl[i] = u
         
         # One step integration
@@ -207,6 +201,7 @@ def rollout_bouncing_stochastic_feedback(x0, xt_ref, ut, Kt, kt, t0, tf, epsilon
                     dt_int = dt
                     break
         xt = xt_next
+        print("xt:", xt)
         xt_trj[i+1] = xt
     
     return xt_trj, ut_cl
