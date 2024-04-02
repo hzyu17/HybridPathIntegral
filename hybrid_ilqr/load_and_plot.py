@@ -1,18 +1,52 @@
 from example_bouncingball import *
 from matplotlib.patches import Circle
 
+def compute_weights(PathCosts, epsilon):
+    
+    # ------- minus minimum value for numerical stability --------   
+    PathCosts = PathCosts - np.min(PathCosts)
+    PathCosts_eps = PathCosts / epsilon
+    expS = np.exp(-PathCosts_eps)
+
+    # ------- Compute the expected value ---------
+    E_expS = np.mean(expS)
+    
+    # ------- Compute weights -------
+    weights = expS / E_expS
+    
+    fig6, ax11 = plt.subplots(figsize=(8,6))
+    ax11.grid(True)
+    ax11.bar(range(len(PathCosts)), PathCosts)
+    ax11.set_title("Path Cost distribution")
+    ax11.set_xlabel("Sample Number")
+    ax11.set_ylabel("Costs")
+    
+    fig7, ax12 = plt.subplots(figsize=(8,6))
+    ax12.grid(True)
+    ax12.bar(range(len(weights)), weights)
+    ax12.set_title("Path Cost distribution")
+    ax12.set_xlabel("Sample Number")
+    ax12.set_ylabel("Costs")
+    plt.show()
+    
+    return weights
+
+
 def variance_usefulportion(pathcosts, epsilon):
     """Compute variance and useful pertentage of the samples.
     """
-    pathcosts = np.exp(-(pathcosts - np.min(pathcosts))/epsilon)
-    weights = pathcosts / np.mean(pathcosts)
+    # pathcosts = np.exp(-(pathcosts - np.min(pathcosts))/epsilon)
+    # weights = pathcosts / np.mean(pathcosts)
     
-    mean = np.mean(weights)
-    variance = np.sum((weights-mean)*(weights-mean)) / len(weights)
-        
-    weights_sqr = weights*weights
+    # mean = np.mean(weights)
+    # variance = np.sum((weights-mean)*(weights-mean)) / len(weights)
     
-    lbda = 1.0 / np.mean(weights_sqr)
+    weights = compute_weights(pathcosts, epsilon)
+    
+    variance = np.var(weights)
+
+    # ------- Fraction of effective samples -------
+    lbda = 1.0 / np.mean(weights**2)
     
     return variance, lbda*100.0
 
@@ -24,7 +58,7 @@ if __name__ == '__main__':
     # filename = root_dir+"/data/bouncing/data_2024-03-22_14-31-11_example_bouncingball.pickle" # n_exp = 100 
     # filename = root_dir+"/data/bouncing/data_2024-03-25_04-30-27_example_bouncingball.pickle" # n_samples = 50
     # filename = root_dir+"/data/bouncing/data_2024-03-25_20-47-27_example_bouncingball_500samples.pickle" # n_samples = 500
-    filename = root_dir+"/data/bouncing/data_2024-03-27_14-04-12_example_bouncingball.pickle"
+    filename = root_dir+"/data/bouncing/data_2024-04-01_22-52-16_hybrid_riccati.pickle"
     
     print("loading data")
     exp_data.load(filename)
@@ -194,7 +228,7 @@ if __name__ == '__main__':
     # Mean as a solid line
     ax9.plot(time_span[:-1], avg_variances, 'r-', label='Variance')
     ax10.plot(time_span[:-1], avg_lbdas, 'r-', label=r'$\lambda(\%)$')
-        
+    
     # Shaded area for variability (e.g., ±1 standard deviation)
     ax9.fill_between(time_span[:-1], avg_variances - std_variances, avg_variances + std_variances, color='gray', alpha=0.5, label='±1 Std.')
     ax10.fill_between(time_span[:-1], avg_lbdas - std_lbdas, avg_lbdas + std_lbdas, color='gray', alpha=0.5, label='±1 Std.')
@@ -207,6 +241,7 @@ if __name__ == '__main__':
     # ax10.set_title('Effective Weights')
     ax10.set_xlabel('Time', fontsize=14)
     ax10.set_ylabel(r'$\lambda^u (\%)$', fontsize=14)
+    ax10.set_ylim(0, 110)
     fig5.tight_layout()
     
     ax9.legend()

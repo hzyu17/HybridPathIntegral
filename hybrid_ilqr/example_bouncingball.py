@@ -8,167 +8,29 @@ current_dir = os.path.dirname(file_path)
 root_dir = os.path.abspath(os.path.join(current_dir, '..'))
 sys.path.append(root_dir)
 
-# Import iLQR class
-from hybrid_ilqr import hybrid_ilqr
-# Importing path integral control
-from hybrid_pathintegral.hybrid_pathintegral import *
 # Import pendulum dynamics
 from dynamics.symbolic_bouncing_1D import *
+# Import iLQR class
+from hybrid_ilqr import *
+# Import Riccati class
+from hybrid_riccati import *
+# Importing path integral control
+from hybrid_pathintegral.hybrid_pathintegral import *
 # Import plotting
 import matplotlib.pyplot as plt
+# Import experiment parameter class
+from exp_params import *
 
 # for paralle sampling on cpu
 from joblib import Parallel, delayed
 
 import numba
 
-import pickle as pkl
-
-class DataOneSample():
-    def __init__(self, x_trj_pi, u_trj_pi, x_trj_ilqr, u_trj_ilqr, allPathCosts, cost_pi, cost_ilqr):
-        """ The data to save for a path integral control in [0, T].
-        Args:
-            x_trj_pi (_type_): controlled state trajectory
-            u_trj_pi (_type_): path integral controller
-            x_trj_ilqr (_type_): ilqr controlled state trajectory
-            u_trj_ilqr (_type_): ilqr controller
-            allPathCosts (_type_): All the PathCosts used. shape: [nt, n_samples]
-        """
-        self._x_trj_pi = x_trj_pi
-        self._u_trj_pi = u_trj_pi
-        self._x_trj_ilqr = x_trj_ilqr
-        self._u_trj_ilqr = u_trj_ilqr
-        self._allPathCosts = allPathCosts
-        self._cost_pi = cost_pi
-        self._cost_ilqr = cost_ilqr
-        
-    def x_trj_pi(self):
-        return self._x_trj_pi
-    
-    def u_trj_pi(self):
-        return self._u_trj_pi
-    
-    def x_trj_ilqr(self):
-        return self._x_trj_ilqr
-    
-    def u_trj_ilqr(self):
-        return self._u_trj_ilqr
-    
-    def allPathCosts(self):
-        return self._allPathCosts
-    
-    def cost_pi(self):
-        return self._cost_pi
-    
-    def cost_ilqr(self):
-        return self._cost_ilqr
-        
-        
-class ExpParams():
-    def __init__(self):
-        self._init_state = []
-        self._target_state = []
-        self._start_time = []
-        self._end_time = []
-        self._dt = []
-        self._dt_pathintegral = []
-        self._epsilon = []
-        self._n_exp = []
-        self._n_samples = []
-        self._Q_k = []
-        self._R_k = []
-        self._Q_T = []
-        
-    def update_params(self, init_state, target_state, start_time, end_time, dt, dt_pathintegral, epsilon, n_exp, n_samples, Q_k, R_k, Q_T):
-        self._init_state = init_state
-        self._target_state = target_state
-        self._start_time = start_time
-        self._end_time = end_time
-        self._dt = dt
-        self._dt_pathintegral = dt_pathintegral
-        self._epsilon = epsilon
-        self._n_exp = n_exp
-        self._n_samples = n_samples
-        self._Q_k = Q_k
-        self._R_k = R_k
-        self._Q_T = Q_T
-        
-
-class ExpData():
-    def __init__(self, params):
-        self._data = {}
-        self._data['params'] = params
-    
-    def add_data(self, iter, iter_data):
-        self._data[str(iter)] = iter_data
-
-    def add_nominal_data(self, ilqr_solution):
-        self._data['nominal'] = ilqr_solution
-        
-    def dump(self, file_name):
-        with open(file_name, 'wb') as f:
-            pkl.dump(self._data, f, pkl.HIGHEST_PROTOCOL)
-            
-    def load(self, file_name):
-        with open(file_name, 'rb') as f:
-            self._data = pkl.load(f)
-            
-    def get_data(self, iter):
-        return self._data[str(iter)]
-    
-    def get_params(self):
-        return self._data['params']
-    
-    def get_nominal_data(self):
-        if 'nominal' in self._data.keys():
-            return self._data['nominal']
-        else:
-            return []
-
-def solve_ilqr(params):
-    # Import dynamics
-    (f,A,B) = symbolic_dynamics_bouncing()
-
-    # Initialize timings
-    dt = params._dt
-    
-    start_time = params._start_time
-    end_time = params._end_time
-    time_span = np.arange(start_time, end_time, dt).flatten()
-
-    # Set desired state
-    n_states = 2
-    n_inputs = 1
-    init_state = params._init_state  # Define the initial state to be the origin with no velocity
-    target_state = params._target_state  # Swing pendulum upright
-
-    # Initial guess of zeros, but you can change it to any guess
-    initial_guess = 0.5*np.ones((np.shape(time_span)[0],n_inputs))
-
-    # Define weighting matrices
-    Q_k = params._Q_k # zero weight to penalties along a strajectory since we are finding a trajectory
-    R_k = params._R_k
-
-    # Set the terminal cost
-    Q_T = params._Q_T
-
-    # Set the physical parameters of the system
-    mass = 1
-    gravity = 9.8
-    parameters = np.array([mass,gravity])
-
-    # Specify max number of iterations
-    n_iterations = 10
-
-    ilqr_ = hybrid_ilqr(init_state,target_state,initial_guess,dt,start_time,end_time,detect_bouncing,f,A,B,Q_k,R_k,Q_T,parameters,n_iterations)
-    (states,inputs,k_feedforward,K_feedback,current_cost,states_iter) = ilqr_.solve()
-
-    return (states,inputs,k_feedforward,K_feedback,current_cost,states_iter)
 
 # ====================================== Path Integral Control ====================================== 
 
-@njit(float64(
-    float64[:,:], float64[:,:], float64[:,:], float64[:], float64[:,:], float64[:,:], float64[:,:], float64[:,:], float64, float64), parallel=True)
+# @njit(float64(
+#     float64[:,:], float64[:,:], float64[:,:], float64[:], float64[:,:], float64[:,:], float64[:,:], float64[:,:], float64, float64), parallel=True)
 def compute_cost(states,inputs,dWs,target_state,trj_ref, Qk, Rk, QT, epsilon, dt):
     
     states = np.ascontiguousarray(states)
@@ -182,21 +44,22 @@ def compute_cost(states,inputs,dWs,target_state,trj_ref, Qk, Rk, QT, epsilon, dt
     
     # Initialize cost
     total_cost = 0.0
-    for ii in range(states.shape[0]):
-        current_x = states[ii] # Not being used currently
-        current_x_ref = trj_ref[ii]
+    current_cost_xref = 0.0
+    for ii in range(states.shape[0]-1):
+        # current_x = states[ii] # Not being used currently
+        # current_x_ref = trj_ref[ii]
         current_u = inputs[ii,:].flatten()
         dW = dWs[ii]
         
-        trj_difference =  current_x_ref - current_x
-
-        current_cost_xref = 0.5*trj_difference.T@Qk@trj_difference
+        # trj_difference =  current_x_ref - current_x
+        # current_cost_xref = 0.5*trj_difference.T@Qk@trj_difference*dt
         
-        current_cost = 0.5*current_u.T@Rk@current_u # Right now only considering cost in input
+        current_cost = 0.5*current_u.T@Rk@current_u*dt # Right now only considering cost in input
         
         noise_cost = np.sqrt(epsilon)*current_u.T@dW
         
         total_cost = total_cost+current_cost+current_cost_xref+noise_cost
+        
     # Compute terminal cost
     terminal_difference = (target_state-states[-1,:]).flatten()
     terminal_cost = 0.5*terminal_difference.T@QT@terminal_difference
@@ -215,8 +78,8 @@ def process_sampling_feedback(sample_i, init_state, xt_ref, ut, K_feedback, k_fe
     return sample_i, ut_cl_i, i
 
 # Compute path costs function
-@njit(numba.types.Tuple((float64, int32))(
-    float64[:,:], float64[:,:], float64[:,:], float64[:], float64[:,:], int32, float64[:,:], float64[:,:], float64[:,:], float64, float64))
+# @njit(numba.types.Tuple((float64, int32))(
+#     float64[:,:], float64[:,:], float64[:,:], float64[:], float64[:,:], int32, float64[:,:], float64[:,:], float64[:,:], float64, float64))
 def process_compute_costs(sample_i, inputs, dWs, target_state, ref_states, i, Q_k, R_k, Q_T, epsilon, dt):
     # print("Computing costs: ", i)
     costs_i = compute_cost(sample_i, inputs, dWs, target_state, ref_states, Q_k, R_k, Q_T, epsilon, dt)
@@ -225,9 +88,10 @@ def process_compute_costs(sample_i, inputs, dWs, target_state, ref_states, i, Q_
 if __name__ == '__main__':
     # === ilqr parameters ===
     # Initialize timings
-    dt = 0.01
+    dt = 0.001
     # dt_pathintegral = dt / 50.0
     dt_pathintegral = dt
+    
     # start_time = 0
     # end_time = 2.0
     # time_span = np.arange(start_time, end_time, dt).flatten()
@@ -243,16 +107,17 @@ if __name__ == '__main__':
     # Define weighting matrices
     Q_k = np.zeros((n_states,n_states)) # zero weight to penalties along a strajectory since we are finding a trajectory
     # R_k = 0.01*np.eye(n_inputs)
-    R_k = np.eye(n_inputs)
+    R_k = 0.1*np.eye(n_inputs)
 
     # Set the terminal cost
-    Q_T = 20*np.eye(n_states)
-    Q_T[0,0] = 200.0
+    Q_T = 1000*np.eye(n_states)
+    # Q_T = 20*np.eye(n_states)
+    # Q_T[0,0] = 200.0
     
     # === path integral parameters ===
-    epsilon = 0.2
-    n_samples = 1
-    n_exp = 5
+    epsilon = 0.01
+    n_samples = 500
+    n_exp = 1
     
     # ------------- verification with no contact ------------- 
     start_time = 0
@@ -261,7 +126,8 @@ if __name__ == '__main__':
     nt = len(time_span)
     
     init_state = np.array([5, 1.5])    # Define the initial state to be the origin with no velocity
-    target_state = np.array([4.0, -5.0])  # Swing pendulum upright
+    # target_state = np.array([4.0, -5.0])  # Swing pendulum upright
+    target_state = np.array([0.0, 0.0])
     
     # ------------- /verification with no contact ------------- 
     
@@ -273,12 +139,17 @@ if __name__ == '__main__':
     nt_ode_solve = 1000 # number of points used to solve the ode
     
     exp_params = ExpParams()
-    exp_params.update_params(init_state, target_state, start_time, end_time, dt, dt_pathintegral, epsilon, n_exp, n_samples, Q_k, R_k, Q_T)
+    exp_params.update_params(init_state, target_state, start_time, end_time, dt, dt_pathintegral, epsilon, n_exp, n_samples, Q_k, R_k, Q_T, symbolic_dynamics_bouncing,detect_bouncing)
     
     exp_data = ExpData(exp_params)
     
     # === solve for ilqr ===
-    (states,inputs,k_feedforward,K_feedback,current_cost,states_iter) = solve_ilqr(exp_params)
+    # (states,inputs,k_feedforward,K_feedback,current_cost,states_iter) = solve_ilqr(exp_params)
+    
+    exp_params_riccati = ExpParams()
+    exp_params_riccati.update_params(init_state, target_state, start_time, end_time, dt, dt_pathintegral, epsilon, n_exp, n_samples, Q_k, R_k, Q_T, symbolic_dynamics_bouncing_continuoustime,detect_bouncing)
+    (states, inputs, K_feedback, k_feedforward, PI, q) = solve_riccati(exp_params_riccati)
+    
     # debug plot
     fig2, ax5 = plt.subplots()
     ax5.grid(True)
@@ -287,7 +158,7 @@ if __name__ == '__main__':
     ax5.scatter(init_state[0], init_state[1], color='r', marker='x', s=50.0, linewidths=6, label='Start')
     plt.show()
     
-    exp_data.add_nominal_data((states,inputs,k_feedforward,K_feedback,current_cost,states_iter))
+    # exp_data.add_nominal_data((states,inputs,k_feedforward,K_feedback,current_cost,states_iter))
 
     step_one_samples = np.zeros((n_samples, n_states))
     for i_exp in prange(n_exp):
@@ -321,10 +192,13 @@ if __name__ == '__main__':
             K_feedback_i = K_feedback[i:,:]
             k_feedforward_i = k_feedforward[i:,:]
             
+            # ilqr proposal control
+            u0_proposal = K_feedback_i[0]@xt + k_feedforward_i[0]
+            
             # sampling stochastic rollouts
             sampled_trjs = np.zeros((n_samples, nt_i, n_states))
             sampled_controls = np.zeros((n_samples, nt_i, n_inputs))
-            PathCosts = np.zeros(n_samples, dtype=np.float64)
+            PathCosts = np.zeros(n_samples)
 
             # Generate the randomness
             GaussianNoise = np.random.randn(n_samples, nt_i, n_inputs)
@@ -332,20 +206,48 @@ if __name__ == '__main__':
             dWs_cost = np.sqrt(dt_pathintegral)*GaussianNoise
 
             # ------------- ilqr --------------
-            samples_index = Parallel(n_jobs=-1)(delayed(process_sampling_feedback)(sampled_trjs[i,:,:], xt, states_i, inputs_i, K_feedback_i, k_feedforward_i, start_time_i, end_time_i, epsilon, GaussianNoise, i) for i in range(n_samples))
+            samples_index = Parallel(n_jobs=-1)(delayed(process_sampling_feedback)(sampled_trjs[i], xt, states_i, inputs_i, K_feedback_i, k_feedforward_i, start_time_i, end_time_i, epsilon, GaussianNoise, i) for i in range(n_samples))
 
             for sample_i, sample_input_i, index in samples_index:
                 sampled_trjs[index] = sample_i
                 sampled_controls[index] = sample_input_i
 
-            costs_index = Parallel(n_jobs=-1)(delayed(process_compute_costs)(sampled_trjs[i,:,:], sampled_controls[i,:,:], dWs_cost[i,:,:], target_state_i, states_i, i, Q_k, R_k, Q_T, epsilon, dt) for i in range(n_samples))
+            costs_index = Parallel(n_jobs=-1)(delayed(process_compute_costs)(sampled_trjs[i], sampled_controls[i], dWs_cost[i], target_state_i, states_i, i, Q_k, R_k, Q_T, epsilon, dt) for i in range(n_samples))
             for cost_i, index in costs_index:
                 PathCosts[index] = cost_i
             
             # update the control proposal using path integral 
-            u0_star = update_u0_pathintegral(sampled_controls[0, 0, :], PathCosts, epsilon, dt_pathintegral)
+            u0_star = update_u0_pathintegral(u0_proposal, PathCosts, epsilon, dt_pathintegral)
             u_star_pi[i] = u0_star
             allPathCosts[i] = PathCosts
+            
+            ## ============= show path costs and weights in path integral control ============= 
+            PathCosts = PathCosts - np.min(PathCosts)
+            PathCosts_eps = PathCosts / epsilon
+            expS = np.exp(-PathCosts_eps)
+
+            # ------- Compute the expected value ---------
+            E_expS = np.mean(expS)
+            
+            # ------- Compute weights -------
+            weights = expS / E_expS
+            
+            fig6, ax11 = plt.subplots(figsize=(8,6))
+            ax11.grid(True)
+            ax11.bar(range(len(PathCosts)), PathCosts)
+            ax11.set_title("Path Cost distribution")
+            ax11.set_xlabel("Sample Number")
+            ax11.set_ylabel("Costs")
+            
+            fig7, ax12 = plt.subplots(figsize=(8,6))
+            ax12.grid(True)
+            ax12.bar(range(len(weights)), weights)
+            ax12.set_title("Path Cost distribution")
+            ax12.set_xlabel("Sample Number")
+            ax12.set_ylabel("Costs")
+            plt.show()
+            
+            ## ============= / show path costs and weights in path integral control ============= 
             
             # go to the next state
             RndN_actual = np.random.randn(n_inputs)
@@ -358,9 +260,9 @@ if __name__ == '__main__':
             trj_pi[i+1] = xt
             
             # ilqr for comparison
-            xt_ilqr = stochastic_integration_bouncing(xt_ilqr, sampled_controls[0, 0], t_span, t_eval, epsilon, RndN_actual, dt, nt_ode_solve)
+            xt_ilqr = stochastic_integration_bouncing(xt_ilqr, u0_proposal, t_span, t_eval, epsilon, RndN_actual, dt, nt_ode_solve)
             trj_ilqr[i+1] = xt_ilqr
-            u_trj_ilqr[i] = sampled_controls[0, 0]
+            u_trj_ilqr[i] = u0_proposal
             
         # Compare cost
         dWs_zeros = np.zeros((nt, n_inputs))

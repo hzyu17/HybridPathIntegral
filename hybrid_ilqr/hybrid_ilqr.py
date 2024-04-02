@@ -1,5 +1,5 @@
 import numpy as np
-# import sympy as sp
+import matplotlib.pyplot as plt
 
 class hybrid_ilqr:
     def __init__(self,init_state,target_state,initial_guess,dt,start_time,end_time,contact_detect,f_disc,A,B,Q_k,R_k,Q_T,parameters,n_iterations):
@@ -60,14 +60,15 @@ class hybrid_ilqr:
     def compute_cost(self,states,inputs,dt):
         # Initialize cost
         total_cost = 0.0
-        for ii in range(0,self.n_timesteps_):
+        for ii in range(0,self.n_timesteps_-1):
             current_x = states[ii,:] # Not being used currently
             current_u = inputs[ii,:].flatten()
 
             current_cost = 0.5*current_u.T@self.R_k_@current_u # Right now only considering cost in input
             total_cost = total_cost+current_cost*dt
+            
         # Compute terminal cost
-        terminal_difference = (self.target_state_-states[-1,:]).flatten()
+        terminal_difference = (self.target_state_-states[-1]).flatten()
         terminal_cost = 0.5*terminal_difference.T@self.Q_T_@terminal_difference
         total_cost = total_cost+terminal_cost
         return total_cost
@@ -77,8 +78,7 @@ class hybrid_ilqr:
         # Value function hessian and gradient
         V_xx = self.Q_T_
         
-        end_difference = (self.states_[-1, :] - self.target_state_).flatten()
-        end_difference = end_difference.flatten()  # Make sure its the right dimension
+        end_difference = (self.states_[-1] - self.target_state_).flatten()
         V_x = self.Q_T_@end_difference
 
         # Initialize storage variables
@@ -124,17 +124,13 @@ class hybrid_ilqr:
                 Q_uu = l_uu*self.dt_ + B_k.T @ saltation.T @ V_xx @ saltation @ B_k
                 Q_xx = l_xx*self.dt_ + A_k.T @ saltation.T @ V_xx @ saltation @ A_k                
             
-            # Compute gains
-            # Q_uu_inv = np.linalg.inv(Q_uu) # This can sometimes go singular
-            # k = -Q_uu_inv@Q_u
-            # K = -Q_uu_inv@Q_ux
-            
+            # Compute gains           
             k = -np.linalg.solve(Q_uu, Q_u)
             K = -np.linalg.solve(Q_uu, Q_ux)
 
             # Store gains
-            k_trj[idx,:] = k
-            K_trj[idx,:,:] = K
+            k_trj[idx] = k
+            K_trj[idx] = K
 
             # Update the expected reduction
             current_cost_reduction_grad = -Q_u.T@k
@@ -146,8 +142,10 @@ class hybrid_ilqr:
             expected_cost_reduction += + current_cost_reduction
 
             # Update hessian and gradient for value function (If we arent using regularization we can simplify this computation)
-            V_x = Q_x +K.T@Q_uu@k + K.T@Q_u + Q_ux.T@k
-            V_xx = (Q_xx+Q_ux.T@K+K.T@Q_ux+K.T@Q_uu@K)
+            # V_x = Q_x +K.T@Q_uu@k + K.T@Q_u + Q_ux.T@k
+            # V_xx = (Q_xx+Q_ux.T@K+K.T@Q_ux+K.T@Q_uu@K)
+            V_x = Q_x - K.T@Q_uu@k
+            V_xx = Q_xx - K.T@Q_uu@K
 
         # Store expected cost reductions
         self.expected_cost_reduction_grad_ = expected_cost_reduction_grad
@@ -165,13 +163,13 @@ class hybrid_ilqr:
         current_state = self.init_state_
 
         # set the first state to be  the initial
-        states[0,:] = current_state
+        states[0] = current_state
         saltations = [None for i in range(self.n_timesteps_)]
         for ii in range(self.n_timesteps_-1):
             # Get the current gains and compute the feedforward and feedback terms
-            current_feedforward = learning_rate * self.k_feedforward_[ii,:]
-            current_feedback = self.K_feedback_[ii,:,:]@(current_state - self.states_[ii,:])
-            current_input = self.inputs_[ii,:] + current_feedback + current_feedforward
+            current_feedforward = learning_rate * self.k_feedforward_[ii]
+            current_feedback = self.K_feedback_[ii]@(current_state-self.states_[ii])
+            current_input = self.inputs_[ii] + current_feedback + current_feedforward
             
             # simulate forward
             t_ii = self.time_span_[ii]
@@ -181,8 +179,8 @@ class hybrid_ilqr:
             saltations[ii] = saltation
             
             # Store states and inputs
-            states[ii + 1,:] = next_state
-            inputs[ii,:] = current_input.flatten()
+            states[ii+1] = next_state
+            inputs[ii] = current_input.flatten()
 
             # Update the current state
             current_state = next_state
@@ -200,14 +198,14 @@ class hybrid_ilqr:
         
         learning_speed = 0.95 # This can be modified, 0.95 is very slow
         low_learning_rate = 0.05 # if learning rate drops to this value stop the optimization
-        low_expected_reduction = 1e-3 # Determines optimality
+        low_expected_reduction = 1e-6 # Determines optimality
         armijo_threshold = 0.1 # Determines if current line search solve is good (this is typically labeled as "c")
         for ii in range(0,self.n_iterations_):
             print('Starting iteration: ',ii,', Current cost: ',current_cost)
             # Compute the backwards pass
-            (k_feedforward,K_feedback,expected_reduction) = self.backwards_pass()     
-                   
-            # print('Expected cost reduction: ',expected_reduction)
+            (k_feedforward,K_feedback,expected_reduction) = self.backwards_pass()    
+            
+            print('Expected cost reduction: ',expected_reduction)
             
             if(abs(expected_reduction)<low_expected_reduction):
                 # If the expected reduction is low, then end the
@@ -216,13 +214,19 @@ class hybrid_ilqr:
                 break
             learning_rate = 1
             armijo_flag = 0
+            
+            (new_states,new_inputs,new_feedback,new_feedforward,new_saltations)=self.forwards_pass(learning_rate)
+            new_cost = self.compute_cost(new_states, new_inputs, self.dt_)
+
+            print("new_cost: ", new_cost) 
+            
             # Execute linesearch until the armijo condition is met (for
             # now just check if the cost decreased) TODO add real
             # armijo condition
             while(learning_rate > 0.05 and armijo_flag == 0):
                 # Compute forward pass
                 (new_states,new_inputs,new_feedback,new_feedforward,new_saltations)=self.forwards_pass(learning_rate)
-                new_cost = self.compute_cost(new_states, new_inputs,self.dt_)
+                new_cost = self.compute_cost(new_states, new_inputs, self.dt_)
 
                 print("new_cost: ", new_cost)
                 
@@ -251,8 +255,61 @@ class hybrid_ilqr:
         # Return the current trajectory
         states = self.states_
         inputs = self.inputs_
+        
+        fig1, axes = plt.subplots(1, 2)
+        (ax1, ax2) = axes.flatten()
+        ax1.grid(True)
+        ax2.grid(True)
+        
+        ax1.plot(self.states_[:,0], self.states_[:,1],'k',label='iLQR-deterministic')
+        ax1.scatter(self.target_state_[0], self.target_state_[1], color='g', marker='x', s=50.0, linewidths=6, label='Target')
+        ax1.scatter(self.init_state_[0], self.init_state_[1], color='r', marker='x', s=50.0, linewidths=6, label='Start')
+
+        plt.show()
+    
         return states,inputs,k_feedforward,K_feedback,current_cost, states_iter
 
 
+def solve_ilqr(params):
+    # Import dynamics
+    dynamis = params.symbolic_dynamics()
+    detect_integration = params.detection_func()
+    (f,A,B) = dynamis()
+    
+    # Initialize timings
+    dt = params._dt
+    
+    start_time = params._start_time
+    end_time = params._end_time
+    time_span = np.arange(start_time, end_time, dt).flatten()
 
+    # Set desired state
+    n_states = 2
+    n_inputs = 1
+    init_state = params._init_state  # Define the initial state to be the origin with no velocity
+    target_state = params._target_state  # Swing pendulum upright
+
+    # Initial guess of zeros, but you can change it to any guess
+    initial_guess = 0.5*np.ones((np.shape(time_span)[0],n_inputs))
+    # initial_guess = np.zeros((np.shape(time_span)[0],n_inputs))
+
+    # Define weighting matrices
+    Q_k = params._Q_k # zero weight to penalties along a strajectory since we are finding a trajectory
+    R_k = params._R_k
+
+    # Set the terminal cost
+    Q_T = params._Q_T
+
+    # Set the physical parameters of the system
+    mass = 1
+    gravity = 9.8
+    parameters = np.array([mass,gravity])
+
+    # Specify max number of iterations
+    n_iterations = 1000
+
+    ilqr_ = hybrid_ilqr(init_state,target_state,initial_guess,dt,start_time,end_time,detect_integration,f,A,B,Q_k,R_k,Q_T,parameters,n_iterations)
+    (states,inputs,k_feedforward,K_feedback,current_cost,states_iter) = ilqr_.solve()
+        
+    return (states,inputs,k_feedforward,K_feedback,current_cost,states_iter)
         

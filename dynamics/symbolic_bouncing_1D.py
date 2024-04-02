@@ -31,6 +31,25 @@ def dyn_bouncing(t, x, *args):
     return np.array([x[1], u[0]-g])
     
     
+def symbolic_dynamics_bouncing_continuoustime():
+    g = 9.81
+    z,z_dot,u,dt = sp.symbols('z z_dot u dt')
+
+    # Define the states and inputs
+    inputs = Matrix([u])
+    states = Matrix([z, z_dot])
+    # Defining the dynamics of the system
+    f_contin = Matrix([z_dot, u-g])
+    
+    A_contin = f_contin.jacobian(states)
+    B_contin = f_contin.jacobian(inputs)
+
+    A_contin_func = sp.lambdify((states,inputs),A_contin)
+    B_contin_func = sp.lambdify((states,inputs),B_contin)
+    
+    return (f_contin,A_contin_func,B_contin_func)
+
+
 def symbolic_dynamics_bouncing():
     g = 9.81
     z,z_dot,u,dt = sp.symbols('z z_dot u dt')
@@ -126,7 +145,7 @@ def rollout_bouncing_stochastic_feedback(x0, xt_ref, ut, Kt, kt, t0, tf, epsilon
     nt = xt_ref.shape[0]
     _, nu, nx = Kt.shape
     
-    dt = (tf - t0) / (nt-1.0)
+    dt = (tf - t0) / nt
     # Define the time span and discretizations
     t_eval = np.linspace(t0, tf, nt)
     
@@ -153,9 +172,13 @@ def rollout_bouncing_stochastic_feedback(x0, xt_ref, ut, Kt, kt, t0, tf, epsilon
         #     index_dist = [[i, np.sum((xt_ref[i] - xt)*(xt_ref[i] - xt))] for i in range(xt_ref.shape[0])]
         #     sort_index_dist = sorted(index_dist, key=lambda x: x[1])
         #     x_ref = xt_ref[sort_index_dist[0][0]]
-                
-        u = ut[i] + Kt[i]@(xt-x_ref) + kt[i]
-        print("u", u)
+        
+        # u = ut[i] + Kt[i]@(xt-x_ref) + kt[i]
+        
+        # Riccati
+        u = Kt[i]@xt + kt[i]
+        
+        # print("u", u)
         ut_cl[i] = u
         
         # One step integration
@@ -168,7 +191,12 @@ def rollout_bouncing_stochastic_feedback(x0, xt_ref, ut, Kt, kt, t0, tf, epsilon
         t_span = (t, t_plus)
         t_eval = np.linspace(t, t_plus, nt)
         
-        xt_next = stochastic_integration(xt, u, t_span, t_eval, epsilon, dW, nt)
+        bouncing_dyn = np.array([xt[1], u[0]-g])
+        
+        xt_next = xt + bouncing_dyn*dt  + np.sqrt(epsilon)*dW
+        
+        # xt_next = xt + dyn_bouncing(t, xt, u)*dt + np.sqrt(epsilon)*dW
+        # xt_next = stochastic_integration(xt, u, t_span, t_eval, epsilon, dW, nt)
         # /---- solver for the deterministic part
         
         # Guard condition: direction is -1     
@@ -201,7 +229,7 @@ def rollout_bouncing_stochastic_feedback(x0, xt_ref, ut, Kt, kt, t0, tf, epsilon
                     dt_int = dt
                     break
         xt = xt_next
-        print("xt:", xt)
+        # print("xt:", xt)
         xt_trj[i+1] = xt
     
     return xt_trj, ut_cl

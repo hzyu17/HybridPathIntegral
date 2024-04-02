@@ -53,12 +53,12 @@ class ilqr:
             current_x = states[ii,:] # Not being used currently
             current_u = inputs[ii,:].flatten()
 
-            current_cost = current_u.T@self.R_k_@current_u # Right now only considering cost in input
+            current_cost = current_u.T@self.R_k_@current_u*self.dt_ # Right now only considering cost in input
             total_cost = total_cost+current_cost
         # Compute terminal cost
         terminal_difference = (self.target_state_-states[-1,:]).flatten()
         terminal_cost = terminal_difference.T@self.Q_T_@terminal_difference
-        total_cost = total_cost+terminal_cost
+        total_cost = total_cost+terminal_cost*self.dt_
         return total_cost
 
     def backwards_pass(self):
@@ -156,6 +156,8 @@ class ilqr:
             # Update the current state
             current_state = next_state
         return (states,inputs)
+    
+    
     def solve(self):
         # Compute the rollout to get the initial trajectory with the
         # initial guess
