@@ -39,7 +39,7 @@ def compute_cost(states,inputs,randN,target_state,trj_ref, Qk, Rk, QT, epsilon, 
     for ii in range(n_timestamps-1):
         current_u = inputs[ii]
         
-        current_cost = current_u.T@Rk@current_u/2.0*dt + np.sqrt(epsilon*dt) * current_u.T@randN[ii]
+        current_cost = current_u.T@Rk@current_u/2.0*dt + np.sqrt(epsilon*dt) * np.dot(current_u.T, randN[ii])
         total_cost = total_cost+current_cost
         
     # Compute terminal cost
@@ -73,7 +73,7 @@ def process_compute_costs(sample_i, inputs, dWs, target_state, ref_states, index
 if __name__ == '__main__':
     # === ilqr parameters ===
     # Initialize timings
-    dt = 0.005
+    dt = 0.0005
     # dt_pathintegral = dt / 50.0
     dt_pathintegral = dt
     
@@ -93,16 +93,16 @@ if __name__ == '__main__':
     # Define weighting matrices
     Q_k = np.zeros((n_states,n_states)) # zero weight to penalties along a strajectory since we are finding a trajectory
     # R_k = 0.01*np.eye(n_inputs)
-    R_k = 0.01*np.eye(n_inputs)
+    R_k = np.eye(n_inputs)
 
     # Set the terminal cost
     # Q_T = 1000*np.eye(n_states)
-    Q_T = 20*np.eye(n_states)
-    Q_T[0,0] = 200.0
+    Q_T = 200*np.eye(n_states)
+    Q_T[0,0] = 2000.0
     
     # === path integral parameters ===
-    epsilon = 1.0
-    n_samples = 50
+    epsilon = 0.5
+    n_samples = 100
     n_exp = 10
     
     # # ------------- verification with no contact ------------- 
@@ -244,21 +244,35 @@ if __name__ == '__main__':
             
             GaussianNoise = np.random.randn(n_samples, nt_i, n_inputs)          
             
-            for i_sample in range(n_samples):
+            for i_sample in prange(n_samples):
                 noise_i = GaussianNoise[i_sample]
-                sample_i, ut_cl_i = rollout_bouncing_stochastic_feedback(xt, current_modechange, states_i, modechange_i, 
-                                                                         inputs_i, K_feedback_i, k_feedforward_i, 
+                sample_i, ut_cl_i, Su_i = rollout_bouncing_stochastic_feedback(xt, current_modechange, states_i, modechange_i, 
+                                                                         inputs_i, K_feedback_i, k_feedforward_i, target_state, R_k, Q_T,
                                                                          start_time, end_time, epsilon, noise_i, mode_exttrjs_maps)
                 sampled_trjs[i_sample] = sample_i
                 sampled_controls[i_sample] = ut_cl_i
-                pathcost_i = compute_cost(sample_i, ut_cl_i, noise_i, target_state, states_i, Q_k, R_k, Q_T, epsilon, dt)
-                PathCosts[i_sample] = pathcost_i
+                # pathcost_i = compute_cost(sample_i, ut_cl_i, noise_i, target_state, states_i, Q_k, R_k, Q_T, epsilon, dt)
+                PathCosts[i_sample] = Su_i
             
             # update the control proposal using path integral 
             u0_star = update_u0_pathintegral(u0_proposal, PathCosts, epsilon, dt)
             u_star_pi[i_t] = u0_star
             allPathCosts[i_t] = PathCosts
             
+            PathCosts = PathCosts - np.min(PathCosts)
+            PathCosts_eps = PathCosts / epsilon
+            
+            expS = np.exp(-PathCosts_eps)
+
+            # ------- Compute the expected value ---------
+            E_expS = np.mean(expS)
+            
+            # ------- Compute weights -------
+            weights = expS / E_expS
+            
+            print("Var weight", np.var(weights))
+            print("lambda", 1.0 / np.mean(weights**2))
+                
             # ------------------------ Visualize sampled trajectories ------------------------ 
             visualize_samples = False
             if visualize_samples:
@@ -273,19 +287,6 @@ if __name__ == '__main__':
                 plt.show()
                 
                 ## ============= show path costs and weights in path integral control ============= 
-                PathCosts = PathCosts - np.min(PathCosts)
-                PathCosts_eps = PathCosts / epsilon
-                
-                expS = np.exp(-PathCosts_eps)
-
-                # ------- Compute the expected value ---------
-                E_expS = np.mean(expS)
-                
-                # ------- Compute weights -------
-                weights = expS / E_expS
-                
-                print("Var weight", np.var(weights))
-                print("lambda", 1.0 / np.mean(weights**2))
                 
                 fig6, ax11 = plt.subplots(figsize=(8,6))
                 ax11.grid(True)
@@ -318,9 +319,9 @@ if __name__ == '__main__':
             # current_modechange_ilqr = (current_mode_ilqr, next_mode_ilqr)
         
         # --- ilqr for comparison --- 
-        trj_ilqr, u_trj_ilqr = rollout_bouncing_stochastic_feedback(init_state, (1, 1), states, modechanges, 
-                                                                    inputs, K_feedback, k_feedforward, 
-                                                                    start_time, end_time, epsilon, RndN_actual, mode_exttrjs_maps)
+        trj_ilqr, u_trj_ilqr, cost_ilqr = rollout_bouncing_stochastic_feedback(init_state, (1, 1), states, modechanges, 
+                                                                                inputs, K_feedback, k_feedforward, target_state, R_k, Q_T,
+                                                                                start_time, end_time, epsilon, RndN_actual, mode_exttrjs_maps)
         
         # Compare cost
         dWs_zeros = np.zeros((nt, n_inputs))

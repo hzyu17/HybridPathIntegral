@@ -230,7 +230,8 @@ class hybrid_ilqr:
         x_resets.append(self.init_state_)
         mode_changes.append((1, 1))
         
-        for i_key in sorted(txmode_map.keys()):
+        sorted_keys = sorted(txmode_map.keys())
+        for i_key in sorted_keys:
             t_events.append(txmode_map[i_key][0])
             x_events.append(txmode_map[i_key][1])
             x_resets.append(txmode_map[i_key][2])
@@ -239,7 +240,8 @@ class hybrid_ilqr:
         t_events.append(self.end_time_)
         x_events.append(self.target_state_)
         x_resets.append(self.target_state_)
-        mode_changes.append(txmode_map[i_key][3])
+        if txmode_map.keys():
+            mode_changes.append(txmode_map[sorted_keys[-1]][3])
         
         # forward and backward trajectory extensions
         for ii, tevent_i in enumerate(t_events[1:-1], start=1):

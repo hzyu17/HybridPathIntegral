@@ -148,7 +148,7 @@ def stochastic_integration(x0, u, t_span, t_eval, epsilon, dW, nt):
     return xt_next
 
 def rollout_bouncing_stochastic_feedback(x0, cur_mode_change, xt_ref, ref_modechanges, 
-                                         ut, Kt, kt, t0, tf, epsilon, GaussianNoise, mode_exttrjs_maps=None):
+                                         ut, Kt, kt, target_state, R_k, Q_T, t0, tf, epsilon, GaussianNoise, mode_exttrjs_maps=None):
 
     n_timestamps = xt_ref.shape[0]
     _, nu, nx = Kt.shape
@@ -163,7 +163,7 @@ def rollout_bouncing_stochastic_feedback(x0, cur_mode_change, xt_ref, ref_modech
     xt_trj[0] = xt
     
     # guard_thres = 1e-4
-    dt_shrinkingrate = 0.3
+    dt_shrinkingrate = 1e-4
     dt_int = dt
     
     ut_cl = np.zeros((n_timestamps, nu))
@@ -190,6 +190,9 @@ def rollout_bouncing_stochastic_feedback(x0, cur_mode_change, xt_ref, ref_modech
     
     cnt_events = 0 # count the number of hybrid events happened during the execusion.
     mode_change = cur_mode_change
+    
+    # path cost
+    Sk = 0
     for i in range(n_timestamps-1):    
         
         xref_i = xt_ref[i]
@@ -233,8 +236,9 @@ def rollout_bouncing_stochastic_feedback(x0, cur_mode_change, xt_ref, ref_modech
         
         delta_xt = xt_trj[i] - xref_i
         u = ut[i] + Kt[i]@delta_xt + kt[i]
-        
         ut_cl[i] = u
+        
+        dW_i = np.sqrt(dt_int)*GaussianNoise[i]
         
         # One step integration        
         # ---- solver for the deterministic part
@@ -242,8 +246,7 @@ def rollout_bouncing_stochastic_feedback(x0, cur_mode_change, xt_ref, ref_modech
         t_span = (t0_i, t_plus)
         t_eval = np.linspace(t0_i, t_plus, n_timestamps)
         
-        dW = np.sqrt(dt_int)*GaussianNoise[i]
-        xt_next = stochastic_integration(xt, u, t_span, t_eval, epsilon, dW, n_timestamps).flatten()
+        xt_next = stochastic_integration(xt, u, t_span, t_eval, epsilon, dW_i, n_timestamps).flatten()
         
         # Hit the guard function.  
         if (current_guard(t0_i, xt)>0) and (current_guard(t_plus, xt_next)<=0): 
@@ -273,13 +276,20 @@ def rollout_bouncing_stochastic_feedback(x0, cur_mode_change, xt_ref, ref_modech
                     # print("xt_last ", xt_last)
                     xt_next, next_mode = current_resetmap(t0_i, xt_last, current_mode)
                     dt_int = dt
+                    dW_i = dW_new
                     break
+        
+        # Collect cost: consider only the terminal state cost for now.
+        Sk += u.T@R_k@u/2.0 * dt + np.sqrt(epsilon) * np.dot(u.T, dW_i)
         
         mode_change = (current_mode, next_mode)
         xt_trj[i+1] = xt_next
         xt = xt_next
     
     actual_xtref[-1] = xt_ref[-1]
+    
+    # Terminal cost
+    Sk += (xt-target_state)@Q_T@(xt-target_state) / 2.0
     
     show_mismatch = False
     if show_mismatch:
@@ -305,7 +315,7 @@ def rollout_bouncing_stochastic_feedback(x0, cur_mode_change, xt_ref, ref_modech
         
         plt.show()
     
-    return xt_trj, ut_cl
+    return xt_trj, ut_cl, Sk
 
 
 def rollout_bouncing_stochastic(x0, ut, t0, tf, epsilon, GaussianNoise):
