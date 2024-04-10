@@ -2,8 +2,8 @@ import numpy as np
 from numba import njit, float64, int32, prange
 
 # Hybrid path integral control
-@njit(float64[:](
-    float64[:], float64[:], float64, float64), parallel=True)
+# @njit(float64[:](
+#     float64[:], float64[:], float64, float64), parallel=True)
 def update_u0_pathintegral(u0, PathCosts, epsilon, dt):
     nu = len(u0)
     n_samples = len(PathCosts)

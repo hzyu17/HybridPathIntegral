@@ -29,6 +29,11 @@ def dyn_bouncing(t, x, *args):
     else:
         u = args[0]
     return np.array([x[1], u[0]-g])
+
+
+def gdWt_bouncing(dWt, eps):
+    B = np.array([[0],[1.0]], dtype=np.float64)
+    return np.sqrt(eps) * B@dWt
     
     
 def symbolic_dynamics_bouncing_continuoustime():
@@ -73,7 +78,7 @@ def symbolic_dynamics_bouncing():
     return (f_disc_func,A_disc_func,B_disc_func)
 
 
-def stochastic_integration_bouncing(x0, u, t_span, t_eval, epsilon, RandN, dt, nt):
+def stochastic_integration_bouncing(x0, u, current_mode, t_span, t_eval, epsilon, RandN, dt, nt):
     dW = np.sqrt(dt)*RandN
     xt_next = stochastic_integration(x0, u, t_span, t_eval, epsilon, dW, nt)
     t_next = t_eval[-1]
@@ -83,8 +88,9 @@ def stochastic_integration_bouncing(x0, u, t_span, t_eval, epsilon, RandN, dt, n
     dt_int = dt
     t, t_plus = t_span[0], t_span[1]
     
+    next_mode = current_mode
     # Guard condition: direction is -1     
-    if (guard_bouncing(t, x0)>0) and (guard_bouncing(t_plus, xt_next)<=0): # Hit the guard function.
+    if (guard_bouncing_12(t, x0)>0) and (guard_bouncing_12(t_plus, xt_next)<=0): # Hit the guard function.
         xt_swch = xt_next
         
         # Sandwich rule to find finer grind 
@@ -104,12 +110,12 @@ def stochastic_integration_bouncing(x0, u, t_span, t_eval, epsilon, RandN, dt, n
             xt_swch = stochastic_integration(x0, u, t_span, t_eval, epsilon, dW, nt)
 
             # /---- solver for the deterministic part
-            if (guard_bouncing(t, xt_swch)>0) or (cnt==10): # Until the guard condition is no longer met.
+            if (guard_bouncing_12(t, xt_swch)>0) or (cnt==10): # Until the guard condition is no longer met.
                 # The reset map is called
-                xt_next = reset_map_bouncing(t, xt_last)
+                xt_next, next_mode = reset_map_bouncing_12(t, xt_last, current_mode)
                 dt_int = dt
                 break
-    return xt_next
+    return xt_next, next_mode
 
 def stochastic_integration(x0, u, t_span, t_eval, epsilon, dW, nt):
     """ Rollout function assuming constant control input during the time span.
@@ -137,70 +143,111 @@ def stochastic_integration(x0, u, t_span, t_eval, epsilon, dW, nt):
     # ============= method 2: forward Euler =============
     t0, tf = t_span[0], t_span[-1]
     dt = tf - t0
-    xt_next = x0 + dyn_bouncing(t0, x0, *args)*dt + np.sqrt(epsilon)*dW
+    xt_next = x0 + dyn_bouncing(t0, x0, *args)*dt + gdWt_bouncing(dW, epsilon)
     
     return xt_next
 
-def rollout_bouncing_stochastic_feedback(x0, xt_ref, ut, Kt, kt, t0, tf, epsilon, GaussianNoise):
-    nt = xt_ref.shape[0]
+def rollout_bouncing_stochastic_feedback(x0, cur_mode_change, xt_ref, ref_modechanges, 
+                                         ut, Kt, kt, t0, tf, epsilon, GaussianNoise, mode_exttrjs_maps=None):
+
+    n_timestamps = xt_ref.shape[0]
     _, nu, nx = Kt.shape
     
-    dt = (tf - t0) / nt
-    # Define the time span and discretizations
-    t_eval = np.linspace(t0, tf, nt)
+    dt = (tf - t0) / n_timestamps
     
     # Integration of the stochastic system
     xt = x0
     
     # returning trajectory
-    xt_trj = np.zeros((nt, nx), dtype=np.float64)
+    xt_trj = np.zeros((n_timestamps, nx), dtype=np.float64)
     xt_trj[0] = xt
     
     # guard_thres = 1e-4
     dt_shrinkingrate = 0.3
     dt_int = dt
     
-    ut_cl = np.zeros((nt, nu))
+    ut_cl = np.zeros((n_timestamps, nu))
     
-    for i in range(nt-1):
-        # find the reference state following the sequence.
-        x_ref = xt_ref[i]
+    guard_bouncing_12.terminal=True
+    guard_bouncing_12.direction=-1
+    
+    guard_bouncing_21.terminal=True
+    guard_bouncing_21.direction=1
+    
+    guards = {1:guard_bouncing_12, 2: guard_bouncing_21}
+    reset_maps = {1:reset_map_bouncing_12, 2:reset_map_bouncing_21}
+    
+    current_mode = cur_mode_change[0]
+    # only consider the 1->2 reset for now (bouncing)
+    current_guard = guards[1]
+    current_resetmap = reset_maps[1]
+    
+    mismatched_states = None
+    mismatched_refs = None
+    modified_refs = None
+    cnt_mismatch = 0
+    actual_xtref = np.zeros((n_timestamps, nx), dtype=np.float64)
+    
+    cnt_events = 0 # count the number of hybrid events happened during the execusion.
+    mode_change = cur_mode_change
+    for i in range(n_timestamps-1):    
         
-        # if (xt[1]<0) and (x_ref[1]>0): # differen mode
-        #     print("Mode mismatch, refind the closes reference state")
-        #     # find the closest point in the ref trj as the current ref state
-        #     index_dist = [[i, np.sum((xt_ref[i] - xt)*(xt_ref[i] - xt))] for i in range(xt_ref.shape[0])]
-        #     sort_index_dist = sorted(index_dist, key=lambda x: x[1])
-        #     x_ref = xt_ref[sort_index_dist[0][0]]
+        xref_i = xt_ref[i]
         
-        # u = ut[i] + Kt[i]@(xt-x_ref) + kt[i]
+        t0_i = t0 + i*dt  
         
-        # Riccati
-        u = Kt[i]@xt + kt[i]
+        # # Riccati
+        # u = Kt[i]@xt + kt[i]
         
-        # print("u", u)
+        # i-lqr
+        # ======== Check mode mismatch ======== 
+        current_mode = mode_change[0]
+        next_mode = mode_change[1]
+        ref_next_mode = ref_modechanges[i][1]
+        if (next_mode != ref_next_mode):
+            if mode_exttrjs_maps is not None:
+                # Take the first hybrid event for now. Needs to find the correct corresponding one among all hybrid events.
+                mode_change_i, mode_exttrjs_i = mode_exttrjs_maps[0]
+                extended_trj = mode_exttrjs_i[next_mode]
+                xref_i = extended_trj[cnt_mismatch]
+                if modified_refs is None:
+                    modified_refs = xref_i.reshape((1, -1))
+                else:
+                    modified_refs = np.vstack((modified_refs, xref_i.reshape((1, -1))))
+                
+            # Collect data
+            if mismatched_states is None:
+                mismatched_states = xt_trj[i].reshape((1, -1))
+                mismatched_refs = xt_ref[i].reshape((1, -1))
+            else:
+                mismatched_states = np.vstack((mismatched_states, xt_trj[i].reshape((1, -1))))
+                mismatched_refs = np.vstack((mismatched_refs, xt_ref[i].reshape((1, -1))))
+            
+            cnt_mismatch += 1
+            
+            # print("mode mismatch")
+            # print("current_mode:", current_mode)
+            # print("ref mode change:", ref_modechanges[i])
+            
+        actual_xtref[i] = xref_i
+        
+        delta_xt = xt_trj[i] - xref_i
+        u = ut[i] + Kt[i]@delta_xt + kt[i]
+        
         ut_cl[i] = u
         
-        # One step integration
-        t = t_eval[i]
-        t_next = t_eval[i+1]
+        # One step integration        
+        # ---- solver for the deterministic part
+        t_plus = t0_i + dt_int
+        t_span = (t0_i, t_plus)
+        t_eval = np.linspace(t0_i, t_plus, n_timestamps)
         
         dW = np.sqrt(dt_int)*GaussianNoise[i]
-        # ---- solver for the deterministic part
-        t_plus = t + dt_int
-        t_span = (t, t_plus)
-        t_eval = np.linspace(t, t_plus, nt)
+        xt_next = stochastic_integration(xt, u, t_span, t_eval, epsilon, dW, n_timestamps).flatten()
         
-        bouncing_dyn = np.array([xt[1], u[0]-g])
-        
-        xt_next = xt + bouncing_dyn*dt  + np.sqrt(epsilon)*dW
-        
-        # xt_next = xt + dyn_bouncing(t, xt, u)*dt + np.sqrt(epsilon)*dW
-        # xt_next = stochastic_integration(xt, u, t_span, t_eval, epsilon, dW, nt)
-        # /---- solver for the deterministic part
-        
-        # Guard condition: direction is -1     
-        if (guard_bouncing(t, xt)>0) and (guard_bouncing(t_plus, xt_next)<=0): # Hit the guard function.
+        # Hit the guard function.  
+        if (current_guard(t0_i, xt)>0) and (current_guard(t_plus, xt_next)<=0): 
+            cnt_events += 1
             xt_swch = xt_next
             
             # Sandwich rule to find finer grind 
@@ -211,26 +258,52 @@ def rollout_bouncing_stochastic_feedback(x0, xt_ref, ut, Kt, kt, t0, tf, epsilon
                 
                 # Too far from the guard, shrink the step size.
                 dt_int = dt_int * dt_shrinkingrate
-                dW = np.sqrt(dt_int)*GaussianNoise[i]
+                dW_new = np.sqrt(dt_int)*GaussianNoise[i]
                 
                 # ---- solver for the deterministic part
-                t_span = (t, t_next)
-                t_eval = np.linspace(t, t_next, nt)
-                
-                xt_swch = stochastic_integration(xt, u, t_span, t_eval, epsilon, dW, nt)
-
+                t_span_new = (t0_i, t0_i+dt_int)
+                t_eval_new = np.linspace(t0_i, t0_i+dt_int, n_timestamps)
+                xt_swch = stochastic_integration(xt, u, t_span_new, t_eval_new, epsilon, dW_new, n_timestamps)
                 # /---- solver for the deterministic part
                 
-                if (guard_bouncing(t, xt_swch)>0) or (cnt==10): # Until the guard condition is no longer met.
+                # Until the guard condition is no longer met.
+                if (current_guard(t0_i, xt_swch)>0) or (cnt==10): 
                     # The reset map is called on the last integration for which the guard is not met.
                     # print("xt ", xt)
                     # print("xt_last ", xt_last)
-                    xt_next = reset_map_bouncing(t, xt_last)
+                    xt_next, next_mode = current_resetmap(t0_i, xt_last, current_mode)
                     dt_int = dt
                     break
+        
+        mode_change = (current_mode, next_mode)
+        xt_trj[i+1] = xt_next
         xt = xt_next
-        # print("xt:", xt)
-        xt_trj[i+1] = xt
+    
+    actual_xtref[-1] = xt_ref[-1]
+    
+    show_mismatch = False
+    if show_mismatch:
+        # ======== Show mode mismatch ======== 
+        fig2, axes = plt.subplots(1,2)
+        ax5, ax6 = axes.flatten()
+        ax5.grid(True)
+        ax6.grid(True)
+        
+        ax5.plot(xt_trj[:,0], xt_trj[:,1],'b',label='Stochastic rollout')
+        ax5.plot(xt_ref[:,0], xt_ref[:,1],'k',label='original reference')
+        ax5.plot(actual_xtref[:,0], actual_xtref[:,1],'r',label='modified reference')
+        ax5.legend()
+        
+        ax6.plot(xt_trj[:,0], xt_trj[:,1],'k',label='stochastic states')
+        ax6.plot(xt_ref[:,0], xt_ref[:,1],'r',label='reference')
+        
+        ax6.plot(mismatched_states[:,0], mismatched_states[:,1],'b',label='mismatched states')
+        ax6.plot(mismatched_refs[:,0], mismatched_refs[:,1],'g',label='mismatched reference')
+        ax6.plot(modified_refs[:,0], modified_refs[:,1],'y',label='modified reference')
+        
+        ax6.legend()
+        
+        plt.show()
     
     return xt_trj, ut_cl
 
@@ -308,55 +381,90 @@ def rollout_bouncing_stochastic(x0, ut, t0, tf, epsilon, GaussianNoise):
     return xt_trj
     
     
-def detect_bouncing(x0, u, t0, tf):
+def detect_bouncing(x0, u, t0, tf, current_mode, detection=True, backwards=False):
+    """Integrate controlled dynamics in a short period of time with hybrid event detection.
+
+    Args:
+        x0 (array): starting state
+        u (array): control input
+        t0 (scalar): start time
+        tf (scalar): end time
+        current_mode (int): the current mode
+        detection (bool, optional): With detection flag. Defaults to True.
+        backwards (bool, optional): Integrate backwards flag. Defaults to False.
+
+    Returns:
+        tuple: Containing the next state and contact information if a hybrid event happens.
+    """
     # Define the dynamics using the integration
     nt = 100
-        
-    guard_bouncing.terminal=True
-    guard_bouncing.direction=-1
+    
+    guard_bouncing_12.terminal=True
+    guard_bouncing_12.direction=-1
+    
+    guard_bouncing_21.terminal=True
+    guard_bouncing_21.direction=1
+    
+    guards = {1:guard_bouncing_12, 2: guard_bouncing_21}
+    reset_maps = {1:reset_map_bouncing_12, 2:reset_map_bouncing_21}
+    current_guard = guards[current_mode]
+    current_resetmap = reset_maps[current_mode]
     
     args = (u, )
-     
-    t_span = (t0, tf)
-    t_eval = np.linspace(t0, tf, nt)
-    
-    solution = scipy.integrate.solve_ivp(fun=lambda t, y: dyn_bouncing(t, y, *args), 
-                                            t_span=t_span, y0=x0, method='RK45', 
-                                            t_eval=t_eval, dense_output=True, 
-                                            events=guard_bouncing, vectorized=False)
-
-    # Had contact
-    if len(solution.t_events[0]) > 0:
-        t_event = solution.t_events[0][0]
-        x_event = solution.y_events[0][0]
-        x_reset = reset_map_bouncing(t_event, x_event)
-        x0 = x_reset
-        
-        # ---------- Compute saltation matrix ---------- 
-        R_x = Rx_bouncing(t_event, x_event)
-        R_t = Rt_bouncing(t_event, x_event)
-        g_x = gx_bouncing(t_event, x_event)
-        g_t = gt_bouncing(t_event, x_event)
-        F_1 = dyn_bouncing(t_event, x_event)
-        F_2 = dyn_bouncing(t_event, x_reset) # Important, the F2 is evaluated at the reseted state!
-        saltation = saltation_matrix(F_1, F_2, R_t, R_x, g_t, g_x)
-        
-        t0 = t_event
-        
-        # ---------- Regardless of contact, integrate until t=tf ----------
+    if backwards:
+        # integrate backwards
+        t_span = (t0, tf)
+    else:
         t_span = (t0, tf)
         t_eval = np.linspace(t0, tf, nt)
-        
-        solution = scipy.integrate.solve_ivp(fun=lambda t, y: dyn_bouncing(t, y, *args), 
+        dyn_fun=lambda t, y: dyn_bouncing(t, y, *args)
+    
+    x_event = None
+    t_event = None
+    x_reset = None
+    saltation = None
+    next_mode = current_mode
+    
+    if detection:
+        solution = scipy.integrate.solve_ivp(fun=dyn_fun, 
+                                            t_span=t_span, y0=x0, method='RK45', 
+                                            t_eval=t_eval, dense_output=True, 
+                                            events=current_guard, vectorized=False)
+    
+        # Hit guard
+        if len(solution.t_events[0]) > 0:
+            t_event = solution.t_events[0][0]
+            x_event = solution.y_events[0][0]
+            x_reset, next_mode = current_resetmap(t_event, x_event, current_mode)
+            x0 = x_reset
+            
+            # ---------- Compute saltation matrix ---------- 
+            R_x = Rx_bouncing(t_event, x_event)
+            R_t = Rt_bouncing(t_event, x_event)
+            g_x = gx_bouncing(t_event, x_event)
+            g_t = gt_bouncing(t_event, x_event)
+            F_1 = dyn_bouncing(t_event, x_event)
+            F_2 = dyn_bouncing(t_event, x_reset) # Important, the F2 is evaluated at the reseted state!
+            saltation = saltation_matrix(F_1, F_2, R_t, R_x, g_t, g_x)
+            
+            t0 = t_event
+            
+            # ---------- Regardless of contact, integrate until t=tf ----------
+            t_span = (t0, tf)
+            t_eval = np.linspace(t0, tf, nt)
+            
+            solution = scipy.integrate.solve_ivp(fun=dyn_fun, 
                                                 t_span=t_span, y0=x0, method='RK45', 
                                                 t_eval=t_eval, dense_output=True)
-                    
-    # Had no contact
-    else:
-        x_event = None
-        x_reset = None
-        x0 = None
-        saltation = None
+                                
+        # Had no contact
+        else:
+            x0 = None
+            
+    else: # Do not detect contact 
+        solution = scipy.integrate.solve_ivp(fun=dyn_fun, 
+                                            t_span=t_span, y0=x0, method='RK45', 
+                                            t_eval=t_eval, dense_output=True)
         
     # Solve for the continuous trajectory before the contact 
     t = np.linspace(t0, tf, nt).flatten()
@@ -366,7 +474,9 @@ def detect_bouncing(x0, u, t0, tf):
     
     x_next = f_disc[:, -1]
     
-    return x_next, saltation
+    mode_mapping = (current_mode, next_mode)
+    
+    return x_next, saltation, mode_mapping, t_event, x_event, x_reset
 
 
 if __name__ == '__main__':

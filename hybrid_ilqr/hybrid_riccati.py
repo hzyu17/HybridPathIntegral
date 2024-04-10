@@ -58,6 +58,11 @@ class hybrid_riccati():
         self.rollout()
         
     def compute_cost(self,states,inputs,dt):
+        print("self.R_k_", self.R_k_)
+        print("self.Q_T_", self.Q_T_)
+        print("self.n_timesteps_", self.n_timesteps_)
+        print("self.target_state_", self.target_state_)
+        print("dt", dt)
         # Initialize cost
         total_cost = 0.0
         for ii in range(0,self.n_timesteps_-1):
@@ -124,8 +129,8 @@ class hybrid_riccati():
             self.M_[self.n_states_:2*self.n_states_, 0:self.n_states_] = -self.Q_k_
             self.M_[self.n_states_:2*self.n_states_, self.n_states_:2*self.n_states_] = -A_k.T
             
-            # X_Y = X_Y - (self.M_@X_Y)*self.dt_
-            X_Y = scipy.linalg.expm(-self.M_*self.dt_)@X_Y
+            X_Y = X_Y - (self.M_@X_Y)*self.dt_
+            # X_Y = scipy.linalg.expm(-self.M_*self.dt_)@X_Y
             X = X_Y[0:self.n_states_]
             Y = X_Y[self.n_states_:2*self.n_states_]
             self.PI_[idx] = Y@np.linalg.inv(X)
@@ -139,15 +144,15 @@ class hybrid_riccati():
             A_k = self.A_(current_x, current_u)
             B_k = self.B_(current_x, current_u)
             
-            self.q_[idx-1] = scipy.linalg.expm((A_k.T - self.PI_[idx]@B_k@inv_R_k@B_k.T)*self.dt_)@self.q_[idx]
-            # self.q_[idx-1] = self.q_[idx] + (A_k.T - self.PI_[idx]@B_k@inv_R_k@B_k.T)@self.q_[idx]*self.dt_
+            # self.q_[idx-1] = scipy.linalg.expm((A_k.T - self.PI_[idx]@B_k@inv_R_k@B_k.T)*self.dt_)@self.q_[idx]
+            self.q_[idx-1] = self.q_[idx] + (A_k.T - self.PI_[idx]@B_k@inv_R_k@B_k.T)@self.q_[idx]*self.dt_
             
         # solve for the optimal states and controls
         self.states_ = np.zeros((self.n_timesteps_, self.n_states_))
         self.inputs_ = np.zeros((self.n_timesteps_, self.n_inputs_))
         self.states_[0] = self.init_state_
         
-        for idx in range(0, self.n_timesteps_-1):
+        for idx in range(self.n_timesteps_-1):
             # Get the M matrix components
             A_k = self.A_(self.states_[idx], self.inputs_[idx])
             B_k = self.B_(self.states_[idx], self.inputs_[idx])
@@ -156,8 +161,13 @@ class hybrid_riccati():
             self.k_[idx] = -inv_R_k@B_k.T@self.q_[idx]
             
             self.inputs_[idx] = self.K_[idx]@self.states_[idx] + self.k_[idx]
+            g = 9.81
+            A_cl = A_k + B_k@self.K_[idx]
+            a_cl = B_k@self.k_[idx] + np.array([0, -g])
+            # self.states_[idx+1] = scipy.linalg.expm(A_cl*self.dt_)@self.states_[idx] + a_cl*self.dt_
             self.states_[idx+1] = self.states_[idx] + (A_k@self.states_[idx] + B_k@self.inputs_[idx])*self.dt_
             
+        print("self.states_[-1]", self.states_[-1,:])
         cost = self.compute_cost(self.states_, self.inputs_, self.dt_)
         print("total cost: ", cost)
         

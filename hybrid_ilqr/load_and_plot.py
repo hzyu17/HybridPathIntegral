@@ -14,20 +14,20 @@ def compute_weights(PathCosts, epsilon):
     # ------- Compute weights -------
     weights = expS / E_expS
     
-    fig6, ax11 = plt.subplots(figsize=(8,6))
-    ax11.grid(True)
-    ax11.bar(range(len(PathCosts)), PathCosts)
-    ax11.set_title("Path Cost distribution")
-    ax11.set_xlabel("Sample Number")
-    ax11.set_ylabel("Costs")
+    # fig6, ax11 = plt.subplots(figsize=(8,6))
+    # ax11.grid(True)
+    # ax11.bar(range(len(PathCosts)), PathCosts)
+    # ax11.set_title("Path Cost distribution")
+    # ax11.set_xlabel("Sample Number")
+    # ax11.set_ylabel("Costs")
     
-    fig7, ax12 = plt.subplots(figsize=(8,6))
-    ax12.grid(True)
-    ax12.bar(range(len(weights)), weights)
-    ax12.set_title("Path Cost distribution")
-    ax12.set_xlabel("Sample Number")
-    ax12.set_ylabel("Costs")
-    plt.show()
+    # fig7, ax12 = plt.subplots(figsize=(8,6))
+    # ax12.grid(True)
+    # ax12.bar(range(len(weights)), weights)
+    # ax12.set_title("Path Cost distribution")
+    # ax12.set_xlabel("Sample Number")
+    # ax12.set_ylabel("Costs")
+    # plt.show()
     
     return weights
 
@@ -58,7 +58,7 @@ if __name__ == '__main__':
     # filename = root_dir+"/data/bouncing/data_2024-03-22_14-31-11_example_bouncingball.pickle" # n_exp = 100 
     # filename = root_dir+"/data/bouncing/data_2024-03-25_04-30-27_example_bouncingball.pickle" # n_samples = 50
     # filename = root_dir+"/data/bouncing/data_2024-03-25_20-47-27_example_bouncingball_500samples.pickle" # n_samples = 500
-    filename = root_dir+"/data/bouncing/data_2024-04-01_22-52-16_hybrid_riccati.pickle"
+    filename = root_dir+"/data/bouncing/data_2024-04-09_15-14-01_hybrid_riccati.pickle"
     
     print("loading data")
     exp_data.load(filename)
@@ -74,9 +74,9 @@ if __name__ == '__main__':
     target_state = exp_params._target_state
     
     if exp_data.get_nominal_data():
-        (states,inputs,k_feedforward,K_feedback,current_cost,states_iter) = exp_data.get_nominal_data()
+        (states,inputs,k_feedforward,K_feedback,current_cost,states_iter,_,_) = exp_data.get_nominal_data()
     else:
-        (states,inputs,k_feedforward,K_feedback,current_cost,states_iter) = solve_ilqr(exp_params)
+        (states,inputs,k_feedforward,K_feedback,current_cost,states_iter,_,_) = solve_ilqr(exp_params)
 
     print("plotting")
     fig1, axes = plt.subplots(1, 2, figsize=(10, 8))

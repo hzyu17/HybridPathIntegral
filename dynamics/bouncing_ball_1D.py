@@ -49,23 +49,33 @@ def linearize_bouncing(x):
 def dyn_bouncing_controlled(t, x, u):
     return np.array([x[1], u/m-g], dtype=np.float64)
 
-def guard_bouncing(t, x):
+def guard_bouncing_12(t, x):
     return x[0]
-guard_bouncing_jit = jax.jit(guard_bouncing)
+guard_bouncing_jit = jax.jit(guard_bouncing_12)
 
+def guard_bouncing_21(t, x):
+    return x[1]
 
-def reset_map_bouncing(t, x_minus):
-    e1 = 1.0
+def reset_map_bouncing_21(t, x_minus, current_mode):
+    if (x_minus[0] > 0) and (current_mode==2):
+        x_plus = x_minus
+        current_mode = 1
+    return x_plus, current_mode
+
+def reset_map_bouncing_12(t, x_minus, current_mode):
     e2 = 0.6
-
-    if (x_minus[1] < 0):
-        coeff = np.array([[e1, 0], [0, -e2]])
+    new_mode = current_mode
+    if (x_minus[1] < 0) and (current_mode==1):
+        coeff = np.array([[1.0, 0], [0, -e2]])
         x_plus = coeff@x_minus
+        new_mode = 2
+        
     else: # integration error
         x_plus = x_minus
+        
+    return x_plus, new_mode
 
-    return x_plus
-resetmap_bouncing_jit = jax.jit(reset_map_bouncing)
+resetmap_bouncing_jit = jax.jit(reset_map_bouncing_12)
 
 # Mode jump: only 1 mode in this case
 def mode_jump_bouncing(current_mode):

@@ -11,7 +11,7 @@ sys.path.append(root_dir)
 # Import pendulum dynamics
 from dynamics.symbolic_bouncing_1D import *
 # Import iLQR class
-from hybrid_ilqr import *
+from hybrid_ilqr import solve_ilqr
 # Import Riccati class
 from hybrid_riccati import *
 # Importing path integral control
@@ -28,42 +28,26 @@ import numba
 
 
 # ====================================== Path Integral Control ====================================== 
-
-# @njit(float64(
-#     float64[:,:], float64[:,:], float64[:,:], float64[:], float64[:,:], float64[:,:], float64[:,:], float64[:,:], float64, float64), parallel=True)
-def compute_cost(states,inputs,dWs,target_state,trj_ref, Qk, Rk, QT, epsilon, dt):
+def compute_cost(states,inputs,randN,target_state,trj_ref, Qk, Rk, QT, epsilon, dt):
     
-    states = np.ascontiguousarray(states)
-    trj_ref = np.ascontiguousarray(trj_ref)
-    target_state = np.ascontiguousarray(target_state)
-    inputs = np.ascontiguousarray(inputs)
-    Qk = np.ascontiguousarray(Qk)
-    Rk = np.ascontiguousarray(Rk)
-    QT = np.ascontiguousarray(QT)
-    dWs = np.ascontiguousarray(dWs)
+    n_timestamps = states.shape[0]
     
     # Initialize cost
     total_cost = 0.0
     current_cost_xref = 0.0
-    for ii in range(states.shape[0]-1):
-        # current_x = states[ii] # Not being used currently
-        # current_x_ref = trj_ref[ii]
-        current_u = inputs[ii,:].flatten()
-        dW = dWs[ii]
+    current_cost = 0.0
+    for ii in range(n_timestamps-1):
+        current_u = inputs[ii]
         
-        # trj_difference =  current_x_ref - current_x
-        # current_cost_xref = 0.5*trj_difference.T@Qk@trj_difference*dt
-        
-        current_cost = 0.5*current_u.T@Rk@current_u*dt # Right now only considering cost in input
-        
-        noise_cost = np.sqrt(epsilon)*current_u.T@dW
-        
-        total_cost = total_cost+current_cost+current_cost_xref+noise_cost
+        current_cost = current_u.T@Rk@current_u/2.0*dt + np.sqrt(epsilon*dt) * current_u.T@randN[ii]
+        total_cost = total_cost+current_cost
         
     # Compute terminal cost
-    terminal_difference = (target_state-states[-1,:]).flatten()
-    terminal_cost = 0.5*terminal_difference.T@QT@terminal_difference
+    terminal_difference = (target_state-states[-1]).flatten()
+    terminal_cost = terminal_difference.T@QT@terminal_difference/2.0
+
     total_cost = total_cost+terminal_cost
+
     return total_cost
 
 # Define sampling function
@@ -72,33 +56,35 @@ def compute_cost(states,inputs,dWs,target_state,trj_ref, Qk, Rk, QT, epsilon, dt
 #     sample_i = rollout_bouncing_stochastic(init_state, inputs, start_time, end_time, epsilon, RandN[i])
 #     return sample_i, i
 
-def process_sampling_feedback(sample_i, init_state, xt_ref, ut, K_feedback, k_feedforward, start_time, end_time, epsilon, RandN, i):
-    # print("Sampling trajectory: ", i)
-    sample_i, ut_cl_i = rollout_bouncing_stochastic_feedback(init_state, xt_ref, ut, K_feedback, k_feedforward, start_time, end_time, epsilon, RandN[i])
-    return sample_i, ut_cl_i, i
+def process_sampling_feedback(sample_i, init_state, xt_ref, ut, K_feedback, k_feedforward, start_time, end_time, epsilon, RandN, index):
+    # print("Sampling trajectory: ", index)
+    sample_i, ut_cl_i = rollout_bouncing_stochastic_feedback(init_state, xt_ref, ut, K_feedback, k_feedforward, start_time, end_time, epsilon, RandN[index])
+    return sample_i, ut_cl_i, index
 
 # Compute path costs function
 # @njit(numba.types.Tuple((float64, int32))(
 #     float64[:,:], float64[:,:], float64[:,:], float64[:], float64[:,:], int32, float64[:,:], float64[:,:], float64[:,:], float64, float64))
-def process_compute_costs(sample_i, inputs, dWs, target_state, ref_states, i, Q_k, R_k, Q_T, epsilon, dt):
-    # print("Computing costs: ", i)
+def process_compute_costs(sample_i, inputs, dWs, target_state, ref_states, index, Q_k, R_k, Q_T, epsilon, dt):
+    # print("Computing costs: ", index)
     costs_i = compute_cost(sample_i, inputs, dWs, target_state, ref_states, Q_k, R_k, Q_T, epsilon, dt)
-    return costs_i, i
+    return costs_i, index
+
 
 if __name__ == '__main__':
     # === ilqr parameters ===
     # Initialize timings
-    dt = 0.001
+    dt = 0.005
     # dt_pathintegral = dt / 50.0
     dt_pathintegral = dt
     
-    # start_time = 0
-    # end_time = 2.0
-    # time_span = np.arange(start_time, end_time, dt).flatten()
-    # nt = len(time_span)
+    # ---------------- bouncing example -----------------
+    start_time = 0
+    end_time = 2.0
+    time_span = np.arange(start_time, end_time, dt).flatten()
+    nt = len(time_span)
     
-    # init_state = np.array([5, 1.5])    # Define the initial state to be the origin with no velocity
-    # target_state = np.array([2.5, 0])  # Swing pendulum upright
+    init_state = np.array([5, 1.5])    # Define the initial state to be the origin with no velocity
+    target_state = np.array([2.5, 0])  # Swing pendulum upright
     
     # Set desired state
     n_states = 2
@@ -107,27 +93,27 @@ if __name__ == '__main__':
     # Define weighting matrices
     Q_k = np.zeros((n_states,n_states)) # zero weight to penalties along a strajectory since we are finding a trajectory
     # R_k = 0.01*np.eye(n_inputs)
-    R_k = 0.1*np.eye(n_inputs)
+    R_k = 0.01*np.eye(n_inputs)
 
     # Set the terminal cost
-    Q_T = 1000*np.eye(n_states)
-    # Q_T = 20*np.eye(n_states)
-    # Q_T[0,0] = 200.0
+    # Q_T = 1000*np.eye(n_states)
+    Q_T = 20*np.eye(n_states)
+    Q_T[0,0] = 200.0
     
     # === path integral parameters ===
-    epsilon = 0.01
-    n_samples = 500
-    n_exp = 1
+    epsilon = 1.0
+    n_samples = 50
+    n_exp = 10
     
-    # ------------- verification with no contact ------------- 
-    start_time = 0
-    end_time = 0.75
-    time_span = np.arange(start_time, end_time, dt).flatten()
-    nt = len(time_span)
+    # # ------------- verification with no contact ------------- 
+    # start_time = 0
+    # end_time = 1.0
+    # time_span = np.arange(start_time, end_time, dt).flatten()
+    # nt = len(time_span)
     
-    init_state = np.array([5, 1.5])    # Define the initial state to be the origin with no velocity
-    # target_state = np.array([4.0, -5.0])  # Swing pendulum upright
-    target_state = np.array([0.0, 0.0])
+    # init_state = np.array([5, 1.5])    # Define the initial state to be the origin with no velocity
+    # # target_state = np.array([4.0, -5.0])  # Swing pendulum upright
+    # target_state = np.array([0.0, 0.0])
     
     # ------------- /verification with no contact ------------- 
     
@@ -138,25 +124,38 @@ if __name__ == '__main__':
     # Horizon
     nt_ode_solve = 1000 # number of points used to solve the ode
     
-    exp_params = ExpParams()
-    exp_params.update_params(init_state, target_state, start_time, end_time, dt, dt_pathintegral, epsilon, n_exp, n_samples, Q_k, R_k, Q_T, symbolic_dynamics_bouncing,detect_bouncing)
-    
-    exp_data = ExpData(exp_params)
-    
     # === solve for ilqr ===
-    # (states,inputs,k_feedforward,K_feedback,current_cost,states_iter) = solve_ilqr(exp_params)
+    exp_params = ExpParams()
+    exp_params.update_params(init_state, target_state, start_time, end_time, dt, dt_pathintegral, 
+                             epsilon, n_exp, n_samples, Q_k, R_k, Q_T, symbolic_dynamics_bouncing,detect_bouncing)
+    exp_data = ExpData(exp_params)
+    (states,inputs,k_feedforward,K_feedback,current_cost,states_iter,modechanges,mode_exttrjs_maps) = solve_ilqr(exp_params, detect=True)
     
-    exp_params_riccati = ExpParams()
-    exp_params_riccati.update_params(init_state, target_state, start_time, end_time, dt, dt_pathintegral, epsilon, n_exp, n_samples, Q_k, R_k, Q_T, symbolic_dynamics_bouncing_continuoustime,detect_bouncing)
-    (states, inputs, K_feedback, k_feedforward, PI, q) = solve_riccati(exp_params_riccati)
+    # # === solve for lqr riccati eqn ===
+    # exp_params_riccati = ExpParams()
+    # exp_params_riccati.update_params(init_state, target_state, start_time, end_time, dt, dt_pathintegral, epsilon, n_exp, n_samples, Q_k, R_k, Q_T, symbolic_dynamics_bouncing_continuoustime,detect_bouncing)
+    # (states, inputs, K_feedback, k_feedforward, PI, q) = solve_riccati(exp_params_riccati)
     
-    # debug plot
-    fig2, ax5 = plt.subplots()
-    ax5.grid(True)
-    ax5.plot(states[:,0], states[:,1],'k',label='iLQR-deterministic')
-    ax5.scatter(target_state[0], target_state[1], color='g', marker='x', s=50.0, linewidths=6, label='Target')
-    ax5.scatter(init_state[0], init_state[1], color='r', marker='x', s=50.0, linewidths=6, label='Start')
-    plt.show()
+    # # ------------ debug plot ------------ 
+    # for (mode_change, ext_trj) in mode_exttrjs_maps:
+    #     mode_before = mode_change[0]
+    #     mode_after = mode_change[1]
+        
+    #     ext_states_fwd_ii = ext_trj[mode_before]
+    #     ext_states_bwd_ii= ext_trj[mode_after]
+        
+    #     ext_nt_fwd = ext_states_fwd_ii.shape[0]
+    #     ext_nt_bwd = ext_states_bwd_ii.shape[0]
+        
+    #     fig2, ax5 = plt.subplots(1,1)
+    #     ax5.grid(True)
+    #     ax5.plot(states[:,0], states[:,1],'k',label='iLQR-deterministic')
+    #     ax5.plot(ext_states_fwd_ii[:,0], ext_states_fwd_ii[:,1],'r',label='iLQR-ext-fwd')
+    #     ax5.plot(ext_states_bwd_ii[:,0], ext_states_bwd_ii[:,1],'r',label='iLQR-ext-bwd')
+    #     ax5.scatter(target_state[0], target_state[1], color='g', marker='x', s=50.0, linewidths=6, label='Target')
+    #     ax5.scatter(init_state[0], init_state[1], color='r', marker='x', s=50.0, linewidths=6, label='Start')
+        
+    #     plt.show()
     
     # exp_data.add_nominal_data((states,inputs,k_feedforward,K_feedback,current_cost,states_iter))
 
@@ -164,106 +163,165 @@ if __name__ == '__main__':
     for i_exp in prange(n_exp):
         print("The experiment number: ", i_exp)
         
-        # The reference state trajectory and proposal control
-        xt = init_state
-        xt_ilqr = init_state
         trj_pi = np.zeros((nt, n_states))
         trj_ilqr = np.zeros((nt, n_states))
 
-        trj_pi[0] = xt
-        trj_ilqr[0] = xt_ilqr
+        trj_pi[0] = init_state
+        trj_ilqr[0] = init_state
         u_star_pi = np.zeros((nt, n_inputs))
         u_trj_ilqr = np.zeros((nt, n_inputs))
-
-        start_time_i = start_time
-        end_time_i = end_time
-        target_state_i = target_state
         
         allPathCosts = np.zeros((nt-1, n_samples))
+        
+        xt = init_state
+        xt_ilqr = init_state
+        current_modechange = (1, 1)
+        current_mode = current_modechange[0]
+        next_mode = current_modechange[1]
+        
+        # current_modechange_ilqr = (1, 1)
+        cnt_mismatch = 0
+        cnt_mismatch_ilqr = 0
+        
+        RndN_actual = np.random.randn(nt, n_inputs)
+        
+        for i_t in range(nt-1):
+                        
+            # current_mode_ilqr = current_modechange_ilqr[0]
+            # next_mode_ilqr = current_modechange_ilqr[1]
+            
+            print("----------- time index: ", i_t)
+            
+            start_time_i = start_time + i_t*dt
 
-        for i in range(nt-1):
-            print("time index: ", i)
+            time_span_i = np.arange(start_time_i, end_time, dt).flatten()
+            nt_i = nt - i_t
             
-            time_span_i = np.arange(start_time_i, end_time_i, dt).flatten()
-            nt_i = nt - i
+            states_i = states[i_t:,:]
+            inputs_i = inputs[i_t:,:]
+            modechange_i = modechanges[i_t:]
             
-            states_i = states[i:,:]
-            inputs_i = inputs[i:,:]
-            K_feedback_i = K_feedback[i:,:]
-            k_feedforward_i = k_feedforward[i:,:]
+            K_feedback_i = K_feedback[i_t:,:]
+            k_feedforward_i = k_feedforward[i_t:,:]
             
+            # # lqr proposal control
+            # u0_proposal = K_feedback_i[0]@xt + k_feedforward_i[0]
+            
+            xref_i = states_i[0]
+            # # xref_ilqr_i = states_i[0]
+            # mode mismatch
             # ilqr proposal control
-            u0_proposal = K_feedback_i[0]@xt + k_feedforward_i[0]
+            ref_next_mode = modechanges[i_t][1]
+            if (next_mode != ref_next_mode):
+                print("mode mismatch true trajectory")
+                print("true state mode change: ", current_modechange)
+                print("reference mode change: ", modechanges[i_t])
+                if mode_exttrjs_maps is not None:
+                    # Take the first hybrid event for now. Needs to find the correct corresponding one among all hybrid events.
+                    mode_change_i, mode_exttrjs_i = mode_exttrjs_maps[0]
+                    extended_trj = mode_exttrjs_i[next_mode]
+                    xref_i = extended_trj[cnt_mismatch]
+                cnt_mismatch += 1
+            
+            u0_proposal = inputs_i[0] + K_feedback_i[0]@(xt - xref_i) + k_feedforward_i[0]
+            
+            # # ilqr feedback control
+            # if (next_mode_ilqr != ref_next_mode):
+            #     if mode_exttrjs_maps is not None:
+            #         # Take the first hybrid event for now. Needs to find the correct corresponding one among all hybrid events.
+            #         mode_change_i, mode_exttrjs_i = mode_exttrjs_maps[0]
+            #         extended_trj = mode_exttrjs_i[next_mode_ilqr]
+            #         xref_ilqr_i = extended_trj[cnt_mismatch_ilqr]
+            #     cnt_mismatch_ilqr += 1
+                
+            # u0_ilqr = inputs_i[0] + K_feedback_i[0]@(xt_ilqr - xref_ilqr_i) + k_feedforward_i[0]
+            # u_trj_ilqr[i_t] = u0_ilqr
             
             # sampling stochastic rollouts
             sampled_trjs = np.zeros((n_samples, nt_i, n_states))
             sampled_controls = np.zeros((n_samples, nt_i, n_inputs))
-            PathCosts = np.zeros(n_samples)
-
-            # Generate the randomness
-            GaussianNoise = np.random.randn(n_samples, nt_i, n_inputs)
+            PathCosts = np.zeros(n_samples)  
             
-            dWs_cost = np.sqrt(dt_pathintegral)*GaussianNoise
-
-            # ------------- ilqr --------------
-            samples_index = Parallel(n_jobs=-1)(delayed(process_sampling_feedback)(sampled_trjs[i], xt, states_i, inputs_i, K_feedback_i, k_feedforward_i, start_time_i, end_time_i, epsilon, GaussianNoise, i) for i in range(n_samples))
-
-            for sample_i, sample_input_i, index in samples_index:
-                sampled_trjs[index] = sample_i
-                sampled_controls[index] = sample_input_i
-
-            costs_index = Parallel(n_jobs=-1)(delayed(process_compute_costs)(sampled_trjs[i], sampled_controls[i], dWs_cost[i], target_state_i, states_i, i, Q_k, R_k, Q_T, epsilon, dt) for i in range(n_samples))
-            for cost_i, index in costs_index:
-                PathCosts[index] = cost_i
+            GaussianNoise = np.random.randn(n_samples, nt_i, n_inputs)          
+            
+            for i_sample in range(n_samples):
+                noise_i = GaussianNoise[i_sample]
+                sample_i, ut_cl_i = rollout_bouncing_stochastic_feedback(xt, current_modechange, states_i, modechange_i, 
+                                                                         inputs_i, K_feedback_i, k_feedforward_i, 
+                                                                         start_time, end_time, epsilon, noise_i, mode_exttrjs_maps)
+                sampled_trjs[i_sample] = sample_i
+                sampled_controls[i_sample] = ut_cl_i
+                pathcost_i = compute_cost(sample_i, ut_cl_i, noise_i, target_state, states_i, Q_k, R_k, Q_T, epsilon, dt)
+                PathCosts[i_sample] = pathcost_i
             
             # update the control proposal using path integral 
-            u0_star = update_u0_pathintegral(u0_proposal, PathCosts, epsilon, dt_pathintegral)
-            u_star_pi[i] = u0_star
-            allPathCosts[i] = PathCosts
+            u0_star = update_u0_pathintegral(u0_proposal, PathCosts, epsilon, dt)
+            u_star_pi[i_t] = u0_star
+            allPathCosts[i_t] = PathCosts
             
-            ## ============= show path costs and weights in path integral control ============= 
-            PathCosts = PathCosts - np.min(PathCosts)
-            PathCosts_eps = PathCosts / epsilon
-            expS = np.exp(-PathCosts_eps)
+            # ------------------------ Visualize sampled trajectories ------------------------ 
+            visualize_samples = False
+            if visualize_samples:
+            
+                fig3, ax6 = plt.subplots()
+                ax6.grid(True)
+                for i_s in range(n_samples):
+                    ax6.plot(sampled_trjs[i_s,:,0], sampled_trjs[i_s,:,1],'b', alpha=0.2)
+                    
+                ax6.scatter(target_state[0], target_state[1], color='g', marker='x', s=50.0, linewidths=6, label='Target')
+                ax6.scatter(init_state[0], init_state[1], color='r', marker='x', s=50.0, linewidths=6, label='Start')
+                plt.show()
+                
+                ## ============= show path costs and weights in path integral control ============= 
+                PathCosts = PathCosts - np.min(PathCosts)
+                PathCosts_eps = PathCosts / epsilon
+                
+                expS = np.exp(-PathCosts_eps)
 
-            # ------- Compute the expected value ---------
-            E_expS = np.mean(expS)
+                # ------- Compute the expected value ---------
+                E_expS = np.mean(expS)
+                
+                # ------- Compute weights -------
+                weights = expS / E_expS
+                
+                print("Var weight", np.var(weights))
+                print("lambda", 1.0 / np.mean(weights**2))
+                
+                fig6, ax11 = plt.subplots(figsize=(8,6))
+                ax11.grid(True)
+                ax11.bar(range(len(PathCosts)), PathCosts)
+                ax11.set_title("Path Cost distribution")
+                ax11.set_xlabel("Sample Number")
+                ax11.set_ylabel("Costs")
+                
+                fig7, ax12 = plt.subplots(figsize=(8,6))
+                ax12.grid(True)
+                ax12.bar(range(len(weights)), weights)
+                ax12.set_title("Weight distribution")
+                ax12.set_xlabel("Sample Number")
+                ax12.set_ylabel("Weights")
+                plt.show()
             
-            # ------- Compute weights -------
-            weights = expS / E_expS
-            
-            fig6, ax11 = plt.subplots(figsize=(8,6))
-            ax11.grid(True)
-            ax11.bar(range(len(PathCosts)), PathCosts)
-            ax11.set_title("Path Cost distribution")
-            ax11.set_xlabel("Sample Number")
-            ax11.set_ylabel("Costs")
-            
-            fig7, ax12 = plt.subplots(figsize=(8,6))
-            ax12.grid(True)
-            ax12.bar(range(len(weights)), weights)
-            ax12.set_title("Path Cost distribution")
-            ax12.set_xlabel("Sample Number")
-            ax12.set_ylabel("Costs")
-            plt.show()
-            
-            ## ============= / show path costs and weights in path integral control ============= 
+            ### ------------------------ Visualize sampled trajectories / ------------------------ 
             
             # go to the next state
-            RndN_actual = np.random.randn(n_inputs)
-            
+            actual_noise_i = RndN_actual[i_t]
             t_span = (start_time_i, start_time_i+dt)
             t_eval = np.linspace(start_time_i, start_time_i+dt, nt_ode_solve)
             t_next = t_eval[-1]
             
-            xt = stochastic_integration_bouncing(xt, u0_star, t_span, t_eval, epsilon, RndN_actual, dt, nt_ode_solve)
-            trj_pi[i+1] = xt
+            xt, next_mode = stochastic_integration_bouncing(xt, u0_star, current_mode, t_span, t_eval, epsilon, actual_noise_i, dt, nt_ode_solve)
+            trj_pi[i_t+1] = xt
             
-            # ilqr for comparison
-            xt_ilqr = stochastic_integration_bouncing(xt_ilqr, u0_proposal, t_span, t_eval, epsilon, RndN_actual, dt, nt_ode_solve)
-            trj_ilqr[i+1] = xt_ilqr
-            u_trj_ilqr[i] = u0_proposal
-            
+            current_modechange = (current_mode, next_mode)
+            current_mode = next_mode
+            # current_modechange_ilqr = (current_mode_ilqr, next_mode_ilqr)
+        
+        # --- ilqr for comparison --- 
+        trj_ilqr, u_trj_ilqr = rollout_bouncing_stochastic_feedback(init_state, (1, 1), states, modechanges, 
+                                                                    inputs, K_feedback, k_feedforward, 
+                                                                    start_time, end_time, epsilon, RndN_actual, mode_exttrjs_maps)
+        
         # Compare cost
         dWs_zeros = np.zeros((nt, n_inputs))
         cost_pi = compute_cost(trj_pi, u_star_pi, dWs_zeros, target_state, states, Q_k, R_k, Q_T, epsilon,dt)
@@ -315,9 +373,9 @@ if __name__ == '__main__':
     # ax1.plot(time_span, sampled_trjs[-1, :, 0], 'b', alpha=0.1, label='Samples')
 
     # # ----------- plot the path integral controlled trajectory -----------
-    for i in range(n_exp):
-        trj_ilqr = exp_data.get_data(i).x_trj_ilqr()
-        trj_pi = exp_data.get_data(i).x_trj_pi()
+    for i_exp in range(n_exp):
+        trj_ilqr = exp_data.get_data(i_exp).x_trj_ilqr()
+        trj_pi = exp_data.get_data(i_exp).x_trj_pi()
         
         ax1.plot(time_span, trj_ilqr[:, 0], 'b', alpha=0.2)
         ax2.plot(time_span, trj_ilqr[:, 1], 'b', alpha=0.2)
@@ -404,9 +462,9 @@ if __name__ == '__main__':
     ax5.grid(True)
 
     # ----------- Plot the last iteration of iLQR controller ----------
-    for i in range(n_exp):
-        trj_ilqr = exp_data.get_data(i).x_trj_ilqr()
-        trj_pi = exp_data.get_data(i).x_trj_pi()
+    for i_exp in range(n_exp):
+        trj_ilqr = exp_data.get_data(i_exp).x_trj_ilqr()
+        trj_pi = exp_data.get_data(i_exp).x_trj_pi()
         ax5.plot(trj_ilqr[:, 0], trj_ilqr[:, 1], 'b', alpha=0.2)
         ax5.plot(trj_pi[:, 0], trj_pi[:, 1], 'r', alpha=0.8)
 
