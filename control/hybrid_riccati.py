@@ -2,7 +2,7 @@
 # Hongzhe Yu, 02/26/2024
 
 import numpy as np
-from saltation_matrix.samtation_matrix import *
+from saltation_matrix.saltation_matrix import *
 
 def dS_Riccati(t, z, *args):
     """

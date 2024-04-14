@@ -2,7 +2,7 @@
 # Hongzhe Yu, 02/09/24
 
 import numpy as np
-from saltation_matrix.samtation_matrix import *
+from saltation_matrix.saltation_matrix import *
 import jax
 from jax import jacfwd 
 
