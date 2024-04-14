@@ -12,7 +12,7 @@ sys.path.append(root_dir)
 # Import pendulum dynamics
 from dynamics.symbolic_bouncing_1D import *
 # Import experiment parameter class
-from exp_params import *
+from experiments.exp_params import *
 
 class hybrid_riccati():
     def __init__(self,init_state,target_state,init_K,dt,start_time,end_time,contact_detect_func,f_contin,A,B,Q_k,R_k,Q_T,parameters) -> None:

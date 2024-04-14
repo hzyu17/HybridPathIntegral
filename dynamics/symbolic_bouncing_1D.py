@@ -10,7 +10,7 @@ current_dir = os.path.dirname(file_path)
 root_dir = os.path.abspath(os.path.join(current_dir, '..'))
 sys.path.append(root_dir)
 
-from dynamics.bouncing_ball_1D import *
+from dynamics.bouncing_guard_reset import *
 
 # plotting
 import matplotlib.pyplot as plt
@@ -147,8 +147,10 @@ def stochastic_integration(x0, u, t_span, t_eval, epsilon, dW, nt):
     
     return xt_next
 
+
 def rollout_bouncing_stochastic_feedback(x0, cur_mode_change, xt_ref, ref_modechanges, 
-                                         ut, Kt, kt, target_state, R_k, Q_T, t0, tf, epsilon, GaussianNoise, mode_exttrjs_maps=None):
+                                         ut, Kt, kt, target_state, R_k, Q_T, t0, tf, 
+                                         epsilon, GaussianNoise, mode_exttrjs_maps=None):
 
     n_timestamps = xt_ref.shape[0]
     _, nu, nx = Kt.shape
@@ -207,16 +209,29 @@ def rollout_bouncing_stochastic_feedback(x0, cur_mode_change, xt_ref, ref_modech
         current_mode = mode_change[0]
         next_mode = mode_change[1]
         ref_next_mode = ref_modechanges[i][1]
-        if (next_mode != ref_next_mode):
-            if mode_exttrjs_maps is not None:
-                # Take the first hybrid event for now. Needs to find the correct corresponding one among all hybrid events.
-                mode_change_i, mode_exttrjs_i = mode_exttrjs_maps[0]
-                extended_trj = mode_exttrjs_i[next_mode]
-                xref_i = extended_trj[cnt_mismatch]
-                if modified_refs is None:
-                    modified_refs = xref_i.reshape((1, -1))
-                else:
-                    modified_refs = np.vstack((modified_refs, xref_i.reshape((1, -1))))
+        if (next_mode != ref_next_mode) and (mode_exttrjs_maps is not None):
+            # Take the first hybrid event for now. Needs to find the correct corresponding one among all hybrid events.
+            mode_change_i, mode_exttrjs_i = mode_exttrjs_maps[0]
+            extended_trj = mode_exttrjs_i[next_mode]
+            
+            # First time early arrival: find and reverse the ref
+            if (next_mode==2) and (ref_next_mode==1) and (cnt_mismatch==0): 
+                len_ref = 0
+                i_ext = 0
+                while True: # Find the correct length of the extension
+                    if (ref_modechanges[i+i_ext][1] == next_mode):
+                        len_ref = i_ext
+                        break
+                    i_ext += 1
+                extended_trj = extended_trj[0:len_ref]
+                extended_trj = extended_trj[::-1]
+                
+            xref_i = extended_trj[cnt_mismatch]
+            
+            if modified_refs is None:
+                modified_refs = xref_i.reshape((1, -1))
+            else:
+                modified_refs = np.vstack((modified_refs, xref_i.reshape((1, -1))))
                 
             # Collect data
             if mismatched_states is None:
@@ -294,24 +309,31 @@ def rollout_bouncing_stochastic_feedback(x0, cur_mode_change, xt_ref, ref_modech
     show_mismatch = False
     if show_mismatch:
         # ======== Show mode mismatch ======== 
-        fig2, axes = plt.subplots(1,2)
+        fig2, axes = plt.subplots(1,2, figsize=(9, 6))
         ax5, ax6 = axes.flatten()
         ax5.grid(True)
         ax6.grid(True)
         
-        ax5.plot(xt_trj[:,0], xt_trj[:,1],'b',label='Stochastic rollout')
-        ax5.plot(xt_ref[:,0], xt_ref[:,1],'k',label='original reference')
-        ax5.plot(actual_xtref[:,0], actual_xtref[:,1],'r',label='modified reference')
-        ax5.legend()
+        ax5.plot(xt_trj[:,0], xt_trj[:,1],color='b',linewidth=1.5,label='Rollout')
+        ax5.plot(xt_ref[:,0], xt_ref[:,1],color='k',linewidth=2.5,label='Original Ref.')
+        # ax5.plot(actual_xtref[:,0], actual_xtref[:,1],color='r',linewidth=1.5,linestyle='--', label='Modified Reference')
         
-        ax6.plot(xt_trj[:,0], xt_trj[:,1],'k',label='stochastic states')
-        ax6.plot(xt_ref[:,0], xt_ref[:,1],'r',label='reference')
+        ax5.plot(mismatched_states[:,0], mismatched_states[:,1],linewidth=2.5,color='g',label='Mismatched States')
+        ax5.plot(mismatched_refs[:,0], mismatched_refs[:,1],linewidth=2.5,color='cyan',label='Mismatched Ref.')
+        ax5.plot(modified_refs[:,0], modified_refs[:,1],linewidth=2.5,color='r',label='Extended Ref.')
         
-        ax6.plot(mismatched_states[:,0], mismatched_states[:,1],'b',label='mismatched states')
-        ax6.plot(mismatched_refs[:,0], mismatched_refs[:,1],'g',label='mismatched reference')
-        ax6.plot(modified_refs[:,0], modified_refs[:,1],'y',label='modified reference')
+        ax5.set_xlabel(r"z", fontsize=14)
+        ax5.set_ylabel(r"$\dot z$", fontsize=14)
+        ax5.legend(loc='upper right')
+        plt.tight_layout()
         
-        ax6.legend()
+        ax6.plot(xt_trj[:,0], xt_trj[:,1],color='b',linewidth=1.5,label='Rollout')
+        ax6.plot(xt_ref[:,0], xt_ref[:,1],color='k',linewidth=2.5,label='Original Ref.')
+        ax6.plot(actual_xtref[:,0], actual_xtref[:,1],color='r',linewidth=1.5,linestyle='--',label='Modified Ref.')
+        ax6.set_xlabel(r"z", fontsize=14)
+        ax6.set_ylabel(r"$\dot z$", fontsize=14)
+        ax6.legend(loc='upper right')
+        plt.tight_layout()
         
         plt.show()
     

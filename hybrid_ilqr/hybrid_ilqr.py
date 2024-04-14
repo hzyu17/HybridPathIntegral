@@ -16,6 +16,7 @@ class hybrid_ilqr:
         self.n_timesteps_ = np.shape(self.time_span_)[0]
         self.saltations_ = [None for i in range(self.n_timesteps_)]
         self.modechanges_ = [(None, None) for _ in range(self.n_timesteps_)]
+        self.txmode_map_ = {}
         
         # Dynamics
         self.f_ = f_disc
@@ -263,7 +264,6 @@ class hybrid_ilqr:
             xtrj_ext_bwd_i = np.zeros((nt_ext_bwd, self.n_states_))
             
             xtrj_ext_fwd_i[0] = x_event_i
-            xtrj_ext_bwd_i[0] = x_event_i
             
             # simulate forward
             current_state = x_event_i
@@ -273,7 +273,7 @@ class hybrid_ilqr:
                 # modify if needed
                 current_input = np.zeros(self.n_inputs_)
                 
-                next_state, _, _, _, _, _ = self.detection_func_(current_state, current_input, t_jj, t_jj+self.dt_, current_mode=1, detection=False)
+                next_state, _, _, _, _, _ = self.detection_func_(current_state, current_input, t_jj, t_jj+self.dt_, current_mode=current_mode_i, detection=False)
                 
                 # Store states and inputs
                 xtrj_ext_fwd_i[jj+1] = next_state
@@ -282,6 +282,7 @@ class hybrid_ilqr:
                 current_state = next_state
                         
             # simulate backward
+            xtrj_ext_bwd_i[0] = x_reset_i
             current_state = x_reset_i
             for jj in range(nt_ext_bwd-1):
                 t_jj = timespan_ext_bwd[jj]
@@ -289,14 +290,14 @@ class hybrid_ilqr:
                 # modify if needed
                 current_input = np.zeros(self.n_inputs_)
                 
-                next_state, _, _, _, _, _ = self.detection_func_(current_state, current_input, t_jj, t_jj-self.dt_, current_mode=1, detection=False)
+                next_state, _, _, _, _, _ = self.detection_func_(current_state, current_input, t_jj, t_jj-self.dt_, current_mode=next_mode_i, detection=False)
                 
                 # Store states and inputs
                 xtrj_ext_bwd_i[jj+1] = next_state
 
                 # Update the current state
                 current_state = next_state
-            
+                        
             mode_exttrjs_maps.append(((current_mode_i, next_mode_i), {current_mode_i:xtrj_ext_fwd_i, next_mode_i:xtrj_ext_bwd_i}))
             
         return mode_exttrjs_maps
@@ -312,7 +313,7 @@ class hybrid_ilqr:
         current_cost = self.compute_cost(states,inputs,self.dt_)
         
         learning_speed = 0.9 # This can be modified, 0.95 is very slow
-        low_learning_rate = 0.05 # if learning rate drops to this value stop the optimization
+        low_learning_rate = 0.01 # if learning rate drops to this value stop the optimization
         low_expected_reduction = 1e-4 # Determines optimality
         armijo_threshold = 0.1 # Determines if current line search solve is good (this is typically labeled as "c")
         for ii in range(0,self.n_iterations_):
@@ -333,7 +334,7 @@ class hybrid_ilqr:
             (new_states,new_inputs,new_feedback,new_feedforward,new_saltations,mode_changes,new_txmode_map)=self.forward_pass(learning_rate)
             new_cost = self.compute_cost(new_states, new_inputs, self.dt_)
 
-            print("new_cost: ", new_cost) 
+            # print("new_cost: ", new_cost) 
             
             # Execute linesearch until the armijo condition is met (for
             # now just check if the cost decreased) TODO add real
@@ -350,6 +351,7 @@ class hybrid_ilqr:
                 
                 expected_cost_redu = learning_rate*self.expected_cost_reduction_grad_ + learning_rate*learning_rate*self.expected_cost_reduction_hess_
                 armijo_flag = cost_difference/expected_cost_redu > armijo_threshold
+                
                 if(armijo_flag == 1):
                     # Accept the new trajectory if armijo condition is
                     # met
@@ -361,13 +363,23 @@ class hybrid_ilqr:
                     self.txmode_map_ = new_txmode_map
                     
                     states_iter.append(new_states)
+                    
                 else:
                     # If no improvement, decrease the learning rate
                     learning_rate = learning_speed*learning_rate
-                    # print('Reducing learning rate to: ',learning_rate)
+                    
             if(learning_rate<low_learning_rate):
                 # If learning rate is low, then stop optimization
                 print("Stopping optimization, low learning rate")
+                current_cost = new_cost
+                self.states_ = new_states
+                self.inputs_ = new_inputs
+                self.saltations_ = new_saltations
+                self.modechanges_ = mode_changes
+                self.txmode_map_ = new_txmode_map
+                
+                states_iter.append(new_states)
+                    
                 break
             
         # Return the current trajectory
@@ -376,17 +388,19 @@ class hybrid_ilqr:
         modechanges = self.modechanges_
         txmode_map = self.txmode_map_
         
-        fig1, axes = plt.subplots(1, 2)
-        (ax1, ax2) = axes.flatten()
-        ax1.grid(True)
-        ax2.grid(True)
-        
-        ax1.plot(self.states_[:,0], self.states_[:,1],'k',label='iLQR-deterministic')
-        ax1.scatter(self.target_state_[0], self.target_state_[1], color='g', marker='x', s=50.0, linewidths=6, label='Target')
-        ax1.scatter(self.init_state_[0], self.init_state_[1], color='r', marker='x', s=50.0, linewidths=6, label='Start')
+        show_results = False
+        if show_results:
+            fig1, axes = plt.subplots(1, 2)
+            (ax1, ax2) = axes.flatten()
+            ax1.grid(True)
+            ax2.grid(True)
+            
+            ax1.plot(self.states_[:,0], self.states_[:,1],'k',label='iLQR-deterministic')
+            ax1.scatter(self.target_state_[0], self.target_state_[1], color='g', marker='x', s=50.0, linewidths=6, label='Target')
+            ax1.scatter(self.init_state_[0], self.init_state_[1], color='r', marker='x', s=50.0, linewidths=6, label='Start')
 
-        plt.show()
-        
+            plt.show()
+            
         mode_exttrjs_maps = self.compute_trj_extension(txmode_map)
 
         # extended_trjs = (ext_trjs_fwd, ext_trjs_bwd)
@@ -416,7 +430,8 @@ def solve_ilqr(params, detect=True):
     target_state = params._target_state  # Swing pendulum upright
 
     # Initial guess of zeros, but you can change it to any guess
-    initial_guess = 0.5*np.ones((np.shape(time_span)[0],n_inputs))
+    initial_guess = params._initial_guess
+    
     # initial_guess = np.zeros((np.shape(time_span)[0],n_inputs))
 
     # Define weighting matrices
