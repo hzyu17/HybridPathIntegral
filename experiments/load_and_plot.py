@@ -7,7 +7,7 @@ if __name__ == '__main__':
     exp_params = ExpParams()
     exp_data = ExpData(exp_params)
 
-    filename = root_dir+"/data/bouncing/data_2024-04-12_12-41-43_hybrid_riccati.pickle"
+    filename = root_dir+"/data/bouncing/data_2024-04-17_06-07-52_hybrid_riccati.pickle"
     
     print("loading data: ", filename)
     exp_data.load(filename)

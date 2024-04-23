@@ -85,14 +85,27 @@ if __name__ == '__main__':
     # dt_pathintegral = dt / 50.0
     dt_pathintegral = dt
     
-    # ---------------- bouncing example -----------------
+    # # ---------------- bouncing example -----------------
+    # start_time = 0
+    # end_time = 2.0
+    # time_span = np.arange(start_time, end_time, dt).flatten()
+    # nt = len(time_span)
+    
+    # init_state = np.array([5, 1.5])    # Define the initial state to be the origin with no velocity
+    # target_state = np.array([2.5, 0])  # Swing pendulum upright
+    
+    # # ---------------- / bouncing example -----------------
+    
+    # ------------- verification with no contact ------------- 
     start_time = 0
-    end_time = 2.0
+    end_time = 1.0
     time_span = np.arange(start_time, end_time, dt).flatten()
     nt = len(time_span)
     
     init_state = np.array([5, 1.5])    # Define the initial state to be the origin with no velocity
-    target_state = np.array([2.5, 0])  # Swing pendulum upright
+    target_state = np.array([0.0, 0.0])
+    
+    # ------------- /verification with no contact ------------- 
     
     # Set desired state
     n_states = 2
@@ -112,18 +125,6 @@ if __name__ == '__main__':
     epsilon = 2.0
     n_samples = 100
     n_exp = 100
-    
-    # # ------------- verification with no contact ------------- 
-    # start_time = 0
-    # end_time = 1.0
-    # time_span = np.arange(start_time, end_time, dt).flatten()
-    # nt = len(time_span)
-    
-    # init_state = np.array([5, 1.5])    # Define the initial state to be the origin with no velocity
-    # # target_state = np.array([4.0, -5.0])  # Swing pendulum upright
-    # target_state = np.array([0.0, 0.0])
-    
-    # ------------- /verification with no contact ------------- 
     
     # === Do N experiments and compare the expected costs ===
     cost_pi_exp = np.zeros(n_exp)
@@ -279,27 +280,28 @@ if __name__ == '__main__':
             
             GaussianNoise_i = np.random.randn(n_samples, nt_i, n_inputs)
             
-            # for i_sample in prange(n_samples):
-            #     noise_i = GaussianNoise_i[i_sample]
-            #     sample_i, ut_cl_i, Su_i = rollout_bouncing_stochastic_feedback(xt, current_modechange, states_i, modechange_i, 
-            #                                                                     inputs_i, K_feedback_i, k_feedforward_i, target_state, R_k, Q_T,
-            #                                                                     start_time_i, end_time, epsilon, noise_i, mode_exttrjs_maps)
-            #     sampled_trjs[i_sample] = sample_i
-            #     sampled_controls[i_sample] = ut_cl_i
-            #     # pathcost_i = compute_cost(sample_i, ut_cl_i, noise_i, target_state, states_i, Q_k, R_k, Q_T, epsilon, dt)
-            #     PathCosts[i_sample] = Su_i
+            # forloop
+            for i_sample in prange(n_samples):
+                noise_i = GaussianNoise_i[i_sample]
+                sample_i, ut_cl_i, Su_i = rollout_bouncing_stochastic_feedback(xt, current_modechange, states_i, modechange_i, 
+                                                                                inputs_i, K_feedback_i, k_feedforward_i, target_state, R_k, Q_T,
+                                                                                start_time_i, end_time, epsilon, noise_i, mode_exttrjs_maps)
+                sampled_trjs[i_sample] = sample_i
+                sampled_controls[i_sample] = ut_cl_i
+                # pathcost_i = compute_cost(sample_i, ut_cl_i, noise_i, target_state, states_i, Q_k, R_k, Q_T, epsilon, dt)
+                PathCosts[i_sample] = Su_i
             
-            # -- cpu parallel ---
-            samples_index = Parallel(n_jobs=-1)(delayed(process_sampling_feedback)(sampled_trjs[i,:,:], xt, current_modechange, 
-                                                                                   states_i, modechange_i, 
-                                                                                   inputs_i, K_feedback_i, k_feedforward_i, 
-                                                                                   target_state, R_k, Q_T,
-                                                                                   start_time_i, end_time, epsilon, GaussianNoise_i, mode_exttrjs_maps, i) for i in range(n_samples))
+            # # -- cpu parallel ---
+            # samples_index = Parallel(n_jobs=-1)(delayed(process_sampling_feedback)(sampled_trjs[i,:,:], xt, current_modechange, 
+            #                                                                        states_i, modechange_i, 
+            #                                                                        inputs_i, K_feedback_i, k_feedforward_i, 
+            #                                                                        target_state, R_k, Q_T,
+            #                                                                        start_time_i, end_time, epsilon, GaussianNoise_i, mode_exttrjs_maps, i) for i in range(n_samples))
 
-            for sample_i, sample_input_i, Su_i, index in samples_index:
-                sampled_trjs[index] = sample_i
-                sampled_controls[index] = sample_input_i
-                PathCosts[index] = Su_i
+            # for sample_i, sample_input_i, Su_i, index in samples_index:
+            #     sampled_trjs[index] = sample_i
+            #     sampled_controls[index] = sample_input_i
+            #     PathCosts[index] = Su_i
                 
             # update the control proposal using path integral 
             u0_star = update_u0_pathintegral(u0_proposal, PathCosts, epsilon, dt)

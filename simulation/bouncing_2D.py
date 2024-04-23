@@ -5,8 +5,10 @@ import matplotlib.pyplot as plt
 
 file_path = os.path.abspath(__file__)
 current_dir = os.path.dirname(file_path)
+root_dir = os.path.abspath(os.path.join(current_dir, '..'))
 dynamics_dir = os.path.abspath(os.path.join(os.path.join(current_dir, '..'), 'dynamics'))
 
+sys.path.append(root_dir)
 sys.path.append(dynamics_dir)
 
 from dynamics.bouncing_2D import *

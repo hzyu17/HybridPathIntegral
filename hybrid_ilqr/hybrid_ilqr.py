@@ -388,7 +388,7 @@ class hybrid_ilqr:
         modechanges = self.modechanges_
         txmode_map = self.txmode_map_
         
-        show_results = False
+        show_results = True
         if show_results:
             fig1, axes = plt.subplots(1, 2)
             (ax1, ax2) = axes.flatten()

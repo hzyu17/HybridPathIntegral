@@ -265,6 +265,7 @@ def rollout_bouncing_stochastic_feedback(x0, cur_mode_change, xt_ref, ref_modech
         
         # Hit the guard function.  
         if (current_guard(t0_i, xt)>0) and (current_guard(t_plus, xt_next)<=0): 
+            print("rollout mode change")
             cnt_events += 1
             xt_swch = xt_next
             

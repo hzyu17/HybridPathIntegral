@@ -9,7 +9,7 @@ root_dir = os.path.abspath(os.path.join(current_dir, '..'))
 
 sys.path.append(root_dir)
 
-from dynamics.bouncing_ball_1D import *
+from dynamics.bouncing_1D import *
 from tools.plot_ellipsoid import *
 
 # from simulation.propagate_covariance import *
