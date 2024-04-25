@@ -14,7 +14,7 @@ from hybrid_ilqr import hybrid_ilqr
 # Importing path integral control
 from hybrid_pathintegral.hybrid_pathintegral import update_control_pathintegral
 # Import pendulum dynamics
-from dynamics.symbolic_bouncing_1D import *
+from dynamics.integration_hybrid import *
 # Import plotting
 import matplotlib.pyplot as plt
 

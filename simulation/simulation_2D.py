@@ -169,7 +169,7 @@ def simulation_2d(z0, vz0, t0, tf, nt,
             t_event = solution.t_events[0][0]
             x_event = solution.y_events[0][0]
             current_mode = reset_mode(current_mode)
-            x_reset = reset_map(t_event, x_event)
+            x_reset = reset_map(t_event, x_event, current_mode)
             x0 = x_reset
         else:
             t_event = tf

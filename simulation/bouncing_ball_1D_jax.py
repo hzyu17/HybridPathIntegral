@@ -18,13 +18,13 @@ from simulation_2D import *
 
 def ode_bouncing_ball_1d_saltation(z0, vz0, t0, tf, nt, Modes, n_events=None, Sig0=None):
     return simulation_2d_saltation(z0, vz0, t0, tf, nt, Modes, 
-                                    guard_bouncing_12, reset_map_bouncing_12, mode_jump_bouncing, 
+                                    guard_bouncing, reset_map_bouncing, mode_jump_bouncing, 
                                     Rx_bouncing, Rt_bouncing, gx_bouncing, gt_bouncing, linearize_bouncing, 
                                     Sig0, guard_direction=-1, n_events=n_events)
     
 def ode_bouncing_ball_1d(z0, vz0, t0, tf, nt, Modes, n_events=None):
     return simulation_2d(z0, vz0, t0, tf, nt, Modes,
-                         guard_bouncing_12, reset_map_bouncing_12, mode_jump_bouncing,
+                         guard_bouncing, reset_map_bouncing, mode_jump_bouncing,
                          n_events, guard_direction=-1)
 
 ## A collection of 1D bouncing balls which are sampled from a Gaussian distribution

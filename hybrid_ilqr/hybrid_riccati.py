@@ -10,7 +10,7 @@ root_dir = os.path.abspath(os.path.join(current_dir, '..'))
 sys.path.append(root_dir)
 
 # Import pendulum dynamics
-from dynamics.symbolic_bouncing_1D import *
+from dynamics.integration_hybrid import *
 # Import experiment parameter class
 from experiments.exp_params import *
 

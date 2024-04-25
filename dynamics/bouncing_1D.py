@@ -46,9 +46,6 @@ def linearize_bouncing(x):
     
     return np.array([[0, 1.0], [0.0, 0.0]], dtype=np.float64), np.array([0, 1.0/m])
 
-def dyn_bouncing_controlled(t, x, u):
-    return np.array([x[1], u/m-g], dtype=np.float64)
-
 def guard_bouncing_12(t, x):
     return x[0]
 guard_bouncing_jit = jax.jit(guard_bouncing_12)

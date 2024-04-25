@@ -1,16 +1,23 @@
-import scipy
-import sympy as sp
-from sympy.matrices import Matrix
-import numpy as np
-
 import os
 import sys
 file_path = os.path.abspath(__file__)
 current_dir = os.path.dirname(file_path)
 root_dir = os.path.abspath(os.path.join(current_dir, '..'))
 sys.path.append(root_dir)
-
 from dynamics.bouncing_guard_reset import *
+
+# numpy import 
+import scipy
+import sympy as sp
+from sympy.matrices import Matrix
+import numpy as np
+
+# jax import
+import jax
+import jax.numpy as jnp
+from functools import partial
+os.environ['CUDA_VISIBLE_DEVICES'] = "0"
+print("Devices:", jax.devices())
 
 # plotting
 import matplotlib.pyplot as plt
@@ -76,7 +83,7 @@ def symbolic_dynamics_bouncing():
     A_disc_func = sp.lambdify((states,inputs,dt),A_disc)
     B_disc_func = sp.lambdify((states,inputs,dt),B_disc)
     return (f_disc_func,A_disc_func,B_disc_func)
-
+    
 
 def stochastic_integration_bouncing(x0, u, current_mode, t_span, t_eval, epsilon, RandN, dt, nt):
     dW = np.sqrt(dt)*RandN
@@ -209,7 +216,7 @@ def rollout_bouncing_stochastic_feedback(x0, cur_mode_change, xt_ref, ref_modech
         current_mode = mode_change[0]
         next_mode = mode_change[1]
         ref_next_mode = ref_modechanges[i][1]
-        if (next_mode != ref_next_mode) and (mode_exttrjs_maps is not None):
+        if (next_mode != ref_next_mode) and len(mode_exttrjs_maps) > 0:
             # Take the first hybrid event for now. Needs to find the correct corresponding one among all hybrid events.
             mode_change_i, mode_exttrjs_i = mode_exttrjs_maps[0]
             extended_trj = mode_exttrjs_i[next_mode]
