@@ -15,7 +15,7 @@ class hybrid_ilqr:
         self.time_span_ = np.arange(start_time, end_time, dt).flatten()
         self.n_timesteps_ = np.shape(self.time_span_)[0]
         self.saltations_ = [None for i in range(self.n_timesteps_)]
-        self.modechanges_ = [(None, None) for _ in range(self.n_timesteps_)]
+        self.modechanges_ = [np.array([0, 0]) for _ in range(self.n_timesteps_)]
         self.txmode_map_ = {}
         
         # Dynamics
@@ -38,14 +38,14 @@ class hybrid_ilqr:
     def rollout(self):
         states = np.zeros((self.n_timesteps_, self.n_states_))
         inputs = np.zeros((self.n_timesteps_, self.n_inputs_))
-        mode_changes = [(None, None) for _ in range(self.n_timesteps_)]
+        mode_changes = [np.array([0, 0]) for _ in range(self.n_timesteps_)]
         
         saltations = [None for i in range(self.n_timesteps_)]
         
         current_state = self.init_state_
         current_mode = 1
         states[0] = current_state
-        mode_changes[0] = (current_mode, current_mode)
+        mode_changes[0] = np.array([current_mode, current_mode])
         
         for ii in range(self.n_timesteps_-1):
             current_input = self.inputs_[ii,:]

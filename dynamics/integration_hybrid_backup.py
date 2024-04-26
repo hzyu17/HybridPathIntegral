@@ -4,23 +4,19 @@ file_path = os.path.abspath(__file__)
 current_dir = os.path.dirname(file_path)
 root_dir = os.path.abspath(os.path.join(current_dir, '..'))
 sys.path.append(root_dir)
+
 from dynamics.bouncing_guard_reset import *
 
-# numpy import 
+# numpy and scipy
 import scipy
 import sympy as sp
 from sympy.matrices import Matrix
 import numpy as np
 
-# jax import
-import jax
-import jax.numpy as jnp
-from functools import partial
-os.environ['CUDA_VISIBLE_DEVICES'] = "0"
-print("Devices:", jax.devices())
-
 # plotting
 import matplotlib.pyplot as plt
+
+import jax.numpy as jnp
 
 
 def dyn_bouncing(t, x, *args):
@@ -83,48 +79,61 @@ def symbolic_dynamics_bouncing():
     A_disc_func = sp.lambdify((states,inputs,dt),A_disc)
     B_disc_func = sp.lambdify((states,inputs,dt),B_disc)
     return (f_disc_func,A_disc_func,B_disc_func)
+
+
+def bouncing_event_condition(xt, xt_next, guard):
+    # assume time invariant guard for now
+    return jnp.logical_and(guard(0.0,xt)>0, guard(0.0,xt_next)<=0) 
+
+def bouncing_cond_true_fun(args):
+    (xt_current, current_mode, u, t, t_next, xt_next, dt_int, dt_shrinkingrate, RandN, epsilon, smooth_integration_fun, guard_fun, reset_map_fun) = args
+    xt_swch = xt_next
+        
+    # Sandwich rule to find finer grind 
+    cnt = 0
+    while (True):
+        cnt += 1
+        # xt_last = xt_swch
+        
+        # Too far from the guard, shrink the step size.
+        dt_int = dt_int * dt_shrinkingrate
+        dW_new = np.sqrt(dt_int)*RandN
+        
+        # ---- solver for the deterministic part
+        t_span = (t, t_next)
+        # t_eval = np.linspace(t, t_next, nt)
+        
+        xt_swch = smooth_integration_fun(xt_current, u, t_span, epsilon, dW_new)
+
+        # /---- solver for the deterministic part
+        if (guard_fun(t, xt_swch)>0) or (cnt==10): # Until the guard condition is no longer met.
+            # The reset map is called
+            xt_next, next_mode = reset_map_fun(t, xt_swch, current_mode)
+            dW = dW_new
+            # dt_int = dt
+            break
+    return xt_next, next_mode, dW
     
 
-def stochastic_integration_bouncing(x0, u, current_mode, t_span, t_eval, epsilon, RandN, dt, nt):
+def hybrid_stochastic_integration(x0, u, current_mode, t_span, t_eval, epsilon, RandN, dt, nt):
     dW = np.sqrt(dt)*RandN
-    xt_next = stochastic_integration(x0, u, t_span, t_eval, epsilon, dW, nt)
+    xt_next = stochastic_integration(x0, u, t_span, epsilon, dW)
     t_next = t_eval[-1]
     
     # Sandwich rule for contact detection
     dt_shrinkingrate = 0.7
-    dt_int = dt
-    t, t_plus = t_span[0], t_span[1]
+    t = t_span[0]
     
     next_mode = current_mode
     # Guard condition: direction is -1     
-    if (guard_bouncing_12(t, x0)>0) and (guard_bouncing_12(t_plus, xt_next)<=0): # Hit the guard function.
-        xt_swch = xt_next
+    if bouncing_event_condition(x0, xt_next, guard_bouncing_12): # Hit the guard function.
+        args = (x0, current_mode, u, t, t_next, xt_next, dt, dt_shrinkingrate, RandN, epsilon, stochastic_integration, guard_bouncing_12, reset_map_bouncing_12)
+        xt_next, next_mode, _ = bouncing_cond_true_fun(args)
         
-        # Sandwich rule to find finer grind 
-        cnt = 0
-        while (True):
-            cnt += 1
-            xt_last = xt_swch
-            
-            # Too far from the guard, shrink the step size.
-            dt_int = dt_int * dt_shrinkingrate
-            dW = np.sqrt(dt_int)*RandN
-            
-            # ---- solver for the deterministic part
-            t_span = (t, t_next)
-            t_eval = np.linspace(t, t_next, nt)
-            
-            xt_swch = stochastic_integration(x0, u, t_span, t_eval, epsilon, dW, nt)
-
-            # /---- solver for the deterministic part
-            if (guard_bouncing_12(t, xt_swch)>0) or (cnt==10): # Until the guard condition is no longer met.
-                # The reset map is called
-                xt_next, next_mode = reset_map_bouncing_12(t, xt_last, current_mode)
-                dt_int = dt
-                break
     return xt_next, next_mode
 
-def stochastic_integration(x0, u, t_span, t_eval, epsilon, dW, nt):
+
+def stochastic_integration(x0, u, t_span, epsilon, dW):
     """ Rollout function assuming constant control input during the time span.
     Returns:
         array: stochastic integrated state at tf.
@@ -197,63 +206,77 @@ def rollout_bouncing_stochastic_feedback(x0, cur_mode_change, xt_ref, ref_modech
     cnt_mismatch = 0
     actual_xtref = np.zeros((n_timestamps, nx), dtype=np.float64)
     
-    cnt_events = 0 # count the number of hybrid events happened during the execusion.
     mode_change = cur_mode_change
+    
+    # ------------- Define condition functions -------------
+    # Condition: mode mismatch
+    cond_mode_mismatch = lambda next_mode, ref_next_mode, mode_exttrjs_maps: (next_mode != ref_next_mode) and (len(mode_exttrjs_maps) > 0)
+    cond_early_arrival = lambda next_mode, ref_next_mode, cnt_mismatch: (next_mode==2) and (ref_next_mode==1) and (cnt_mismatch==0)
+    cond_firsttime_mismatch = lambda mismatched_states: (mismatched_states is None)
+    cond_empty_modified_refs = lambda modified_refs: modified_refs is None
+    cond_guard_function_hit = lambda xt, xt_next, guard_func: ((guard_func(0.0, xt)>0) and (guard_func(0.0, xt_next)<=0))
+    
+    # ------------- Define reaction functions -------------
+    def early_arrival_true_fun(next_mode, ref_modechanges, extended_trj):
+        len_ref = 0
+        i_ext = 0
+        while True: # Find the correct length of the extension
+            if (ref_modechanges[i+i_ext][1] == next_mode):
+                len_ref = i_ext
+                break
+            i_ext += 1
+        extended_trj = extended_trj[0:len_ref]
+        extended_trj = extended_trj[::-1]
+        return extended_trj
+    
+    empty_modified_refs_true_fun = lambda xref_i: xref_i.reshape((1, -1))
+    empty_modified_refs_false_fun = lambda xref_i, modified_refs: np.vstack((modified_refs, xref_i.reshape((1, -1))))
+    
+    firsttime_mismatch_true_fun = lambda xt, xref_i: (xt.reshape((1, -1)), xref_i.reshape((1, -1)))
+    firsttime_mismatch_false_fun = lambda xt, xref_i, mismatched_states: (np.vstack((mismatched_states, xt.reshape((1, -1)))), 
+                                                                            np.vstack((mismatched_refs, xref_i.reshape((1, -1)))))
+
     
     # path cost
     Sk = 0
+    # -------------- roullout function --------------
     for i in range(n_timestamps-1):    
         
         xref_i = xt_ref[i]
-        
+
         t0_i = t0 + i*dt  
         
-        # # Riccati
-        # u = Kt[i]@xt + kt[i]
-        
         # i-lqr
-        # ======== Check mode mismatch ======== 
-        current_mode = mode_change[0]
-        next_mode = mode_change[1]
-        ref_next_mode = ref_modechanges[i][1]
-        if (next_mode != ref_next_mode) and len(mode_exttrjs_maps) > 0:
-            # Take the first hybrid event for now. Needs to find the correct corresponding one among all hybrid events.
-            mode_change_i, mode_exttrjs_i = mode_exttrjs_maps[0]
-            extended_trj = mode_exttrjs_i[next_mode]
+        
+        current_mode, next_mode = mode_change[0], mode_change[1]
+        
+        # # ======== Check mode mismatch ======== 
+        # ref_next_mode = ref_modechanges[i][1]
+        # if cond_mode_mismatch(next_mode, ref_next_mode, mode_exttrjs_maps):
+        #     # Take the first hybrid event for now. Needs to find the correct corresponding one among all hybrid events.
+        #     mode_change_i, mode_exttrjs_i = mode_exttrjs_maps[0]
+        #     extended_trj = mode_exttrjs_i[next_mode]
             
-            # First time early arrival: find and reverse the ref
-            if (next_mode==2) and (ref_next_mode==1) and (cnt_mismatch==0): 
-                len_ref = 0
-                i_ext = 0
-                while True: # Find the correct length of the extension
-                    if (ref_modechanges[i+i_ext][1] == next_mode):
-                        len_ref = i_ext
-                        break
-                    i_ext += 1
-                extended_trj = extended_trj[0:len_ref]
-                extended_trj = extended_trj[::-1]
-                
-            xref_i = extended_trj[cnt_mismatch]
+        #     # Condition: first time early arrival: find and reverse the ref
+        #     if cond_early_arrival(next_mode, ref_next_mode, cnt_mismatch): 
+        #         extended_trj = early_arrival_true_fun(next_mode, ref_modechanges, extended_trj)
             
-            if modified_refs is None:
-                modified_refs = xref_i.reshape((1, -1))
-            else:
-                modified_refs = np.vstack((modified_refs, xref_i.reshape((1, -1))))
-                
-            # Collect data
-            if mismatched_states is None:
-                mismatched_states = xt_trj[i].reshape((1, -1))
-                mismatched_refs = xt_ref[i].reshape((1, -1))
-            else:
-                mismatched_states = np.vstack((mismatched_states, xt_trj[i].reshape((1, -1))))
-                mismatched_refs = np.vstack((mismatched_refs, xt_ref[i].reshape((1, -1))))
+        #     xref_i = extended_trj[cnt_mismatch]
             
-            cnt_mismatch += 1
+        #     if cond_empty_modified_refs(modified_refs):
+        #         modified_refs = empty_modified_refs_true_fun(xref_i)
+        #     else:
+        #         modified_refs = empty_modified_refs_false_fun(xref_i, modified_refs)
             
-            # print("mode mismatch")
-            # print("current_mode:", current_mode)
-            # print("ref mode change:", ref_modechanges[i])
+        #     # Collect data
+        #     if cond_firsttime_mismatch(mismatched_states):
+        #         mismatched_states, mismatched_refs = firsttime_mismatch_true_fun(xt, xref_i)
+        #     else:
+        #         mismatched_states, mismatched_refs = firsttime_mismatch_false_fun(xt, xref_i, mismatched_states)
             
+        #     cnt_mismatch += 1
+        # # ======== / Check mode mismatch ======== 
+        
         actual_xtref[i] = xref_i
         
         delta_xt = xt_trj[i] - xref_i
@@ -266,44 +289,19 @@ def rollout_bouncing_stochastic_feedback(x0, cur_mode_change, xt_ref, ref_modech
         # ---- solver for the deterministic part
         t_plus = t0_i + dt_int
         t_span = (t0_i, t_plus)
-        t_eval = np.linspace(t0_i, t_plus, n_timestamps)
+        # t_eval = np.linspace(t0_i, t_plus, n_timestamps)
         
-        xt_next = stochastic_integration(xt, u, t_span, t_eval, epsilon, dW_i, n_timestamps).flatten()
+        xt_next = stochastic_integration(xt, u, t_span, epsilon, dW_i).flatten()
         
-        # Hit the guard function.  
-        if (current_guard(t0_i, xt)>0) and (current_guard(t_plus, xt_next)<=0): 
-            print("rollout mode change")
-            cnt_events += 1
-            xt_swch = xt_next
+        # Condition: Hit the guard function.  
+        
+        if cond_guard_function_hit(xt, xt_next, current_guard): 
+            args = (xt, current_mode, u, t0_i, t0_i+dt_int, xt_next, dt_int, dt_shrinkingrate, GaussianNoise[i], epsilon, stochastic_integration, guard_bouncing_12, reset_map_bouncing_12)
+            xt_next, next_mode, dW_i = bouncing_cond_true_fun(args)
+            dt_int = dt
             
-            # Sandwich rule to find finer grind 
-            cnt = 0
-            while (True):
-                cnt += 1
-                xt_last = xt_swch
-                
-                # Too far from the guard, shrink the step size.
-                dt_int = dt_int * dt_shrinkingrate
-                dW_new = np.sqrt(dt_int)*GaussianNoise[i]
-                
-                # ---- solver for the deterministic part
-                t_span_new = (t0_i, t0_i+dt_int)
-                t_eval_new = np.linspace(t0_i, t0_i+dt_int, n_timestamps)
-                xt_swch = stochastic_integration(xt, u, t_span_new, t_eval_new, epsilon, dW_new, n_timestamps)
-                # /---- solver for the deterministic part
-                
-                # Until the guard condition is no longer met.
-                if (current_guard(t0_i, xt_swch)>0) or (cnt==10): 
-                    # The reset map is called on the last integration for which the guard is not met.
-                    # print("xt ", xt)
-                    # print("xt_last ", xt_last)
-                    xt_next, next_mode = current_resetmap(t0_i, xt_last, current_mode)
-                    dt_int = dt
-                    dW_i = dW_new
-                    break
-        
         # Collect cost: consider only the terminal state cost for now.
-        Sk += u.T@R_k@u/2.0 * dt + np.sqrt(epsilon) * np.dot(u.T, dW_i)
+        Sk += u.T@u/2.0 * dt + np.sqrt(epsilon) * np.dot(u.T, dW_i)
         
         mode_change = (current_mode, next_mode)
         xt_trj[i+1] = xt_next
@@ -346,6 +344,20 @@ def rollout_bouncing_stochastic_feedback(x0, cur_mode_change, xt_ref, ref_modech
         plt.show()
     
     return xt_trj, ut_cl, Sk
+
+
+# ============ for cpu parallel computing ============
+def process_sampling_feedback(sample_i, init_state, current_modechange, xt_ref, ref_modechanges, 
+                              ut, K_feedback, k_feedforward, 
+                              target_state, R_k, Q_T, 
+                              start_time, end_time, 
+                              epsilon, RandN, 
+                              mode_exttrjs_maps, index):
+    # print("Sampling trajectory: ", index)
+    sample_i, ut_cl_i, Su_i = rollout_bouncing_stochastic_feedback(init_state, current_modechange, xt_ref, ref_modechanges,
+                                                                    ut, K_feedback, k_feedforward, target_state, R_k, Q_T,
+                                                                    start_time, end_time, epsilon, RandN[index], mode_exttrjs_maps)
+    return sample_i, ut_cl_i, Su_i, index
 
 
 def rollout_bouncing_stochastic(x0, ut, t0, tf, epsilon, GaussianNoise):

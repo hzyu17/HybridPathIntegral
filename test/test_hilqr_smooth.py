@@ -80,11 +80,8 @@ class TestHybirdPathIntegral(unittest.TestCase):
         # only test for the first time step
         for i_t in range(1):
             
-            print("----------- time index: ", i_t)
-            
             start_time_i = start_time + i_t*dt
 
-            time_span_i = np.arange(start_time_i, end_time, dt).flatten()
             nt_i = nt - i_t
             
             # else:
@@ -162,8 +159,8 @@ class TestHybirdPathIntegral(unittest.TestCase):
             # print("*** Var weight", variance_weight)
             # print("*** lambda", lambda_effectiveness)
             
-        self.assertAlmostEquals(variance_weight, 0.0, delta=1e-1)
-        self.assertAlmostEquals(lambda_effectiveness, 1.0, delta=1e-1)
+        self.assertAlmostEqual(variance_weight, 0.0, delta=1e-1)
+        self.assertAlmostEqual(lambda_effectiveness, 1.0, delta=1e-1)
         
         
 if __name__ == '__main__':
