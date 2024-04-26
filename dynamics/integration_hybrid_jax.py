@@ -90,7 +90,7 @@ def symbolic_dynamics_bouncing():
     return (f_disc_func,A_disc_func,B_disc_func)
 
 
-def bouncing_event_condition(xt, xt_next, guard):
+def bouncing_event_condition_jax(xt, xt_next, guard):
     # assume time invariant guard for now
     return jnp.logical_and(guard(0.0,xt)>0, guard(0.0,xt_next)<=0) 
 

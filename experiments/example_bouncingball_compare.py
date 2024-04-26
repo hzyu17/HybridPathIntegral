@@ -289,7 +289,7 @@ if __name__ == '__main__':
                                                                                     target_state, R_k, Q_T, 
                                                                                     start_time_i, dt, end_time, dt_shrinkingrate, 
                                                                                     epsilon, GaussianNoise_i, 
-                                                                                    bouncing_event_condition, guard_bouncing_12, 
+                                                                                    bouncing_event_condition_jax, guard_bouncing_12, 
                                                                                     reset_map_bouncing_12)
             
             print("jax parallel sampling complete")

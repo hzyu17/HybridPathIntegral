@@ -82,13 +82,11 @@ def reset_map_bouncing_12_jax(t, x_minus, current_mode):
 def reset_map_bouncing_12(t, x_minus, current_mode):
     e2 = 0.6
     new_mode = current_mode
+    x_plus = x_minus
     if (x_minus[1] < 0) and (current_mode==1):
         coeff = np.array([[1.0, 0], [0, -e2]])
         x_plus = coeff@x_minus
         new_mode = 2
-        
-    else: # integration error
-        x_plus = x_minus
         
     return x_plus, new_mode
 
