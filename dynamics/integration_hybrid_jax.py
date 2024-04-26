@@ -228,7 +228,7 @@ def roullout_bouncing_stochastic_feedback_jax(n_samples, x0, cur_mode_change, xt
     v_cur_mode_change = jnp.tile(cur_mode_change, (n_samples, 1))
     v_xt_ref = jnp.tile(xt_ref, (n_samples, 1, 1))
     v_ut_ref = jnp.tile(ut_ref, (n_samples, 1, 1))
-    v_S0 = jnp.zeros((n_samples, 1))
+    v_S0 = jnp.zeros((n_samples, 1), dtype=jnp.float64)
     K_feedback_i_jax = jnp.asarray(K_feedback)
     k_feedforward_i_jax = jnp.asarray(k_feedforward)
     

@@ -71,7 +71,7 @@ if __name__ == '__main__':
     # Initialize timings
     
     # ---------------- bouncing example -----------------
-    dt = 0.001
+    dt = 0.1
     dt_pathintegral = dt
     start_time = 0
     end_time = 2.0
@@ -113,7 +113,7 @@ if __name__ == '__main__':
     
     # === path integral parameters ===
     epsilon = 2.0
-    n_samples = 50
+    n_samples = 100
     n_exp = 3
     
     # === Do N experiments and compare the expected costs ===
@@ -293,12 +293,14 @@ if __name__ == '__main__':
                                                                                     reset_map_bouncing_12)
             
             print("jax parallel sampling complete")
+            
+            # # --- cpu serial for loop ---
             # for i_sample in prange(n_samples):
             #     print("sample ", i_sample)
             #     noise_i = GaussianNoise_i[i_sample]
             #     sample_i, ut_cl_i, Su_i = rollout_bouncing_stochastic_feedback(xt, current_modechange, states_i, modechange_i, 
             #                                                                     inputs_i, K_feedback_i, k_feedforward_i, target_state, R_k, Q_T,
-            #                                                                     start_time_i, end_time, epsilon, noise_i, mode_exttrjs_maps)
+            #                                                                     start_time_i, end_time, epsilon, noise_i, dt_shrinkingrate, mode_exttrjs_maps)
             #     sampled_trjs[i_sample] = sample_i
             #     sampled_controls[i_sample] = ut_cl_i
             #     # pathcost_i = compute_cost(sample_i, ut_cl_i, noise_i, target_state, states_i, Q_k, R_k, Q_T, epsilon, dt)
@@ -309,7 +311,8 @@ if __name__ == '__main__':
                                                                                     states_i, modechange_i, 
                                                                                     inputs_i, K_feedback_i, k_feedforward_i, 
                                                                                     target_state, R_k, Q_T,
-                                                                                    start_time_i, end_time, epsilon, GaussianNoise_i, mode_exttrjs_maps, i) for i in range(n_samples))
+                                                                                    start_time_i, end_time, 
+                                                                                    epsilon, GaussianNoise_i, dt_shrinkingrate, mode_exttrjs_maps, i) for i in range(n_samples))
 
             for sample_i, sample_input_i, Su_i, index in samples_index:
                 sampled_trjs[index] = sample_i

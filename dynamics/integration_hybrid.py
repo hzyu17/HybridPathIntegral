@@ -91,14 +91,15 @@ def bouncing_reactive_fun(args):
     cnt = 0
     while (True):
         cnt += 1
-        xt_last = xt_swch
+        # xt_last = xt_swch
         
         # Too far from the guard, shrink the step size.
         dt_int = dt_int * dt_shrinkingrate
         dW_new = np.sqrt(dt_int)*RandN
         
         # ---- solver for the deterministic part
-        t_span = (t, t_next)
+        # t_span = (t, t_next)
+        t_span = (t, t+dt_int)
         # t_eval = np.linspace(t, t_next, nt)
         
         xt_swch = smooth_integration_fun(xt_current, u, t_span, epsilon, dW_new)
@@ -106,7 +107,7 @@ def bouncing_reactive_fun(args):
         # /---- solver for the deterministic part
         if (guard_fun(t, xt_swch)>0) or (cnt==10): # Until the guard condition is no longer met.
             # The reset map is called
-            xt_next, next_mode = reset_map_fun(t, xt_last, current_mode)
+            xt_next, next_mode = reset_map_fun(t, xt_swch, current_mode)
             dW = dW_new
             # dt_int = dt
             break
@@ -164,7 +165,7 @@ def stochastic_integration(x0, u, t_span, epsilon, dW):
 
 def rollout_bouncing_stochastic_feedback(x0, cur_mode_change, xt_ref, ref_modechanges, 
                                          ut, Kt, kt, target_state, R_k, Q_T, t0, tf, 
-                                         epsilon, GaussianNoise, mode_exttrjs_maps=None):
+                                         epsilon, GaussianNoise, dt_shrinkingrate, mode_exttrjs_maps=None):
 
     n_timestamps = xt_ref.shape[0]
     _, nu, nx = Kt.shape
@@ -179,7 +180,7 @@ def rollout_bouncing_stochastic_feedback(x0, cur_mode_change, xt_ref, ref_modech
     xt_trj[0] = xt
     
     # guard_thres = 1e-4
-    dt_shrinkingrate = 1e-4
+    # dt_shrinkingrate = 1e-4
     dt_int = dt
     
     ut_cl = np.zeros((n_timestamps, nu))
@@ -367,12 +368,13 @@ def process_sampling_feedback(sample_i, init_state, current_modechange, xt_ref, 
                               ut, K_feedback, k_feedforward, 
                               target_state, R_k, Q_T, 
                               start_time, end_time, 
-                              epsilon, RandN, 
+                              epsilon, RandN, dt_shrinkingrate,
                               mode_exttrjs_maps, index):
     # print("Sampling trajectory: ", index)
     sample_i, ut_cl_i, Su_i = rollout_bouncing_stochastic_feedback(init_state, current_modechange, xt_ref, ref_modechanges,
                                                                     ut, K_feedback, k_feedforward, target_state, R_k, Q_T,
-                                                                    start_time, end_time, epsilon, RandN[index], mode_exttrjs_maps)
+                                                                    start_time, end_time, 
+                                                                    epsilon, RandN[index], dt_shrinkingrate, mode_exttrjs_maps)
     return sample_i, ut_cl_i, Su_i, index
 
 
