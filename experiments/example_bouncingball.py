@@ -72,6 +72,7 @@ if __name__ == '__main__':
     
     # ---------------- bouncing example -----------------
     dt = 0.001
+    dt_shrink = 0.7
     dt_pathintegral = dt
     start_time = 0
     end_time = 2.0
@@ -273,16 +274,16 @@ if __name__ == '__main__':
             # --- cpu forloop ---
             for i_sample in prange(n_samples):
                 noise_i = GaussianNoise_i[i_sample]
-                sample_i, ut_cl_i, Su_i = rollout_bouncing_stochastic_feedback(xt, current_modechange, states_i, modechange_i, 
+                sample_i, ut_cl_i, Su_i = rollout_bouncing_stochastic_feedback(i_t, xt, current_modechange, states_i, modechange_i, 
                                                                                 inputs_i, K_feedback_i, k_feedforward_i, target_state, R_k, Q_T,
-                                                                                start_time_i, end_time, epsilon, noise_i, mode_exttrjs_maps)
+                                                                                start_time_i, end_time, epsilon, noise_i, dt_shrink, mode_exttrjs_maps)
                 sampled_trjs[i_sample] = sample_i
                 sampled_controls[i_sample] = ut_cl_i
                 # pathcost_i = compute_cost(sample_i, ut_cl_i, noise_i, target_state, states_i, Q_k, R_k, Q_T, epsilon, dt)
                 PathCosts[i_sample] = Su_i
             
             # # --- cpu parallel ---
-            # samples_index = Parallel(n_jobs=-1)(delayed(process_sampling_feedback)(sampled_trjs[i,:,:], xt, current_modechange, 
+            # samples_index = Parallel(n_jobs=-1)(delayed(process_sampling_feedback)(i_t, sampled_trjs[i,:,:], xt, current_modechange, 
             #                                                                        states_i, modechange_i, 
             #                                                                        inputs_i, K_feedback_i, k_feedforward_i, 
             #                                                                        target_state, R_k, Q_T,
@@ -350,7 +351,7 @@ if __name__ == '__main__':
             t_eval = np.linspace(start_time_i, start_time_i+dt, nt_ode_solve)
             t_next = t_eval[-1]
             
-            dt_shrink = 0.7
+            
             xt, next_mode = hybrid_stochastic_integration(xt, u0_star, current_mode, t_span, epsilon, actual_noise_i, dt, dt_shrink)
             trj_pi[i_t+1] = xt
             
@@ -370,9 +371,9 @@ if __name__ == '__main__':
         
         
         # --- ilqr for comparison --- 
-        trj_ilqr, u_trj_ilqr, cost_ilqr = rollout_bouncing_stochastic_feedback(init_state, (1, 1), states, modechanges, 
+        trj_ilqr, u_trj_ilqr, cost_ilqr = rollout_bouncing_stochastic_feedback(init_state, np.array([1, 1]), states, modechanges, 
                                                                                 inputs, K_feedback, k_feedforward, target_state, R_k, Q_T,
-                                                                                start_time, end_time, epsilon, RndN_actual, mode_exttrjs_maps)
+                                                                                start_time, end_time, epsilon, RndN_actual, dt_shrink, mode_exttrjs_maps)
         
         # Compare cost
         dWs_zeros = np.zeros((nt, n_inputs))

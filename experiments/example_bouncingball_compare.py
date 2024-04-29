@@ -71,7 +71,7 @@ if __name__ == '__main__':
     # Initialize timings
     
     # ---------------- bouncing example -----------------
-    dt = 0.1
+    dt = 0.01
     dt_pathintegral = dt
     start_time = 0
     end_time = 2.0
@@ -208,7 +208,7 @@ if __name__ == '__main__':
             #     K_feedback_i = K_feedback
             #     k_feedforward_i = k_feedforward
             #     ref_next_mode = modechanges[0][1]      
-                
+            
             # else:
             states_i = states[i_t:,:]
             inputs_i = inputs[i_t:,:]
@@ -243,9 +243,10 @@ if __name__ == '__main__':
                                 len_ref = i_ext
                                 break
                             i_ext += 1
-                        extended_trj = extended_trj[0:len_ref]
                         extended_trj = extended_trj[::-1]
-                        
+                        extended_trj = extended_trj[0:len_ref]
+                        # extended_trj = extended_trj[::-1]
+                    
                     xref_i = extended_trj[cnt_mismatch]
                 cnt_mismatch += 1
             
@@ -267,6 +268,7 @@ if __name__ == '__main__':
             sampled_trjs = np.zeros((n_samples, nt_i, n_states))
             sampled_controls = np.zeros((n_samples, nt_i, n_inputs))
             PathCosts = np.zeros(n_samples)  
+            ref_trj = np.zeros((n_samples, nt_i, n_states))
             
             GaussianNoise_i = np.random.randn(n_samples, nt_i, n_inputs)
             
@@ -282,45 +284,56 @@ if __name__ == '__main__':
             #     PathCosts[i_sample] = Su_i
             
             # ====== samples using jax ====== 
+            cur_ref_modechange = modechanges[i_t]
             dt_shrinkingrate = 0.7
             from dynamics.integration_hybrid_jax import roullout_bouncing_stochastic_feedback_jax
-            Ksamples_jax, PathCosts_jax = roullout_bouncing_stochastic_feedback_jax(n_samples, xt, current_modechange, states_i, modechange_i, 
-                                                                                    inputs_i, K_feedback_i, k_feedforward_i, 
-                                                                                    target_state, R_k, Q_T, 
-                                                                                    start_time_i, dt, end_time, dt_shrinkingrate, 
-                                                                                    epsilon, GaussianNoise_i, 
-                                                                                    bouncing_event_condition_jax, guard_bouncing_12, 
-                                                                                    reset_map_bouncing_12)
+            
+            # print("=== extended trajectories 1: ", mode_exttrjs_maps[0][1][1])
+            # print("=== extended trajectories 2: ", mode_exttrjs_maps[0][1][2])
+            
+            Ksamples_jax, PathCosts_jax, actual_ref_jax = roullout_bouncing_stochastic_feedback_jax(n_samples, xt, current_modechange, 
+                                                                                                    states_i, cur_ref_modechange, modechange_i, 
+                                                                                                    inputs_i, K_feedback_i, k_feedforward_i, 
+                                                                                                    target_state, R_k, Q_T, 
+                                                                                                    start_time_i, dt, end_time, dt_shrinkingrate, 
+                                                                                                    epsilon, GaussianNoise_i, 
+                                                                                                    guard_bouncing_12, 
+                                                                                                    mode_exttrjs_maps)
             
             print("jax parallel sampling complete")
             
             # # --- cpu serial for loop ---
-            # for i_sample in prange(n_samples):
-            #     print("sample ", i_sample)
-            #     noise_i = GaussianNoise_i[i_sample]
-            #     sample_i, ut_cl_i, Su_i = rollout_bouncing_stochastic_feedback(xt, current_modechange, states_i, modechange_i, 
-            #                                                                     inputs_i, K_feedback_i, k_feedforward_i, target_state, R_k, Q_T,
-            #                                                                     start_time_i, end_time, epsilon, noise_i, dt_shrinkingrate, mode_exttrjs_maps)
-            #     sampled_trjs[i_sample] = sample_i
-            #     sampled_controls[i_sample] = ut_cl_i
-            #     # pathcost_i = compute_cost(sample_i, ut_cl_i, noise_i, target_state, states_i, Q_k, R_k, Q_T, epsilon, dt)
-            #     PathCosts[i_sample] = Su_i
+            for i_sample in prange(n_samples):
+                # print("sample ", i_sample)
+                noise_i = GaussianNoise_i[i_sample]
+                sample_i, ut_cl_i, Su_i, ref_trj_i = rollout_bouncing_stochastic_feedback(i_t, xt, current_modechange, states_i, modechange_i, 
+                                                                                        inputs_i, K_feedback_i, k_feedforward_i, target_state, R_k, Q_T,
+                                                                                        start_time_i, end_time, epsilon, noise_i, dt_shrinkingrate, mode_exttrjs_maps)
+                sampled_trjs[i_sample] = sample_i
+                sampled_controls[i_sample] = ut_cl_i
+                # pathcost_i = compute_cost(sample_i, ut_cl_i, noise_i, target_state, states_i, Q_k, R_k, Q_T, epsilon, dt)
+                PathCosts[i_sample] = Su_i
+                ref_trj[i_sample] = ref_trj_i
             
             # --- cpu parallel ---
-            samples_index = Parallel(n_jobs=-1)(delayed(process_sampling_feedback)(sampled_trjs[i,:,:], xt, current_modechange, 
-                                                                                    states_i, modechange_i, 
-                                                                                    inputs_i, K_feedback_i, k_feedforward_i, 
-                                                                                    target_state, R_k, Q_T,
-                                                                                    start_time_i, end_time, 
-                                                                                    epsilon, GaussianNoise_i, dt_shrinkingrate, mode_exttrjs_maps, i) for i in range(n_samples))
+            # samples_index = Parallel(n_jobs=-1)(delayed(process_sampling_feedback)(i_t, sampled_trjs[i_sample,:,:], xt, current_modechange, 
+            #                                                                         states_i, modechange_i, 
+            #                                                                         inputs_i, K_feedback_i, k_feedforward_i, 
+            #                                                                         target_state, R_k, Q_T,
+            #                                                                         start_time_i, end_time, 
+            #                                                                         epsilon, GaussianNoise_i, dt_shrinkingrate, mode_exttrjs_maps, i_sample) for i_sample in range(n_samples))
 
-            for sample_i, sample_input_i, Su_i, index in samples_index:
-                sampled_trjs[index] = sample_i
-                sampled_controls[index] = sample_input_i
-                PathCosts[index] = Su_i
+            # for sample_i, sample_input_i, Su_i, ref_trj_i, index in samples_index:
+            #     sampled_trjs[index] = sample_i
+            #     sampled_controls[index] = sample_input_i
+            #     PathCosts[index] = Su_i
+            #     ref_trj[index] = ref_trj_i
             
             diff_Ksamples = sampled_trjs - Ksamples_jax
             diff_PathCosts = PathCosts - PathCosts_jax
+            
+            print("diff_Ksamples norm :", np.linalg.norm(diff_Ksamples))
+            print("diff_PathCosts norm :", np.linalg.norm(diff_PathCosts))
             
             show_samples = True
             if show_samples:
@@ -395,7 +408,7 @@ if __name__ == '__main__':
             t_eval = np.linspace(start_time_i, start_time_i+dt, nt_ode_solve)
             t_next = t_eval[-1]
             
-            xt, next_mode = hybrid_stochastic_integration(xt, u0_star, current_mode, t_span, t_eval, epsilon, actual_noise_i, dt, nt_ode_solve)
+            xt, next_mode = hybrid_stochastic_integration(xt, u0_star, current_mode, t_span, epsilon, actual_noise_i, dt, dt_shrinkingrate)
             trj_pi[i_t+1] = xt
             
             current_modechange = np.array([current_mode, next_mode])

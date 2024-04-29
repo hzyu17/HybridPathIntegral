@@ -175,14 +175,14 @@ class hybrid_ilqr:
     def forward_pass(self, learning_rate):
         states = np.zeros((self.n_timesteps_, self.n_states_))
         inputs = np.zeros((self.n_timesteps_, self.n_inputs_))
-        mode_changess = [(None, None) for _ in range(self.n_timesteps_)]
+        mode_changess = np.tile(np.array([0, 0]), (self.n_timesteps_, 1))
         
         current_state = self.init_state_
         current_mode = 1
 
         # set the first state to be the initial
         states[0] = current_state
-        mode_changess[0] = (current_mode, current_mode)
+        mode_changess[0] = np.array([current_mode, current_mode])
         saltations = [None for i in range(self.n_timesteps_)]
         
         # extend reference trj, if a hybrid event is hit.
@@ -219,6 +219,9 @@ class hybrid_ilqr:
         return (states,inputs,current_feedback,current_feedforward,saltations,mode_changess,txmode_map)
     
     def compute_trj_extension(self, txmode_map):
+        
+        sorted_keys = sorted(txmode_map.keys())
+        
         t_events = []
         x_events = []
         x_resets = []
@@ -229,9 +232,9 @@ class hybrid_ilqr:
         t_events.append(self.start_time_)
         x_events.append(self.init_state_)
         x_resets.append(self.init_state_)
-        mode_changes.append((1, 1))
+        mode_changes.append(np.array([1, 1]))
         
-        sorted_keys = sorted(txmode_map.keys())
+        
         for i_key in sorted_keys:
             t_events.append(txmode_map[i_key][0])
             x_events.append(txmode_map[i_key][1])
@@ -243,7 +246,7 @@ class hybrid_ilqr:
         x_resets.append(self.target_state_)
         if txmode_map.keys():
             mode_changes.append(txmode_map[sorted_keys[-1]][3])
-        
+                
         # forward and backward trajectory extensions
         for ii, tevent_i in enumerate(t_events[1:-1], start=1):
             x_event_i = x_events[ii]
@@ -251,14 +254,22 @@ class hybrid_ilqr:
             current_mode_i = mode_changes[ii][0]
             next_mode_i = mode_changes[ii][1]
             
-            # choose an appropriate time span for the extension
-            t_ext_fwd_i = tevent_i + (t_events[ii+1]-tevent_i)
-            t_ext_bwd_i = tevent_i - (tevent_i-t_events[ii-1])
+            # # choose an appropriate time span for the extensions
+            # t_ext_fwd_i = tevent_i + (t_events[ii+1]-tevent_i)
+            # t_ext_bwd_i = tevent_i - (tevent_i-t_events[ii-1])
+            
+            # timespan_ext_fwd = np.arange(tevent_i, t_ext_fwd_i, self.dt_)
+            # timespan_ext_bwd = np.arange(t_ext_bwd_i, tevent_i, self.dt_)[::-1]
+            # nt_ext_fwd = len(timespan_ext_fwd)
+            # nt_ext_bwd = len(timespan_ext_bwd)
+            
+            nt_ext_fwd = 30
+            nt_ext_bwd = 30
+            t_ext_fwd_i = tevent_i + nt_ext_fwd*self.dt_
+            t_ext_bwd_i = tevent_i - nt_ext_bwd*self.dt_
             
             timespan_ext_fwd = np.arange(tevent_i, t_ext_fwd_i, self.dt_)
             timespan_ext_bwd = np.arange(t_ext_bwd_i, tevent_i, self.dt_)[::-1]
-            nt_ext_fwd = len(timespan_ext_fwd)
-            nt_ext_bwd = len(timespan_ext_bwd)
             
             xtrj_ext_fwd_i = np.zeros((nt_ext_fwd, self.n_states_))
             xtrj_ext_bwd_i = np.zeros((nt_ext_bwd, self.n_states_))
@@ -298,7 +309,7 @@ class hybrid_ilqr:
                 # Update the current state
                 current_state = next_state
                         
-            mode_exttrjs_maps.append(((current_mode_i, next_mode_i), {current_mode_i:xtrj_ext_fwd_i, next_mode_i:xtrj_ext_bwd_i}))
+            mode_exttrjs_maps.append((np.array([current_mode_i, next_mode_i]), {current_mode_i:xtrj_ext_fwd_i, next_mode_i:xtrj_ext_bwd_i}))
             
         return mode_exttrjs_maps
     
