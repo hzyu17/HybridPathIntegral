@@ -125,15 +125,16 @@ class TestHybirdPathIntegral(unittest.TestCase):
             PathCosts = np.zeros(n_samples)  
             
             GaussianNoise_i = np.random.randn(n_samples, nt_i, n_inputs)                
-                
+            
             # -- cpu parallel ---
+            dt_shrinkingrate = 0.7
             samples_index = Parallel(n_jobs=-1)(delayed(process_sampling_feedback)(sampled_trjs[i,:,:], xt, current_modechange, 
                                                                                    states_i, modechange_i, 
                                                                                    inputs_i, K_feedback_i, k_feedforward_i, 
                                                                                    target_state, R_k, Q_T,
-                                                                                   start_time_i, end_time, epsilon, GaussianNoise_i, mode_exttrjs_maps, i) for i in range(n_samples))
+                                                                                   start_time_i, end_time, epsilon, GaussianNoise_i, dt_shrinkingrate, mode_exttrjs_maps, i) for i in range(n_samples))
 
-            for sample_i, sample_input_i, Su_i, index in samples_index:
+            for sample_i, sample_input_i, Su_i, _, index in samples_index:
                 sampled_trjs[index] = sample_i
                 sampled_controls[index] = sample_input_i
                 PathCosts[index] = Su_i

@@ -24,8 +24,6 @@ from experiments.exp_params import *
 # for paralle sampling on cpu
 from joblib import Parallel, delayed
 
-import numba
-
 
 # ====================================== Path Integral Control ====================================== 
 def compute_cost(states,inputs,randN,target_state,trj_ref, Qk, Rk, QT, epsilon, dt):
@@ -268,19 +266,22 @@ if __name__ == '__main__':
             sampled_trjs = np.zeros((n_samples, nt_i, n_states))
             sampled_controls = np.zeros((n_samples, nt_i, n_inputs))
             PathCosts = np.zeros(n_samples)  
+            ref_trj = np.zeros((n_samples, nt_i, n_states))
             
             GaussianNoise_i = np.random.randn(n_samples, nt_i, n_inputs)
             
             # --- cpu forloop ---
             for i_sample in prange(n_samples):
                 noise_i = GaussianNoise_i[i_sample]
-                sample_i, ut_cl_i, Su_i = rollout_bouncing_stochastic_feedback(i_t, xt, current_modechange, states_i, modechange_i, 
+                sample_i, ut_cl_i, Su_i, ref_trj_i = rollout_bouncing_stochastic_feedback(xt, current_modechange, states_i, modechange_i, 
                                                                                 inputs_i, K_feedback_i, k_feedforward_i, target_state, R_k, Q_T,
                                                                                 start_time_i, end_time, epsilon, noise_i, dt_shrink, mode_exttrjs_maps)
+                
                 sampled_trjs[i_sample] = sample_i
                 sampled_controls[i_sample] = ut_cl_i
                 # pathcost_i = compute_cost(sample_i, ut_cl_i, noise_i, target_state, states_i, Q_k, R_k, Q_T, epsilon, dt)
                 PathCosts[i_sample] = Su_i
+                ref_trj[i_sample] = ref_trj_i
             
             # # --- cpu parallel ---
             # samples_index = Parallel(n_jobs=-1)(delayed(process_sampling_feedback)(i_t, sampled_trjs[i,:,:], xt, current_modechange, 
@@ -293,7 +294,7 @@ if __name__ == '__main__':
             #     sampled_trjs[index] = sample_i
             #     sampled_controls[index] = sample_input_i
             #     PathCosts[index] = Su_i
-                
+            
             # update the control proposal using path integral 
             u0_star = update_u0_pathintegral(u0_proposal, PathCosts, epsilon, dt)
             u_star_pi[i_t] = u0_star
@@ -321,7 +322,7 @@ if __name__ == '__main__':
                 ax6.grid(True)
                 for i_s in range(n_samples):
                     ax6.plot(sampled_trjs[i_s,:,0], sampled_trjs[i_s,:,1],'b', alpha=0.2)
-                    
+                
                 ax6.scatter(target_state[0], target_state[1], color='g', marker='x', s=50.0, linewidths=6, label='Target')
                 ax6.scatter(init_state[0], init_state[1], color='r', marker='x', s=50.0, linewidths=6, label='Start')
                 plt.show()

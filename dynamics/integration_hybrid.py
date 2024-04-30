@@ -163,7 +163,7 @@ def stochastic_integration(x0, u, t_span, epsilon, dW):
     return xt_next
 
 
-def rollout_bouncing_stochastic_feedback(cur_i, x0, cur_mode_change, xt_ref, ref_modechanges, 
+def rollout_bouncing_stochastic_feedback(x0, cur_mode_change, xt_ref, ref_modechanges, 
                                          ut, Kt, kt, target_state, R_k, Q_T, t0, tf, 
                                          epsilon, GaussianNoise, dt_shrinkingrate, mode_exttrjs_maps=None):
 
@@ -281,7 +281,7 @@ def rollout_bouncing_stochastic_feedback(cur_i, x0, cur_mode_change, xt_ref, ref
         t0_i = t0 + ii_t*dt  
         current_mode, next_mode = mode_change[0], mode_change[1]
         
-        # ======== Handle mode mismatch ======== 
+        # ======== Handle mode mismatch ========
         ref_next_mode = ref_modechanges[ii_t][1]
         if cond_mode_mismatch(next_mode, ref_next_mode, mode_exttrjs_maps):
             # print("===== numpy mode mismatch iter: {} =====", ii_t)
@@ -361,14 +361,14 @@ def rollout_bouncing_stochastic_feedback(cur_i, x0, cur_mode_change, xt_ref, ref
 
 
 # ============ for cpu parallel computing ============
-def process_sampling_feedback(index, sample_i, init_state, current_modechange, xt_ref, ref_modechanges, 
+def process_sampling_feedback(sample_i, init_state, current_modechange, xt_ref, ref_modechanges, 
                               ut, K_feedback, k_feedforward, 
                               target_state, R_k, Q_T, 
                               start_time, end_time, 
                               epsilon, RandN, dt_shrinkingrate,
                               mode_exttrjs_maps, sample_index):
     # print("Sampling trajectory: ", index)
-    sample_i, ut_cl_i, Su_i, ref_trj_i = rollout_bouncing_stochastic_feedback(index, init_state, current_modechange, xt_ref, ref_modechanges,
+    sample_i, ut_cl_i, Su_i, ref_trj_i = rollout_bouncing_stochastic_feedback(init_state, current_modechange, xt_ref, ref_modechanges,
                                                                     ut, K_feedback, k_feedforward, target_state, R_k, Q_T,
                                                                     start_time, end_time, 
                                                                     epsilon, RandN[sample_index], dt_shrinkingrate, mode_exttrjs_maps)

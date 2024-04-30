@@ -262,28 +262,35 @@ def stochastic_integration_euler(x0, u, dt, epsilon, dW):
     return xt_next
 
 
+# ============================================= jax function definitions ============================================= 
+from functools import partial
+
+# terminal cost function in jax
+def terminal_cost_jax(xT, cost_xT, args):
+    return jnp.array(cost_xT(xT, args))
+
+def quadratic_terminal_cost(xT, args):
+    target_state, QT =  args
+    return (xT-target_state)@QT@(xT-target_state) / 2.0
+
+
+# ============================================= / jax function definitions ============================================= 
+
 def roullout_bouncing_stochastic_feedback_jax(n_samples, x0, cur_mode_change, xt_ref, 
                                               cur_ref_modechange, ref_modechanges, 
                                               ut_ref, K_feedback, k_feedforward, target_state, R_k, Q_T, 
                                               t0, dt, tf, dt_shrinkingrate, 
                                               epsilon, GaussianNoise, guard_fun, mode_exttrjs_maps):
     
-    # ============================================= jax function definitions ============================================= 
-    from functools import partial
-
-    def feedback_cost_jax(carry, inputs, epsilon, dt, mode_exttrjs_maps):
+    def feedback_cost_jax(carry, inputs, epsilon, dt, mode_exttrjs_maps, ref_modechanges):
         cur_xt, cur_mode_change, cur_St, cur_cnt_mismatch, cur_cnt_indx = carry
         cur_ut_ref, cur_K, cur_k, cur_randN, cur_xt_ref, cur_ref_modechange = inputs
-        
-        jax.debug.print("---------- iteration {} ----------", cur_cnt_indx[0])
-        
+            
         current_mode, next_mode = cur_mode_change[0], cur_mode_change[1]
         next_mode_ref = cur_ref_modechange[1]
         
         cond_mode_mismatch = cond_mode_mismatch_jax(next_mode, next_mode_ref, mode_exttrjs_maps)
-        
-        # jax.debug.print("Condition mode mismatch: {}", cond_mode_mismatch)
-        
+            
         # -------- mode mismatch --------        
         mode_keys = sorted(mode_exttrjs_maps[0][0])
         map_trjs = mode_exttrjs_maps[0][1]
@@ -291,24 +298,13 @@ def roullout_bouncing_stochastic_feedback_jax(n_samples, x0, cur_mode_change, xt
         len_trj2 = map_trjs[mode_keys[1]].shape[0]
         starts = jnp.array([0, len_trj1])
         ext_trjs_stack = jnp.vstack((map_trjs[mode_keys[0]], map_trjs[mode_keys[1]]))
-        ext_trj_index = jnp.floor_divide(next_mode, len(mode_keys))
-        starting_index = starts[ext_trj_index]
+        starting_index = starts[jnp.floor_divide(next_mode, len(mode_keys))]
         
-        # jax.debug.print("next_mode: {}", next_mode)
-        # jax.debug.print("len(mode_keys): {}", len(mode_keys))
-        # jax.debug.print("which trajectory: {}", ext_trj_index)
-        # jax.debug.print("starting_index: {}", starting_index)
-        
-        # Define slice sizes
-        # lengths = [9, 10]
-        # num_rows = lengths[starting_index]
         num_rows = max(len_trj1, len_trj2)
         num_columns = ext_trjs_stack.shape[1]
         slice_sizes = (num_rows, num_columns) 
 
         selected_extended_trj = jax.lax.dynamic_slice(ext_trjs_stack, (starting_index, 0), slice_sizes)
-        
-        # jax.debug.print("selected_extended_trj: {}", selected_extended_trj)
         
         args_mm = (next_mode, next_mode_ref, ref_modechanges, selected_extended_trj, cur_xt_ref, cur_cnt_mismatch, cur_cnt_indx[0])
         cur_xt_ref, cur_cnt_mismatch = jax.lax.cond(cond_mode_mismatch, mode_mismatch_true_fun_jax, mode_mismatch_false_fun_jax, args_mm)    
@@ -331,10 +327,10 @@ def roullout_bouncing_stochastic_feedback_jax(n_samples, x0, cur_mode_change, xt
         cur_mode_change = jnp.array([current_mode, next_mode])
         cur_cnt_indx = cur_cnt_indx + jnp.array([1])
         
-        return (cur_xt, cur_mode_change, cur_St, cur_cnt_mismatch, cur_cnt_indx), (cur_xt, cur_mode_change, cur_St, cur_xt_ref)
+        return (cur_xt, cur_mode_change, cur_St, cur_cnt_mismatch, cur_cnt_indx), (cur_xt, cur_St, cur_xt_ref)  
     
-    fb_cost_scanfunc = partial(feedback_cost_jax, epsilon=epsilon, dt=dt, mode_exttrjs_maps=mode_exttrjs_maps)
-
+    fb_cost_scanfunc = partial(feedback_cost_jax, epsilon=epsilon, dt=dt, mode_exttrjs_maps=mode_exttrjs_maps, ref_modechanges=ref_modechanges)
+    
     def feedbackcost_jax_updaterow(x_mdchg_S_row, u_randN_row):
         initial_carry = (x_mdchg_S_row[0], x_mdchg_S_row[1], x_mdchg_S_row[2], x_mdchg_S_row[3], x_mdchg_S_row[4])
         _, updated_row = jax.lax.scan(fb_cost_scanfunc, initial_carry, u_randN_row)
@@ -342,19 +338,9 @@ def roullout_bouncing_stochastic_feedback_jax(n_samples, x0, cur_mode_change, xt
 
     parallel_update_sde_randN = jax.vmap(feedbackcost_jax_updaterow, in_axes=(0,0))
     
-    # terminal cost function in jax
-    def terminal_cost_jax(xT, cost_xT, args):
-        return jnp.array(cost_xT(xT, args))
-
-    def quadratic_terminal_cost(xT, args):
-        target_state, QT =  args
-        return (xT-target_state)@QT@(xT-target_state) / 2.0
-    
     args_terminal_cost = (target_state, Q_T)
     terminal_cost_xQrx_jax = partial(terminal_cost_jax, cost_xT=quadratic_terminal_cost, args=args_terminal_cost)
     parallel_terminal_cost_xQrx = jax.vmap(terminal_cost_xQrx_jax, in_axes=0)
-
-    # ============================================= / jax function definitions ============================================= 
     
     # ========== jax parallel sampling =========
     xt_jax = jnp.asarray(x0)
@@ -362,7 +348,6 @@ def roullout_bouncing_stochastic_feedback_jax(n_samples, x0, cur_mode_change, xt
     # vectorized carry
     v_x0 = jnp.tile(xt_jax, (n_samples, 1))
     v_cur_mode_change = jnp.tile(cur_mode_change, (n_samples, 1))
-    # v_cur_ref_modechange = jnp.tile(cur_ref_modechange, (n_samples, 1))
     v_S0 = jnp.zeros((n_samples, 1), dtype=jnp.float64)
     v_cnt_mismatch = jnp.zeros((n_samples, 1), dtype=jnp.int64)
     v_current_index = jnp.tile(0, (n_samples, 1))
@@ -381,7 +366,7 @@ def roullout_bouncing_stochastic_feedback_jax(n_samples, x0, cur_mode_change, xt
     v_inputs = (v_ut_ref, v_Ks, v_ds, v_randN, v_xt_ref, v_ref_modechanges)
     v_xt_St_randN = parallel_update_sde_randN(v_initial_carry, v_inputs)
     
-    Ksamples_jax, mode_chage_jax, PathCosts_jax, actual_ref_jax = v_xt_St_randN
+    Ksamples_jax, PathCosts_jax, actual_ref_jax = v_xt_St_randN
     
     # Move the samples forward by 1 place and add xt to the front, to keep the same with numpy results.
     Ksamples_jax = jnp.concatenate((v_x0.reshape((n_samples, 1, -1)), Ksamples_jax[:,0:-1,:]), axis=1)

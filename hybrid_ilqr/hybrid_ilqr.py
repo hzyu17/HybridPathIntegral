@@ -254,17 +254,18 @@ class hybrid_ilqr:
             current_mode_i = mode_changes[ii][0]
             next_mode_i = mode_changes[ii][1]
             
-            # # choose an appropriate time span for the extensions
-            # t_ext_fwd_i = tevent_i + (t_events[ii+1]-tevent_i)
-            # t_ext_bwd_i = tevent_i - (tevent_i-t_events[ii-1])
+            # choose an appropriate time span for the extensions
+            t_ext_fwd_i = tevent_i + (t_events[ii+1]-tevent_i)
+            t_ext_bwd_i = tevent_i - (tevent_i-t_events[ii-1])
             
-            # timespan_ext_fwd = np.arange(tevent_i, t_ext_fwd_i, self.dt_)
-            # timespan_ext_bwd = np.arange(t_ext_bwd_i, tevent_i, self.dt_)[::-1]
-            # nt_ext_fwd = len(timespan_ext_fwd)
-            # nt_ext_bwd = len(timespan_ext_bwd)
+            timespan_ext_fwd = np.arange(tevent_i, t_ext_fwd_i, self.dt_)
+            timespan_ext_bwd = np.arange(t_ext_bwd_i, tevent_i, self.dt_)[::-1]
+            nt_ext_fwd = len(timespan_ext_fwd)
+            nt_ext_bwd = len(timespan_ext_bwd)
             
-            nt_ext_fwd = 30
-            nt_ext_bwd = 30
+            # nt_ext_fwd = 50
+            # nt_ext_bwd = 50
+            
             t_ext_fwd_i = tevent_i + nt_ext_fwd*self.dt_
             t_ext_bwd_i = tevent_i - nt_ext_bwd*self.dt_
             
