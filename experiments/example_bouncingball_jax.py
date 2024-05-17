@@ -3,15 +3,17 @@ import numpy as np
 import os
 import sys
 file_path = os.path.abspath(__file__)
+exp_dir = os.path.dirname(file_path)
 script_filename = os.path.splitext(os.path.basename(file_path))[0]
-current_dir = os.path.dirname(file_path)
-root_dir = os.path.abspath(os.path.join(current_dir, '..'))
+root_dir = os.path.abspath(os.path.join(exp_dir, '..'))
 sys.path.append(root_dir)
 
 import time
+import jax.numpy as jnp
 
 # Import pendulum dynamics
-from dynamics.integration_hybrid_jax import *
+from dynamics.integration_hybrid_jax import roullout_bouncing_stochastic_feedback_jax
+# from dynamics.integration_hybrid_jax import *
 # Import iLQR class
 from hybrid_ilqr.hybrid_ilqr import solve_ilqr
 # Import Riccati class
@@ -26,6 +28,14 @@ from experiments.exp_params import *
 # for paralle sampling on cpu
 from joblib import Parallel, delayed
 
+import jax.profiler
+
+# Set environment variable to control the GPU memory fraction used by JAX
+os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "0.9"
+
+
+import gc
+gc.collect()
 
 # ====================================== Path Integral Control ====================================== 
 def compute_cost(states,inputs,randN,target_state,trj_ref, Qk, Rk, QT, epsilon, dt):
@@ -56,9 +66,7 @@ def process_compute_costs(sample_i, inputs, dWs, target_state, ref_states, index
 
 
 if __name__ == '__main__':
-    # === ilqr parameters ===
-    # Initialize timings
-    
+    # === hybrid ilqr parameters ===    
     # ---------------- bouncing example -----------------
     dt = 0.001
     dt_pathintegral = dt
@@ -73,9 +81,7 @@ if __name__ == '__main__':
     # ---------------- / bouncing example -----------------
     
     # ===== OR =====
-    # dt = 5e-5
-    # dt_pathintegral = dt
-    # # ------------- verification with no contact ------------- 
+    # # =============== verification with no contact ===============
     # start_time = 0
     # end_time = 1.0
     # time_span = np.arange(start_time, end_time, dt).flatten()
@@ -102,7 +108,7 @@ if __name__ == '__main__':
     
     # === path integral parameters ===
     epsilon = 2.0
-    n_samples = 100
+    n_samples = 5000
     n_exp = 3
     
     # === Do N experiments and compare the expected costs ===
@@ -119,11 +125,6 @@ if __name__ == '__main__':
                              epsilon, n_exp, n_samples, Q_k, R_k, Q_T, symbolic_dynamics_bouncing,detect_bouncing)
     exp_data = ExpData(exp_params)
     (states,inputs,k_feedforward,K_feedback,current_cost,states_iter,modechanges,mode_exttrjs_maps) = solve_ilqr(exp_params, detect=True)
-    
-    # # === solve for lqr riccati eqn ===
-    # exp_params_riccati = ExpParams()
-    # exp_params_riccati.update_params(init_state, target_state, start_time, end_time, dt, dt_pathintegral, epsilon, n_exp, n_samples, Q_k, R_k, Q_T, symbolic_dynamics_bouncing_continuoustime,detect_bouncing)
-    # (states, inputs, K_feedback, k_feedforward, PI, q) = solve_riccati(exp_params_riccati)
     
     # ------------ debug plot ------------ 
     show_extended_ref = False
@@ -150,9 +151,19 @@ if __name__ == '__main__':
     
     # exp_data.add_nominal_data((states,inputs,k_feedforward,K_feedback,current_cost,states_iter))
 
+    # moving data to jax array
+    target_state_jax = jnp.asarray(target_state)
+    R_k_jax = jnp.asarray(R_k)
+    Q_T_jax = jnp.asarray(Q_T)
+    
     step_one_samples = np.zeros((n_samples, n_states))
+    
+    # ========================================================== 
+    # Loop for n_exp number of experiments
+    # ==========================================================
+    
     for i_exp in prange(n_exp):
-        print("The experiment number: ", i_exp)
+        print("The experiment index: ", i_exp)
         
         trj_pi = np.zeros((nt, n_states))
         trj_ilqr = np.zeros((nt, n_states))
@@ -161,11 +172,12 @@ if __name__ == '__main__':
         
         trj_pi[0] = x0_jax
         trj_ilqr[0] = init_state
-        u_star_pi = np.zeros((nt, n_inputs))
-        u_star_pi_jax = np.zeros((nt, n_inputs))
-        u_trj_ilqr = np.zeros((nt, n_inputs))
         
-        allPathCosts = np.zeros((nt-1, n_samples))
+        u_star_pi = jnp.zeros((nt, n_inputs))
+        u_star_pi_jax = np.zeros((nt, n_inputs))
+        u_trj_ilqr = jnp.zeros((nt, n_inputs))
+        
+        allPathCosts = jnp.zeros((nt-1, n_samples))
         allPathCosts_jax = np.zeros((nt-1, n_samples))
         
         xt = x0_jax
@@ -182,50 +194,82 @@ if __name__ == '__main__':
         
         recompute_porposal = False
         
+        epsilon_gpu = jax.device_put(epsilon, device=jax.devices('gpu')[0])
+        dt_gpu = jax.device_put(dt, device=jax.devices('gpu')[0])
+        end_time_gpu = jax.device_put(end_time, device=jax.devices('gpu')[0])
+        
+        dt_shrinkingrate = 0.7
+        
+        # ======================================================
+        # main loop for the hybrid path integral control
+        # ======================================================
         for i_t in range(nt-1):
-            
-            # current_mode_ilqr = current_modechange_ilqr[0]
-            # next_mode_ilqr = current_modechange_ilqr[1]
-            
             print("----------- time index: ", i_t)
             
             start_time_i = start_time + i_t*dt
-
-            time_span_i = np.arange(start_time_i, end_time, dt).flatten()
             nt_i = nt - i_t
             
-            # else:
+            # ------------------------------------------------------------------------------------
+            # Calculate the slice of the variables for the current future horizon 
+            # ------------------------------------------------------------------------------------
             states_i = states[i_t:,:]
             inputs_i = inputs[i_t:,:]
             modechange_i = modechanges[i_t:]
             K_feedback_i = K_feedback[i_t:,:]
             k_feedforward_i = k_feedforward[i_t:,:]
-            ref_next_mode = modechanges[i_t][1]        
-            
-            xref_i = states_i[0]
-            
             GaussianNoise_i = np.random.randn(n_samples, nt_i, n_inputs)
-            dt_shrinkingrate = 0.7
+            
+            cur_ref_modechange = modechanges[i_t]
+            ref_next_mode = cur_ref_modechange[1]        
             
             # ====== samples using jax ====== 
-            cur_ref_modechange = modechanges[i_t]
-            
-            from dynamics.integration_hybrid_jax import roullout_bouncing_stochastic_feedback_jax
-            
+                        
             start_time = time.perf_counter()
+            
+            # ========================================
+            # Decompose the extended trajectory maps
+            # ========================================
+            len_bouncing = len(mode_exttrjs_maps)
+            bouncing_modechanges = np.array((len_bouncing, 2), dtype=np.int64).reshape((len_bouncing, 2))
+            ext_trj_lens = np.array((len_bouncing, 2), dtype=np.int64).reshape((len_bouncing, 2))
+            ext_trajs_stacks = [None for _ in range(len_bouncing)]
+            for ii, i_map in enumerate(mode_exttrjs_maps):
+                i_key = i_map[0]
+                i_ext_trjs = i_map[1]
+                bouncing_modechanges[ii] = i_key
+                
+                # stack of the extended trajectories
+                i_ext_trj_1 = i_ext_trjs[i_key[0]]
+                i_ext_trj_2 = i_ext_trjs[i_key[1]]
+                i_ext_traj = np.vstack((i_ext_trj_1, i_ext_trj_2))
+                
+                ext_trajs_stacks[ii] = i_ext_traj
+                
+                ext_trj_lens[ii] = np.array([i_ext_trj_1.shape[0], i_ext_trj_2.shape[0]])
+            # ========================================
+            
+            # map_trjs = mode_exttrjs_maps[0][1]
+            # len_trj1 = map_trjs[exttrjs_mode_keys[0]].shape[0]
+            # len_trj2 = map_trjs[exttrjs_mode_keys[1]].shape[0]
+            # starts = jnp.array([0, len_trj1])
+            # ext_trjs_stack = jnp.vstack((map_trjs[mode_keys[0]], map_trjs[mode_keys[1]]))
+            # starting_index = starts[jnp.floor_divide(next_mode, len(mode_keys))]
+            
             Ksamples_jax, PathCosts_jax, actual_ref_jax = roullout_bouncing_stochastic_feedback_jax(n_samples, xt, current_modechange, 
-                                                                                                    states_i, cur_ref_modechange, modechange_i, 
+                                                                                                    states_i, modechange_i, 
                                                                                                     inputs_i, K_feedback_i, k_feedforward_i, 
-                                                                                                    target_state, R_k, Q_T, 
-                                                                                                    start_time_i, dt, end_time, dt_shrinkingrate, 
-                                                                                                    epsilon, GaussianNoise_i, 
-                                                                                                    guard_bouncing_12, 
+                                                                                                    target_state_jax, Q_T_jax, 
+                                                                                                    start_time_i, dt_gpu, end_time_gpu, dt_shrinkingrate, 
+                                                                                                    epsilon_gpu, GaussianNoise_i, 
                                                                                                     mode_exttrjs_maps)
             
             print("jax parallel sampling complete")
             end_time = time.perf_counter()
             print("jax time elapsed : ", end_time - start_time)
+            # jax.profiler.stop_trace()
+            # jax.profiler.save_device_memory_profile(exp_dir+"/logs/memory.prof")
             
+            xref_i = states_i[0]
             u0_proposal = inputs_i[0] + K_feedback_i[0]@(xt - xref_i) + k_feedforward_i[0]
             # update the control proposal using path integral 
             u0_star_jax = update_u0_pathintegral(u0_proposal, PathCosts_jax, epsilon, dt)

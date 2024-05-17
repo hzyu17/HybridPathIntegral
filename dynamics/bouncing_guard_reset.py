@@ -48,7 +48,7 @@ def linearize_bouncing(x):
 
 def guard_bouncing_12(t, x):
     return x[0]
-guard_bouncing_jit = jax.jit(guard_bouncing_12)
+guard_bouncing_12_jit = jax.jit(guard_bouncing_12)
 
 def guard_bouncing_21(t, x):
     return x[1]

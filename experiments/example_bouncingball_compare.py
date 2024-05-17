@@ -113,7 +113,7 @@ if __name__ == '__main__':
     
     # === path integral parameters ===
     epsilon = 2.0
-    n_samples = 100
+    n_samples = 2000
     n_exp = 3
     
     # === Do N experiments and compare the expected costs ===
@@ -289,7 +289,7 @@ if __name__ == '__main__':
                 ref_trj[i_sample] = ref_trj_i
             
             end_time = time.perf_counter()
-            print("jax time elapsed : ", end_time - start_time)
+            print("numpy time elapsed : ", end_time - start_time)
             
             # ====== samples using jax ====== 
             cur_ref_modechange = modechanges[i_t]
@@ -300,12 +300,11 @@ if __name__ == '__main__':
             # print("=== extended trajectories 2: ", mode_exttrjs_maps[0][1][2])
             start_time = time.perf_counter()
             Ksamples_jax, PathCosts_jax, actual_ref_jax = roullout_bouncing_stochastic_feedback_jax(n_samples, xt, current_modechange, 
-                                                                                                    states_i, cur_ref_modechange, modechange_i, 
+                                                                                                    states_i, modechange_i, 
                                                                                                     inputs_i, K_feedback_i, k_feedforward_i, 
-                                                                                                    target_state, R_k, Q_T, 
+                                                                                                    target_state, Q_T, 
                                                                                                     start_time_i, dt, end_time, dt_shrinkingrate, 
                                                                                                     epsilon, GaussianNoise_i, 
-                                                                                                    guard_bouncing_12, 
                                                                                                     mode_exttrjs_maps)
             
             print("jax parallel sampling complete")
@@ -327,11 +326,11 @@ if __name__ == '__main__':
             #     PathCosts[index] = Su_i
             #     ref_trj[index] = ref_trj_i
             
-            # diff_Ksamples = sampled_trjs - Ksamples_jax
-            # diff_PathCosts = PathCosts - PathCosts_jax
+            diff_Ksamples = sampled_trjs - Ksamples_jax
+            diff_PathCosts = PathCosts - PathCosts_jax
             
-            # print("diff_Ksamples norm :", np.linalg.norm(diff_Ksamples))
-            # print("diff_PathCosts norm :", np.linalg.norm(diff_PathCosts))
+            print("diff_Ksamples norm :", np.linalg.norm(diff_Ksamples))
+            print("diff_PathCosts norm :", np.linalg.norm(diff_PathCosts))
             
             show_samples = True
             if show_samples:

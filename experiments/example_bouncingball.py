@@ -1,5 +1,7 @@
 import numpy as np
 
+import time
+
 import os
 import sys
 file_path = os.path.abspath(__file__)
@@ -112,7 +114,7 @@ if __name__ == '__main__':
     
     # === path integral parameters ===
     epsilon = 2.0
-    n_samples = 100
+    n_samples = 1000
     n_exp = 100
     
     # === Do N experiments and compare the expected costs ===
@@ -270,6 +272,8 @@ if __name__ == '__main__':
             
             GaussianNoise_i = np.random.randn(n_samples, nt_i, n_inputs)
             
+            start_time = time.perf_counter()
+            
             # --- cpu forloop ---
             for i_sample in prange(n_samples):
                 noise_i = GaussianNoise_i[i_sample]
@@ -283,6 +287,7 @@ if __name__ == '__main__':
                 PathCosts[i_sample] = Su_i
                 ref_trj[i_sample] = ref_trj_i
             
+            
             # # --- cpu parallel ---
             # samples_index = Parallel(n_jobs=-1)(delayed(process_sampling_feedback)(i_t, sampled_trjs[i,:,:], xt, current_modechange, 
             #                                                                        states_i, modechange_i, 
@@ -294,6 +299,10 @@ if __name__ == '__main__':
             #     sampled_trjs[index] = sample_i
             #     sampled_controls[index] = sample_input_i
             #     PathCosts[index] = Su_i
+            
+            print("cpu parallel sampling complete")
+            end_time = time.perf_counter()
+            print("cpu time elapsed : ", end_time - start_time)
             
             # update the control proposal using path integral 
             u0_star = update_u0_pathintegral(u0_proposal, PathCosts, epsilon, dt)

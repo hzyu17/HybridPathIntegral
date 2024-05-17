@@ -12,6 +12,8 @@ import scipy
 import sympy as sp
 from sympy.matrices import Matrix
 import numpy as np
+import jax
+import jax.numpy as jnp
 
 # plotting
 import matplotlib.pyplot as plt

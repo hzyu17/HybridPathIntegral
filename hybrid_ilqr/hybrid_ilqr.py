@@ -2,7 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 class hybrid_ilqr:
-    def __init__(self,init_state,target_state,initial_guess,dt,start_time,end_time,contact_detect,f_disc,A,B,Q_k,R_k,Q_T,parameters,n_iterations,detect):
+    def __init__(self,init_state,target_state,initial_guess,
+                 dt,start_time,end_time,contact_detect,f_disc,
+                 A,B,Q_k,R_k,Q_T,parameters,n_iterations,detect):
         self.init_state_ = init_state
         self.target_state_ = target_state
         self.inputs_ = initial_guess
@@ -400,7 +402,7 @@ class hybrid_ilqr:
         modechanges = self.modechanges_
         txmode_map = self.txmode_map_
         
-        show_results = True
+        show_results = False
         if show_results:
             fig1, axes = plt.subplots(1, 2)
             (ax1, ax2) = axes.flatten()
