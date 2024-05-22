@@ -54,7 +54,7 @@ def process_sampling_feedback(sample_i, init_state, current_modechange, xt_ref, 
                               epsilon, RandN, 
                               mode_exttrjs_maps, index):
     # print("Sampling trajectory: ", index)
-    sample_i, ut_cl_i, Su_i = rollout_bouncing_stochastic_feedback(init_state, current_modechange, xt_ref, ref_modechanges,
+    sample_i, ut_cl_i, Su_i = rollout_bouncing_feedback(init_state, current_modechange, xt_ref, ref_modechanges,
                                                                     ut, K_feedback, k_feedforward, target_state, R_k, Q_T,
                                                                     start_time, end_time, epsilon, RandN[index], mode_exttrjs_maps)
     return sample_i, ut_cl_i, Su_i, index
@@ -205,7 +205,7 @@ if __name__ == '__main__':
     
     for i_sample in prange(n_samples):
         noise_i = GaussianNoise_i[i_sample]
-        sample_i, ut_cl_i, Su_i = rollout_bouncing_stochastic_feedback(xt, current_modechange, states_i, modechange_i, 
+        sample_i, ut_cl_i, Su_i = rollout_bouncing_feedback(xt, current_modechange, states_i, modechange_i, 
                                                                         inputs_i, K_feedback_i, k_feedforward_i, target_state, R_k, Q_T,
                                                                         start_time_i, end_time, epsilon, noise_i, mode_exttrjs_maps)
         sampled_trjs[i_sample] = sample_i
@@ -215,7 +215,7 @@ if __name__ == '__main__':
     # --- comparison ---
     for i_sample in prange(n_samples):
         noise_i = GaussianNoise_i[i_sample]
-        sample_i, ut_cl_i, Su_i = rollout_bouncing_stochastic_feedback(xt, current_modechange, states_i, modechange_i, 
+        sample_i, ut_cl_i, Su_i = rollout_bouncing_feedback(xt, current_modechange, states_i, modechange_i, 
                                                                         inputs_i, K_feedback_i, k_feedforward_i, target_state, R_k, Q_T,
                                                                         start_time_i, end_time, epsilon, noise_i, mode_exttrjs_maps=None)
         sampled_trjs_compare[i_sample] = sample_i

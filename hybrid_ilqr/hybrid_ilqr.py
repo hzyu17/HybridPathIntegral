@@ -18,6 +18,10 @@ class hybrid_ilqr:
         self.n_timesteps_ = np.shape(self.time_span_)[0]
         self.saltations_ = [None for i in range(self.n_timesteps_)]
         self.modechanges_ = [np.array([0, 0]) for _ in range(self.n_timesteps_)]
+        
+        # ------------------------------------------------------------------------------------------------------------------ 
+        # Map that maps the index at hybrid event to the event informations (t_event, x_event, x_reset, mode_change). 
+        # ------------------------------------------------------------------------------------------------------------------ 
         self.txmode_map_ = {}
         
         # Dynamics
@@ -220,9 +224,9 @@ class hybrid_ilqr:
             
         return (states,inputs,current_feedback,current_feedforward,saltations,mode_changess,txmode_map)
     
-    def compute_trj_extension(self, txmode_map):
-        
-        sorted_keys = sorted(txmode_map.keys())
+    def compute_trejactory_extension(self, txmode_map):
+        # txmode_map:
+        sorted_hybrid_index = sorted(txmode_map.keys())
         
         t_events = []
         x_events = []
@@ -237,18 +241,18 @@ class hybrid_ilqr:
         mode_changes.append(np.array([1, 1]))
         
         
-        for i_key in sorted_keys:
+        for i_key in sorted_hybrid_index:
             t_events.append(txmode_map[i_key][0])
             x_events.append(txmode_map[i_key][1])
             x_resets.append(txmode_map[i_key][2])
             mode_changes.append(txmode_map[i_key][3])
-            
+        
         t_events.append(self.end_time_)
         x_events.append(self.target_state_)
         x_resets.append(self.target_state_)
         if txmode_map.keys():
-            mode_changes.append(txmode_map[sorted_keys[-1]][3])
-                
+            mode_changes.append(txmode_map[sorted_hybrid_index[-1]][3])
+        
         # forward and backward trajectory extensions
         for ii, tevent_i in enumerate(t_events[1:-1], start=1):
             x_event_i = x_events[ii]
@@ -256,35 +260,43 @@ class hybrid_ilqr:
             current_mode_i = mode_changes[ii][0]
             next_mode_i = mode_changes[ii][1]
             
-            # choose an appropriate time span for the extensions
-            t_ext_fwd_i = tevent_i + (t_events[ii+1]-tevent_i)
-            t_ext_bwd_i = tevent_i - (tevent_i-t_events[ii-1])
+            # --------------------------------------
+            # Choose a time span for the extensions
+            # --------------------------------------
+            t_ext_fwd_i = tevent_i + (t_events[ii+1]-tevent_i) / 2.0
+            # t_ext_bwd_i = tevent_i - (tevent_i-t_events[ii-1])
             
+            # [0, t_event] for padding
+            time_span_ext_fwd_padding = np.arange(0, tevent_i, self.dt_)
+            # [t_event, t_trj_ext_fwd]
             timespan_ext_fwd = np.arange(tevent_i, t_ext_fwd_i, self.dt_)
-            timespan_ext_bwd = np.arange(t_ext_bwd_i, tevent_i, self.dt_)[::-1]
+            # [t_trj_ext_bwd: t_event]
+            timespan_ext_bwd = np.arange(0, tevent_i, self.dt_)[::-1]
+            
+            # time span lengths
             nt_ext_fwd = len(timespan_ext_fwd)
             nt_ext_bwd = len(timespan_ext_bwd)
-            
+            nt_ext_padding_fwd = len(time_span_ext_fwd_padding)
+            nt_ext_padding_bwd = nt_ext_fwd
+                        
             # nt_ext_fwd = 50
             # nt_ext_bwd = 50
             
-            t_ext_fwd_i = tevent_i + nt_ext_fwd*self.dt_
-            t_ext_bwd_i = tevent_i - nt_ext_bwd*self.dt_
-            
-            timespan_ext_fwd = np.arange(tevent_i, t_ext_fwd_i, self.dt_)
-            timespan_ext_bwd = np.arange(t_ext_bwd_i, tevent_i, self.dt_)[::-1]
-            
+            xtrj_ext_padding_fwd_i = np.zeros((nt_ext_padding_fwd, self.n_states_))
             xtrj_ext_fwd_i = np.zeros((nt_ext_fwd, self.n_states_))
             xtrj_ext_bwd_i = np.zeros((nt_ext_bwd, self.n_states_))
+            xtrj_ext_padding_bwd_i = np.zeros((nt_ext_padding_bwd, self.n_states_))
             
             xtrj_ext_fwd_i[0] = x_event_i
             
-            # simulate forward
+            # ----------------------------------
+            # simulate the forward extension
+            # ----------------------------------
             current_state = x_event_i
             for jj in range(nt_ext_fwd-1):
                 t_jj = timespan_ext_fwd[jj]
                 
-                # modify if needed
+                # Using zero control, modify if needed.
                 current_input = np.zeros(self.n_inputs_)
                 
                 next_state, _, _, _, _, _ = self.detection_func_(current_state, current_input, t_jj, t_jj+self.dt_, current_mode=current_mode_i, detection=False)
@@ -294,8 +306,12 @@ class hybrid_ilqr:
 
                 # Update the current state
                 current_state = next_state
-                        
-            # simulate backward
+            
+            xtrj_ext_fwd_i = np.vstack((xtrj_ext_padding_fwd_i, xtrj_ext_fwd_i))
+            
+            # ----------------------------------
+            # simulate the backward extension
+            # ----------------------------------
             xtrj_ext_bwd_i[0] = x_reset_i
             current_state = x_reset_i
             for jj in range(nt_ext_bwd-1):
@@ -311,7 +327,38 @@ class hybrid_ilqr:
 
                 # Update the current state
                 current_state = next_state
-                        
+            
+            # ------------------------------------------------------------------------------
+            # padding the backward extension to make the two extensions the same length
+            # ------------------------------------------------------------------------------
+            # -------------------------------------------
+            # simulate the forward extension from x_reset 
+            # -------------------------------------------
+            xtrj_ext_padding_bwd_i[0] = x_reset_i
+            current_state = x_reset_i
+            for jj in range(nt_ext_fwd-1):
+                t_jj = timespan_ext_fwd[jj]
+                
+                # Using zero control, modify if needed.
+                current_input = np.zeros(self.n_inputs_)
+                
+                next_state, _, _, _, _, _ = self.detection_func_(current_state, current_input, t_jj, t_jj+self.dt_, current_mode=current_mode_i, detection=False)
+                
+                # Store states and inputs
+                xtrj_ext_padding_bwd_i[jj+1] = next_state
+
+                # Update the current state
+                current_state = next_state
+            
+            # -------------------------------
+            # reverse the backward extension 
+            # -------------------------------   
+            xtrj_ext_bwd_i = xtrj_ext_bwd_i[::-1]
+            
+            # --------------------- padding ---------------------
+            xtrj_ext_bwd_i = np.vstack((xtrj_ext_bwd_i, xtrj_ext_padding_bwd_i))
+            
+            # ------------------------ collect the trajectory extensions ------------------------
             mode_exttrjs_maps.append((np.array([current_mode_i, next_mode_i]), {current_mode_i:xtrj_ext_fwd_i, next_mode_i:xtrj_ext_bwd_i}))
             
         return mode_exttrjs_maps
@@ -415,7 +462,7 @@ class hybrid_ilqr:
 
             plt.show()
             
-        mode_exttrjs_maps = self.compute_trj_extension(txmode_map)
+        mode_exttrjs_maps = self.compute_trejactory_extension(txmode_map)
 
         # extended_trjs = (ext_trjs_fwd, ext_trjs_bwd)
         

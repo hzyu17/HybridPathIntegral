@@ -12,7 +12,7 @@ import time
 import jax.numpy as jnp
 
 # Import pendulum dynamics
-from dynamics.integration_hybrid_jax import roullout_bouncing_stochastic_feedback_jax
+from dynamics.integration_hybrid_jax import roullout_bouncing_jax
 # from dynamics.integration_hybrid_jax import *
 # Import iLQR class
 from hybrid_ilqr.hybrid_ilqr import solve_ilqr
@@ -66,9 +66,13 @@ def process_compute_costs(sample_i, inputs, dWs, target_state, ref_states, index
 
 
 if __name__ == '__main__':
-    # === hybrid ilqr parameters ===    
+    
+    # === ilqr parameters ===
+    # Initialize timings
+    
     # ---------------- bouncing example -----------------
     dt = 0.001
+    dt_shrink = 0.7
     dt_pathintegral = dt
     start_time = 0
     end_time = 2.0
@@ -76,12 +80,14 @@ if __name__ == '__main__':
     nt = len(time_span)
     
     init_state = np.array([5, 1.5])    # Define the initial state to be the origin with no velocity
-    target_state = np.array([2.5, 0])  
+    target_state = np.array([2.5, 0])  # Swing pendulum upright
     
     # ---------------- / bouncing example -----------------
     
     # ===== OR =====
-    # # =============== verification with no contact ===============
+    # dt = 5e-5
+    # dt_pathintegral = dt
+    # # ------------- verification with no contact ------------- 
     # start_time = 0
     # end_time = 1.0
     # time_span = np.arange(start_time, end_time, dt).flatten()
@@ -96,29 +102,34 @@ if __name__ == '__main__':
     n_states = 2
     n_inputs = 1
     
+    # ---------------------------- 
     # Define weighting matrices
+    # ----------------------------
     Q_k = np.zeros((n_states,n_states)) # zero weight to penalties along a strajectory since we are finding a trajectory
     # R_k = 0.01*np.eye(n_inputs)
     R_k = np.eye(n_inputs)
 
-    # Set the terminal cost
+    # ---------------------------- Set the terminal cost ----------------------------
     # Q_T = 1000*np.eye(n_states)
     Q_T = 200*np.eye(n_states)
     Q_T[0,0] = 2000.0
     
-    # === path integral parameters ===
+    # -------------------------- 
+    # path integral parameters 
+    # --------------------------
     epsilon = 2.0
-    n_samples = 5000
-    n_exp = 3
+    n_samples = 2000
+    n_exp = 10
     
-    # === Do N experiments and compare the expected costs ===
+    # ----------------------------------------------------
+    # Do N experiments and compare the expected costs 
+    # ----------------------------------------------------
     cost_pi_exp = np.zeros(n_exp)
     cost_ilqr_exp = np.zeros(n_exp)
 
-    # Horizon
-    nt_ode_solve = 1000 # number of points used to solve the ode
-    
-    # === solve for ilqr ===
+    # ====================================
+    # solve for hybrid ilqr proposal
+    # ====================================
     exp_params = ExpParams()
     initial_guess = 0.5*np.ones((np.shape(time_span)[0],n_inputs))
     exp_params.update_params(init_state, target_state, start_time, end_time, dt, initial_guess, 
@@ -126,7 +137,9 @@ if __name__ == '__main__':
     exp_data = ExpData(exp_params)
     (states,inputs,k_feedforward,K_feedback,current_cost,states_iter,modechanges,mode_exttrjs_maps) = solve_ilqr(exp_params, detect=True)
     
-    # ------------ debug plot ------------ 
+    # ------------------------------ 
+    # plot trajectory extensions
+    # ------------------------------ 
     show_extended_ref = False
     if show_extended_ref:
         for (mode_change, ext_trj) in mode_exttrjs_maps:
@@ -149,42 +162,40 @@ if __name__ == '__main__':
             
             plt.show()
     
-    # exp_data.add_nominal_data((states,inputs,k_feedforward,K_feedback,current_cost,states_iter))
+    exp_data.add_nominal_data((states,inputs,k_feedforward,K_feedback,current_cost,states_iter))
 
-    # moving data to jax array
-    target_state_jax = jnp.asarray(target_state)
-    R_k_jax = jnp.asarray(R_k)
-    Q_T_jax = jnp.asarray(Q_T)
-    
-    step_one_samples = np.zeros((n_samples, n_states))
-    
-    # ========================================================== 
-    # Loop for n_exp number of experiments
-    # ==========================================================
+    # =============================================================================================
+    # Do sample experiments for n_exp number of experiments, under different randomness
+    # =============================================================================================
     
     for i_exp in prange(n_exp):
         print("The experiment index: ", i_exp)
         
+        # -------------- result collectors --------------
         trj_pi = np.zeros((nt, n_states))
+        u_star_pi = np.zeros((nt, n_inputs))
+        allPathCosts = np.zeros((nt-1, n_samples))
+        
+        # -------------- result collectors, jax --------------
+        trj_pi_jax = jnp.zeros((nt, n_states))
+        u_star_pi_jax = jnp.zeros((nt, n_inputs))
+        allPathCosts_jax = jnp.zeros((nt-1, n_samples))
+        
+        # -------------- result collectors, hybrid ilqr proposal --------------
         trj_ilqr = np.zeros((nt, n_states))
-
-        x0_jax = jnp.asarray(init_state)
-        
-        trj_pi[0] = x0_jax
-        trj_ilqr[0] = init_state
-        
-        u_star_pi = jnp.zeros((nt, n_inputs))
-        u_star_pi_jax = np.zeros((nt, n_inputs))
         u_trj_ilqr = jnp.zeros((nt, n_inputs))
         
-        allPathCosts = jnp.zeros((nt-1, n_samples))
-        allPathCosts_jax = np.zeros((nt-1, n_samples))
-        
+        # -------------- initialize the control loop -------------- 
+        x0_jax = jnp.asarray(init_state)
         xt = x0_jax
         xt_ilqr = init_state
         current_modechange = jnp.array([1, 1])
         current_mode = current_modechange[0]
         next_mode = current_modechange[1]
+        dt_shrinkingrate = 0.7
+        
+        trj_pi_jax.at[0].set(x0_jax)
+        trj_ilqr[0] = init_state
         
         # current_modechange_ilqr = (1, 1)
         cnt_mismatch = 0
@@ -194,11 +205,9 @@ if __name__ == '__main__':
         
         recompute_porposal = False
         
-        epsilon_gpu = jax.device_put(epsilon, device=jax.devices('gpu')[0])
-        dt_gpu = jax.device_put(dt, device=jax.devices('gpu')[0])
-        end_time_gpu = jax.device_put(end_time, device=jax.devices('gpu')[0])
-        
-        dt_shrinkingrate = 0.7
+        # epsilon_gpu = jax.device_put(epsilon, device=jax.devices('gpu')[0])
+        # dt_gpu = jax.device_put(dt, device=jax.devices('gpu')[0])
+        # end_time_gpu = jax.device_put(end_time, device=jax.devices('gpu')[0])
         
         # ======================================================
         # main loop for the hybrid path integral control
@@ -222,75 +231,95 @@ if __name__ == '__main__':
             cur_ref_modechange = modechanges[i_t]
             ref_next_mode = cur_ref_modechange[1]        
             
-            # ====== samples using jax ====== 
-                        
+            # ====================
+            # Sampling using jax 
+            # ====================
             start_time = time.perf_counter()
-            
-            # ========================================
-            # Decompose the extended trajectory maps
-            # ========================================
-            len_bouncing = len(mode_exttrjs_maps)
-            bouncing_modechanges = np.array((len_bouncing, 2), dtype=np.int64).reshape((len_bouncing, 2))
-            ext_trj_lens = np.array((len_bouncing, 2), dtype=np.int64).reshape((len_bouncing, 2))
-            ext_trajs_stacks = [None for _ in range(len_bouncing)]
-            for ii, i_map in enumerate(mode_exttrjs_maps):
-                i_key = i_map[0]
-                i_ext_trjs = i_map[1]
-                bouncing_modechanges[ii] = i_key
                 
-                # stack of the extended trajectories
-                i_ext_trj_1 = i_ext_trjs[i_key[0]]
-                i_ext_trj_2 = i_ext_trjs[i_key[1]]
-                i_ext_traj = np.vstack((i_ext_trj_1, i_ext_trj_2))
-                
-                ext_trajs_stacks[ii] = i_ext_traj
-                
-                ext_trj_lens[ii] = np.array([i_ext_trj_1.shape[0], i_ext_trj_2.shape[0]])
-            # ========================================
+            # --------------------------------------------------------
+            # Compute proposal control, possibly with early arrival
+            # --------------------------------------------------------
+            xref_i = states_i[0]
             
-            # map_trjs = mode_exttrjs_maps[0][1]
-            # len_trj1 = map_trjs[exttrjs_mode_keys[0]].shape[0]
-            # len_trj2 = map_trjs[exttrjs_mode_keys[1]].shape[0]
-            # starts = jnp.array([0, len_trj1])
-            # ext_trjs_stack = jnp.vstack((map_trjs[mode_keys[0]], map_trjs[mode_keys[1]]))
-            # starting_index = starts[jnp.floor_divide(next_mode, len(mode_keys))]
+            if (next_mode != ref_next_mode):    
+                print("mode mismatch true trajectory")
+                print("true state mode change: ", current_modechange)
+                print("reference mode change: ", modechange_i)
+                if mode_exttrjs_maps is not None: # has extensions
+                    # Take the first hybrid event for now. Needs to find the correct corresponding one among all hybrid events.
+                    mode_change_i, mode_exttrjs_i = mode_exttrjs_maps[0]
+                    extended_trj = mode_exttrjs_i[next_mode]
+                    
+                xref_i = extended_trj[i_t]
+                cnt_mismatch += 1
             
-            Ksamples_jax, PathCosts_jax, actual_ref_jax = roullout_bouncing_stochastic_feedback_jax(n_samples, xt, current_modechange, 
-                                                                                                    states_i, modechange_i, 
-                                                                                                    inputs_i, K_feedback_i, k_feedforward_i, 
-                                                                                                    target_state_jax, Q_T_jax, 
-                                                                                                    start_time_i, dt_gpu, end_time_gpu, dt_shrinkingrate, 
-                                                                                                    epsilon_gpu, GaussianNoise_i, 
-                                                                                                    mode_exttrjs_maps)
+            u0_proposal = inputs_i[0] + K_feedback_i[0]@(xt - xref_i) + k_feedforward_i[0]
+            
+            # ---------------------------------------------------
+            #            Extract the extended references 
+            # ---------------------------------------------------
+            num_events = len(mode_exttrjs_maps)
+            v_mode_change = []
+            v_ext_trj_fwd = []
+            v_ext_trj_bwd = []
+            
+            for i_event in range(num_events):
+                # find out the mode changes
+                MC_i = mode_exttrjs_maps[i_event][0]
+                cur_mode_i = MC_i[0]
+                next_mode_i = MC_i[1]
+                
+                v_mode_change.append((cur_mode_i, next_mode_i))
+                
+                # add the forward and backward extensions to the collection
+                MC_EXTTRJ_MAP = mode_exttrjs_maps[i_event][1]
+                v_ext_trj_fwd.append(MC_EXTTRJ_MAP[cur_mode_i][i_t:])
+                v_ext_trj_bwd.append(MC_EXTTRJ_MAP[next_mode_i][i_t:])
+            
+            # ------------------------------------------------------------------------------------------
+            #                                       Sampling
+            # ------------------------------------------------------------------------------------------
+            Ksamples_jax, PathCosts_jax, actual_ref_jax = roullout_bouncing_jax(n_samples, xt, current_modechange, 
+                                                                                states_i, modechange_i, 
+                                                                                inputs_i, K_feedback_i, k_feedforward_i, 
+                                                                                target_state, Q_T, 
+                                                                                start_time_i, dt, end_time, dt_shrinkingrate, 
+                                                                                epsilon, GaussianNoise_i, 
+                                                                                v_mode_change, v_ext_trj_fwd, v_ext_trj_bwd)
             
             print("jax parallel sampling complete")
             end_time = time.perf_counter()
             print("jax time elapsed : ", end_time - start_time)
-            # jax.profiler.stop_trace()
-            # jax.profiler.save_device_memory_profile(exp_dir+"/logs/memory.prof")
             
-            xref_i = states_i[0]
-            u0_proposal = inputs_i[0] + K_feedback_i[0]@(xt - xref_i) + k_feedforward_i[0]
-            # update the control proposal using path integral 
-            u0_star_jax = update_u0_pathintegral(u0_proposal, PathCosts_jax, epsilon, dt)
-            u_star_pi_jax[i_t] = u0_star_jax
-            allPathCosts_jax[i_t] = PathCosts_jax
+            # ----------------------------------
+            # update the control proposal
+            # ----------------------------------
+            GaussianNoises = np.random.randn(n_samples, n_inputs)
+            dt_optimal_control = 1e-5
+            u0_star_jax = update_u0_pathintegral(u0_proposal, PathCosts_jax, GaussianNoises, epsilon, dt_optimal_control)
+            u_star_pi_jax.at[i_t].set(u0_star_jax)
+            allPathCosts_jax.at[i_t].set(PathCosts_jax)
             
-            PathCosts_jax = PathCosts_jax - np.min(PathCosts_jax)
+            # ---------------
+            # Compute weights
+            # ---------------
+            PathCosts_jax = PathCosts_jax - jnp.min(PathCosts_jax)
             PathCosts_eps_jax = PathCosts_jax / epsilon
             
-            expS_jax = np.exp(-PathCosts_eps_jax)
+            expS_jax = jnp.exp(-PathCosts_eps_jax)
 
             # ------- Compute the expected value ---------
-            E_expS_jax = np.mean(expS_jax)
+            E_expS_jax = jnp.mean(expS_jax)
             
             # ------- Compute weights -------
             weights_jax = expS_jax / E_expS_jax
             
-            print("*** Var weight_jax", np.var(weights_jax))
-            print("*** lambda_jax", 1.0 / np.mean(weights_jax**2))
+            print("*** Var weight_jax", jnp.var(weights_jax))
+            print("*** lambda_jax", 1.0 / jnp.mean(weights_jax**2))
             
-            # ------------------------ Visualize sampled trajectories ------------------------ 
+            # --------------------------------
+            # Visualize sampled trajectories
+            # --------------------------------
             show_samples = False
             if show_samples:
             
@@ -320,32 +349,38 @@ if __name__ == '__main__':
                 ax12.set_ylabel("Weights")
                 plt.show()
             
-            ### ------------------------ Visualize sampled trajectories / ------------------------ 
+            # ----------------------------------- 
             
-            # go to the next state
+            # --------------------------------------------- 
+            # Apply optimal control and go to next state  
+            # ---------------------------------------------
             actual_noise_i = RndN_actual[i_t]
             t_span = (start_time_i, start_time_i+dt)
-            t_eval = np.linspace(start_time_i, start_time_i+dt, nt_ode_solve)
-            t_next = t_eval[-1]
             
             xt, next_mode = hybrid_stochastic_integration(xt, u0_star_jax, current_mode, t_span, epsilon, actual_noise_i, dt, dt_shrinkingrate)
-            trj_pi[i_t+1] = xt
+            trj_pi_jax.at[i_t+1].set(xt)
             
             current_modechange = np.array([current_mode, next_mode])
             current_mode = next_mode
 
-        # --- ilqr for comparison --- 
-        trj_ilqr, u_trj_ilqr, cost_ilqr = rollout_bouncing_stochastic_feedback(init_state, np.array([1, 1]), states, modechanges, 
-                                                                                inputs, K_feedback, k_feedforward, target_state, R_k, Q_T,
-                                                                                start_time, end_time, epsilon, RndN_actual, mode_exttrjs_maps)
+        # ------------------------------
+        # hybrid ilqr for comparison
+        # ------------------------------
+        trj_ilqr, u_trj_ilqr, cost_ilqr = rollout_bouncing_feedback(init_state, np.array([1, 1]), states, modechanges, 
+                                                                    inputs, K_feedback, k_feedforward, target_state, R_k, Q_T,
+                                                                    start_time, end_time, epsilon, RndN_actual, mode_exttrjs_maps)
         
+        # ----------------
         # Compare cost
+        # ----------------
         dWs_zeros = np.zeros((nt, n_inputs))
-        cost_pi = compute_cost(trj_pi, u_star_pi, dWs_zeros, target_state, states, Q_k, R_k, Q_T, epsilon,dt)
+        cost_pi = compute_cost(trj_pi_jax, u_star_pi, dWs_zeros, target_state, states, Q_k, R_k, Q_T, epsilon,dt)
         cost_ilqr = compute_cost(trj_ilqr, u_trj_ilqr, dWs_zeros, target_state, states, Q_k, R_k, Q_T, epsilon,dt)
         
-        # ---- Record data ----
-        data_i = DataOneSample(trj_pi, u_star_pi_jax, trj_ilqr, u_trj_ilqr, allPathCosts_jax, cost_pi, cost_ilqr)
+        # -------------
+        # Record data
+        # -------------
+        data_i = DataOneSample(trj_pi_jax, u_star_pi_jax, trj_ilqr, u_trj_ilqr, allPathCosts_jax, cost_pi, cost_ilqr)
         exp_data.add_data(i_exp, data_i)
 
         print("cost_pi:", cost_pi)
@@ -373,19 +408,19 @@ if __name__ == '__main__':
     # # ----------- plot the path integral controlled trajectory -----------
     for i_exp in range(n_exp):
         trj_ilqr = exp_data.get_data(i_exp).x_trj_ilqr()
-        trj_pi = exp_data.get_data(i_exp).x_trj_pi()
+        trj_pi_jax = exp_data.get_data(i_exp).x_trj_pi_jax()
         
         ax1.plot(time_span, trj_ilqr[:, 0], 'b', alpha=0.2)
         ax2.plot(time_span, trj_ilqr[:, 1], 'b', alpha=0.2)
         
-        ax1.plot(time_span, trj_pi[:, 0], 'r', alpha=0.8)
-        ax2.plot(time_span, trj_pi[:, 1], 'r', alpha=0.8)
+        ax1.plot(time_span, trj_pi_jax[:, 0], 'r', alpha=0.8)
+        ax2.plot(time_span, trj_pi_jax[:, 1], 'r', alpha=0.8)
         
     ax1.plot(time_span, trj_ilqr[:, 0], 'b', alpha=0.2, label='iLQR')
     ax2.plot(time_span, trj_ilqr[:, 1], 'b', alpha=0.2, label='iLQR')
 
-    ax1.plot(time_span, trj_pi[:, 0], 'r', alpha=0.8, label='Path Integral')
-    ax2.plot(time_span, trj_pi[:, 1], 'r', alpha=0.8, label='Path Integral')
+    ax1.plot(time_span, trj_pi_jax[:, 0], 'r', alpha=0.8, label='Path Integral')
+    ax2.plot(time_span, trj_pi_jax[:, 1], 'r', alpha=0.8, label='Path Integral')
 
     # ----------- Plot the start and goal states -----------
     ax1.scatter(time_span[-1], target_state[0], color='g', marker='x', s=50.0, linewidths=6, label='Target')
@@ -416,12 +451,12 @@ if __name__ == '__main__':
     # ----------- Plot the last iteration of iLQR controller ----------
     for i_exp in range(n_exp):
         trj_ilqr = exp_data.get_data(i_exp).x_trj_ilqr()
-        trj_pi = exp_data.get_data(i_exp).x_trj_pi()
+        trj_pi_jax = exp_data.get_data(i_exp).x_trj_pi_jax()
         ax5.plot(trj_ilqr[:, 0], trj_ilqr[:, 1], 'b', alpha=0.2)
-        ax5.plot(trj_pi[:, 0], trj_pi[:, 1], 'r', alpha=0.8)
+        ax5.plot(trj_pi_jax[:, 0], trj_pi_jax[:, 1], 'r', alpha=0.8)
 
     ax5.plot(trj_ilqr[:, 0], trj_ilqr[:, 1], 'b', alpha=0.2, label='iLQR')
-    ax5.plot(trj_pi[:, 0], trj_pi[:, 1], 'r', alpha=0.8, label='Path Integral')
+    ax5.plot(trj_pi_jax[:, 0], trj_pi_jax[:, 1], 'r', alpha=0.8, label='Path Integral')
     ax5.plot(states[:,0], states[:,1],'k',label='iLQR-deterministic')
 
     # ----------- Plot the start and goal states -----------

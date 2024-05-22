@@ -165,9 +165,14 @@ def stochastic_integration(x0, u, t_span, epsilon, dW):
     return xt_next
 
 
-def rollout_bouncing_stochastic_feedback(x0, cur_mode_change, xt_ref, ref_modechanges, 
-                                         ut, Kt, kt, target_state, R_k, Q_T, t0, tf, 
-                                         epsilon, GaussianNoise, dt_shrinkingrate, mode_exttrjs_maps=None):
+# def rollout_bouncing_feedback(x0, cur_mode_change, xt_ref, ref_modechanges, 
+#                                          ut, Kt, kt, target_state, R_k, Q_T, t0, tf, 
+#                                          epsilon, GaussianNoise, dt_shrinkingrate, mode_exttrjs_maps=None):
+
+def rollout_bouncing_feedback(x0, cur_mode_change, xt_ref, ref_modechanges, 
+                                         ut, Kt, kt, target_state, Q_T, t0, tf, 
+                                         epsilon, GaussianNoise, dt_shrinkingrate, 
+                                         v_ext_trj_fwd, v_ext_trj_bwd):
 
     n_timestamps = xt_ref.shape[0]
     _, nu, nx = Kt.shape
@@ -197,81 +202,42 @@ def rollout_bouncing_stochastic_feedback(x0, cur_mode_change, xt_ref, ref_modech
     reset_maps = {1:reset_map_bouncing_12, 2:reset_map_bouncing_21}
     
     current_mode = cur_mode_change[0]
+    
     # only consider the 1->2 reset for now (bouncing)
     current_guard = guards[1]
-    current_resetmap = reset_maps[1]
     
-    mismatched_states = None
-    mismatched_refs = None
-    modified_refs = None
     cnt_mismatch = 0
     actual_xtref = np.zeros((n_timestamps, nx), dtype=np.float64)
     
     mode_change = cur_mode_change
     
-    # ------------- Define condition functions -------------
-    # Condition: mode mismatch
-    cond_mode_mismatch = lambda next_mode, ref_next_mode, mode_exttrjs_maps: (next_mode != ref_next_mode) and (len(mode_exttrjs_maps) > 0)
-    cond_early_arrival = lambda next_mode, ref_next_mode, cnt_mismatch: (next_mode==2) and (ref_next_mode==1) and (cnt_mismatch==0)
-    cond_firsttime_mismatch = lambda mismatched_states: (mismatched_states is None)
-    cond_empty_modified_refs = lambda modified_refs: modified_refs is None
+    # ----------------------------- 
+    # Define condition functions
+    # -----------------------------
+    # --------------------------------- Condition: mode mismatch --------------------------------- 
+    cond_mode_mismatch = lambda next_mode, ref_next_mode: (next_mode != ref_next_mode)
+    
+    # --------------------------------- Condition: early arrival ---------------------------------
+    cond_early_arrival = lambda next_mode, ref_next_mode: (next_mode==2) and (ref_next_mode==1) 
+    
+    # Condition: guard function hit
     cond_guard_function_hit = lambda xt, xt_next, guard_func: ((guard_func(0.0, xt)>0) and (guard_func(0.0, xt_next)<=0))
     
-    # ------------- Define reaction functions -------------
-    def reaction_early_arrival(current_i, next_mode, ref_modechanges, extended_trj):
-        def while_loop_cond(vars):
-            (next_mode, ref_modechanges, extended_trj, starting_index, cnt_ext, can_continue) = vars
-            return can_continue
-        
-        def while_loop_body(vars):
-            (next_mode, ref_modechanges, extended_trj, starting_index, cnt_ext, can_continue) = vars
-            cnt_ext += 1
-            cur_index = starting_index+cnt_ext
-            cur_ref_next_mode = ref_modechanges[cur_index][1]
-            
-            # loop until the reference next mode is the same as the next mode of the true state
-            new_condition = (cur_ref_next_mode != next_mode)
-            
-            new_vars = (next_mode, ref_modechanges, extended_trj, starting_index, cnt_ext, new_condition)
-            
-            return new_vars
-        
-        vars = (next_mode, ref_modechanges, extended_trj, current_i, 0, True)
-        while (while_loop_cond(vars)):
-            vars = while_loop_body(vars)
-            
-        final_vars = vars
-        (next_mode, ref_modechanges, extended_trj, current_i, len_ref, _) = final_vars
-        
-        # len_ref = 0
-        # i_ext = 0
-        # while True: # Find the correct length of the extension
-        #     if (ref_modechanges[i+i_ext][1] == next_mode):
-        #         len_ref = i_ext
-        #         break
-        #     i_ext += 1
-        
-        extended_trj = extended_trj[0:len_ref]
-        extended_trj = extended_trj[::-1]
-        return extended_trj
-    
-    def reaction_mode_mismatch(ii, next_mode, ref_next_mode, mode_exttrjs_maps, cnt_mismatch):
+    # -------------------------- 
+    # Define reaction functions 
+    # --------------------------    
+    def reaction_mode_mismatch(current_index, next_mode, ref_next_mode, ext_trj_fwd, ext_trj_bwd, cnt_mismatch):
         # Take the first hybrid event for now. Needs to find the correct corresponding one among all hybrid events.
-        mode_change_i, mode_exttrjs_i = mode_exttrjs_maps[0]
-        extended_trj = mode_exttrjs_i[next_mode]
         
-        # Condition: first time early arrival: find and reverse the ref
-        if cond_early_arrival(next_mode, ref_next_mode, cnt_mismatch): 
-            # print("===== numpy early arrival iter: {} =====", ii)
-            extended_trj = reaction_early_arrival(ii, next_mode, ref_modechanges, extended_trj)
+        if (cond_early_arrival(next_mode, ref_next_mode)):
+            extended_trj = ext_trj_bwd
+        else:
+            extended_trj = ext_trj_fwd
         
-        xref_i = extended_trj[cnt_mismatch]
+        xref_i = extended_trj[current_index]
         cnt_mismatch += 1
         
         return xref_i, cnt_mismatch
-    
-    def reaction_empty_modified_refs(xref_i):
-        return xref_i.reshape((1, -1))
     
     # path cost
     Sk = 0
@@ -285,10 +251,9 @@ def rollout_bouncing_stochastic_feedback(x0, cur_mode_change, xt_ref, ref_modech
         
         # ======== Handle mode mismatch ========
         ref_next_mode = ref_modechanges[ii_t][1]
-        if cond_mode_mismatch(next_mode, ref_next_mode, mode_exttrjs_maps):
+        if cond_mode_mismatch(next_mode, ref_next_mode):
             # print("===== numpy mode mismatch iter: {} =====", ii_t)
-            xref_i, cnt_mismatch = reaction_mode_mismatch(ii_t, next_mode, ref_next_mode, mode_exttrjs_maps, cnt_mismatch)
-            # print("xref_i: {}", xref_i)
+            xref_i, cnt_mismatch = reaction_mode_mismatch(ii_t, next_mode, ref_next_mode, v_ext_trj_fwd[0], v_ext_trj_bwd[0], cnt_mismatch)
             
         actual_xtref[ii_t] = xref_i
         
@@ -338,11 +303,7 @@ def rollout_bouncing_stochastic_feedback(x0, cur_mode_change, xt_ref, ref_modech
         
         ax5.plot(xt_trj[:,0], xt_trj[:,1],color='b',linewidth=1.5,label='Rollout')
         ax5.plot(xt_ref[:,0], xt_ref[:,1],color='k',linewidth=2.5,label='Original Ref.')
-        # ax5.plot(actual_xtref[:,0], actual_xtref[:,1],color='r',linewidth=1.5,linestyle='--', label='Modified Reference')
-        
-        ax5.plot(mismatched_states[:,0], mismatched_states[:,1],linewidth=2.5,color='g',label='Mismatched States')
-        ax5.plot(mismatched_refs[:,0], mismatched_refs[:,1],linewidth=2.5,color='cyan',label='Mismatched Ref.')
-        ax5.plot(modified_refs[:,0], modified_refs[:,1],linewidth=2.5,color='r',label='Extended Ref.')
+        ax5.plot(actual_xtref[:,0], actual_xtref[:,1],color='r',linewidth=1.5,linestyle='--', label='Modified Reference')
         
         ax5.set_xlabel(r"z", fontsize=14)
         ax5.set_ylabel(r"$\dot z$", fontsize=14)
@@ -370,7 +331,7 @@ def process_sampling_feedback(sample_i, init_state, current_modechange, xt_ref, 
                               epsilon, RandN, dt_shrinkingrate,
                               mode_exttrjs_maps, sample_index):
     # print("Sampling trajectory: ", index)
-    sample_i, ut_cl_i, Su_i, ref_trj_i = rollout_bouncing_stochastic_feedback(init_state, current_modechange, xt_ref, ref_modechanges,
+    sample_i, ut_cl_i, Su_i, ref_trj_i = rollout_bouncing_feedback(init_state, current_modechange, xt_ref, ref_modechanges,
                                                                     ut, K_feedback, k_feedforward, target_state, R_k, Q_T,
                                                                     start_time, end_time, 
                                                                     epsilon, RandN[sample_index], dt_shrinkingrate, mode_exttrjs_maps)

@@ -1,7 +1,5 @@
 import numpy as np
 
-import time
-
 import os
 import sys
 file_path = os.path.abspath(__file__)
@@ -9,6 +7,8 @@ script_filename = os.path.splitext(os.path.basename(file_path))[0]
 current_dir = os.path.dirname(file_path)
 root_dir = os.path.abspath(os.path.join(current_dir, '..'))
 sys.path.append(root_dir)
+
+import time
 
 # Import pendulum dynamics
 from dynamics.integration_hybrid import *
@@ -114,7 +114,7 @@ if __name__ == '__main__':
     
     # === path integral parameters ===
     epsilon = 2.0
-    n_samples = 1000
+    n_samples = 100
     n_exp = 100
     
     # === Do N experiments and compare the expected costs ===
@@ -138,7 +138,7 @@ if __name__ == '__main__':
     # (states, inputs, K_feedback, k_feedforward, PI, q) = solve_riccati(exp_params_riccati)
     
     # ------------ debug plot ------------ 
-    show_extended_ref = False
+    show_extended_ref = True
     if show_extended_ref:
         for (mode_change, ext_trj) in mode_exttrjs_maps:
             mode_before = mode_change[0]
@@ -178,7 +178,7 @@ if __name__ == '__main__':
         
         xt = init_state
         xt_ilqr = init_state
-        current_modechange = (1, 1)
+        current_modechange = np.array([1, 1])
         current_mode = current_modechange[0]
         next_mode = current_modechange[1]
         
@@ -190,6 +190,9 @@ if __name__ == '__main__':
         
         recompute_porposal = False
         
+        # ------------------------------------------
+        #           The main loop
+        # ------------------------------------------
         for i_t in range(nt-1):
             
             # current_mode_ilqr = current_modechange_ilqr[0]
@@ -202,15 +205,9 @@ if __name__ == '__main__':
             time_span_i = np.arange(start_time_i, end_time, dt).flatten()
             nt_i = nt - i_t
             
-            # if recompute_porposal:
-            #     states_i = states
-            #     inputs_i = inputs
-            #     modechange_i = modechanges
-            #     K_feedback_i = K_feedback
-            #     k_feedforward_i = k_feedforward
-            #     ref_next_mode = modechanges[0][1]      
-                
-            # else:
+            # --------------------------- 
+            # references and control gains
+            # ---------------------------
             states_i = states[i_t:,:]
             inputs_i = inputs[i_t:,:]
             modechange_i = modechanges[i_t:]
@@ -218,51 +215,44 @@ if __name__ == '__main__':
             k_feedforward_i = k_feedforward[i_t:,:]
             ref_next_mode = modechanges[i_t][1]        
             
-            # # lqr proposal control
-            # u0_proposal = K_feedback_i[0]@xt + k_feedforward_i[0]
-            
             xref_i = states_i[0]
-            # # xref_ilqr_i = states_i[0]
-            # mode mismatch
-            # ilqr proposal control
             
+            
+            # ---------------------------------------------------
+            #            Extract the extended references 
+            # ---------------------------------------------------
+            num_events = len(mode_exttrjs_maps)
+            v_mode_change = []
+            v_ext_trj_fwd = []
+            v_ext_trj_bwd = []
+            
+            for i_event in range(num_events):
+                # find out the mode changes
+                MC_i = mode_exttrjs_maps[i_event][0]
+                cur_mode_i = MC_i[0]
+                next_mode_i = MC_i[1]
+                
+                v_mode_change.append((cur_mode_i, next_mode_i))
+                
+                # add the forward and backward extensions to the collection
+                MC_EXTTRJ_MAP = mode_exttrjs_maps[i_event][1]
+                v_ext_trj_fwd.append(MC_EXTTRJ_MAP[cur_mode_i][i_t:])
+                v_ext_trj_bwd.append(MC_EXTTRJ_MAP[next_mode_i][i_t:])
+            
+            # ------------------------- 
+            #       mode mismatch
+            # -------------------------
             if (next_mode != ref_next_mode):    
-                print("mode mismatch true trajectory")
-                print("true state mode change: ", current_modechange)
-                print("reference mode change: ", modechange_i)
                 if mode_exttrjs_maps is not None: # has extensions
                     # Take the first hybrid event for now. Needs to find the correct corresponding one among all hybrid events.
                     mode_change_i, mode_exttrjs_i = mode_exttrjs_maps[0]
                     extended_trj = mode_exttrjs_i[next_mode]
                     
-                    # First time early arrival: find and reverse the ref
-                    if (next_mode==2) and (ref_next_mode==1) and (cnt_mismatch==0): 
-                        len_ref = 0
-                        i_ext = 0
-                        while True: # Find the correct length of the extension
-                            if (modechange_i[i_ext][1] == next_mode):
-                                len_ref = i_ext
-                                break
-                            i_ext += 1
-                        extended_trj = extended_trj[0:len_ref]
-                        extended_trj = extended_trj[::-1]
-                        
-                    xref_i = extended_trj[cnt_mismatch]
+                xref_i = extended_trj[i_t]
                 cnt_mismatch += 1
             
+            # i-lqr proposal control
             u0_proposal = inputs_i[0] + K_feedback_i[0]@(xt - xref_i) + k_feedforward_i[0]
-            
-            # # ilqr feedback control
-            # if (next_mode_ilqr != ref_next_mode):
-            #     if mode_exttrjs_maps is not None:
-            #         # Take the first hybrid event for now. Needs to find the correct corresponding one among all hybrid events.
-            #         mode_change_i, mode_exttrjs_i = mode_exttrjs_maps[0]
-            #         extended_trj = mode_exttrjs_i[next_mode_ilqr]
-            #         xref_ilqr_i = extended_trj[cnt_mismatch_ilqr]
-            #     cnt_mismatch_ilqr += 1
-                
-            # u0_ilqr = inputs_i[0] + K_feedback_i[0]@(xt_ilqr - xref_ilqr_i) + k_feedforward_i[0]
-            # u_trj_ilqr[i_t] = u0_ilqr
             
             # sampling stochastic rollouts
             sampled_trjs = np.zeros((n_samples, nt_i, n_states))
@@ -274,21 +264,25 @@ if __name__ == '__main__':
             
             start_time = time.perf_counter()
             
-            # --- cpu forloop ---
+            # ------------ 
+            # cpu forloop 
+            # ------------
             for i_sample in prange(n_samples):
                 noise_i = GaussianNoise_i[i_sample]
-                sample_i, ut_cl_i, Su_i, ref_trj_i = rollout_bouncing_stochastic_feedback(xt, current_modechange, states_i, modechange_i, 
-                                                                                inputs_i, K_feedback_i, k_feedforward_i, target_state, R_k, Q_T,
-                                                                                start_time_i, end_time, epsilon, noise_i, dt_shrink, mode_exttrjs_maps)
+                sample_i, ut_cl_i, Su_i, ref_trj_i = rollout_bouncing_feedback(xt, current_modechange, states_i, modechange_i, 
+                                                                                inputs_i, K_feedback_i, k_feedforward_i, 
+                                                                                target_state, Q_T,
+                                                                                start_time_i, end_time, epsilon, 
+                                                                                noise_i, dt_shrink, v_ext_trj_fwd, v_ext_trj_bwd)
                 
                 sampled_trjs[i_sample] = sample_i
                 sampled_controls[i_sample] = ut_cl_i
-                # pathcost_i = compute_cost(sample_i, ut_cl_i, noise_i, target_state, states_i, Q_k, R_k, Q_T, epsilon, dt)
                 PathCosts[i_sample] = Su_i
                 ref_trj[i_sample] = ref_trj_i
             
-            
-            # # --- cpu parallel ---
+            # # ------------
+            # # cpu parallel
+            # # ------------
             # samples_index = Parallel(n_jobs=-1)(delayed(process_sampling_feedback)(i_t, sampled_trjs[i,:,:], xt, current_modechange, 
             #                                                                        states_i, modechange_i, 
             #                                                                        inputs_i, K_feedback_i, k_feedforward_i, 
@@ -305,7 +299,9 @@ if __name__ == '__main__':
             print("cpu time elapsed : ", end_time - start_time)
             
             # update the control proposal using path integral 
-            u0_star = update_u0_pathintegral(u0_proposal, PathCosts, epsilon, dt)
+            GaussianNoises = np.random.randn(n_samples, n_inputs)
+            dt_optimal_control = 1e-5
+            u0_star = update_u0_pathintegral(u0_proposal, PathCosts, GaussianNoises, epsilon, dt_optimal_control)
             u_star_pi[i_t] = u0_star
             allPathCosts[i_t] = PathCosts
             
@@ -361,27 +357,14 @@ if __name__ == '__main__':
             t_eval = np.linspace(start_time_i, start_time_i+dt, nt_ode_solve)
             t_next = t_eval[-1]
             
-            
             xt, next_mode = hybrid_stochastic_integration(xt, u0_star, current_mode, t_span, epsilon, actual_noise_i, dt, dt_shrink)
             trj_pi[i_t+1] = xt
             
-            current_modechange = (current_mode, next_mode)
+            current_modechange = np.array([current_mode, next_mode])
             current_mode = next_mode
-            # current_modechange_ilqr = (current_mode_ilqr, next_mode_ilqr)
-            
-            # if recompute_porposal:
-            #     # re-compute hybrid-ilqr proposal from the current state
-            #     exp_params = ExpParams()
-            #     initial_guess = inputs[1:]
-            #     exp_params.update_params(xt, target_state, start_time_i+dt, end_time, dt, initial_guess, 
-            #                             epsilon, n_exp, n_samples, Q_k, R_k, Q_T, symbolic_dynamics_bouncing, detect_bouncing)
-            #     exp_data = ExpData(exp_params)
-            #     (states,inputs,k_feedforward,K_feedback,current_cost,
-            #      states_iter,modechanges,mode_exttrjs_maps) = solve_ilqr(exp_params, detect=True)
-        
         
         # --- ilqr for comparison --- 
-        trj_ilqr, u_trj_ilqr, cost_ilqr = rollout_bouncing_stochastic_feedback(init_state, np.array([1, 1]), states, modechanges, 
+        trj_ilqr, u_trj_ilqr, cost_ilqr = rollout_bouncing_feedback(init_state, np.array([1, 1]), states, modechanges, 
                                                                                 inputs, K_feedback, k_feedforward, target_state, R_k, Q_T,
                                                                                 start_time, end_time, epsilon, RndN_actual, dt_shrink, mode_exttrjs_maps)
         
