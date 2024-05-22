@@ -51,6 +51,31 @@ def stochastic_integration_euler(x0, u, dt, eps, dW):
     xt_next = x0 + jnp.array([x0[1], u[0]-9.81], dtype=jnp.float64) * dt + jnp.sqrt(eps) * B@dW
     return xt_next
 
+
+def update_u0_pathintegral_jax(u0, PathCosts, GaussianNoise, epsilon, delta_t):
+    # ------- numerical processing -------
+    PathCosts = PathCosts - jnp.min(PathCosts)
+    exp_PathCosts = jnp.exp(-PathCosts/epsilon)
+    sum_expPathCosts = jnp.sum(exp_PathCosts)
+    
+    # ------- Compute the weights ---------
+    E_expS_jax = jnp.mean(exp_PathCosts)
+    weights = exp_PathCosts / E_expS_jax
+    
+    # ------- Compute the update to control -------
+    
+    def Cost_Noise_mult(exp_PathCosts_k, GaussianNoise_k):
+        return exp_PathCosts_k*GaussianNoise_k
+    
+    Cost_Noise_vmap = jax.vmap(Cost_Noise_mult, in_axes=(0,0))
+    Cost_Noise_prod = Cost_Noise_vmap(exp_PathCosts, GaussianNoise)
+    U_update_jax = jnp.sum(Cost_Noise_prod)
+        
+    U_update_jax = jnp.sqrt(epsilon/delta_t) * U_update_jax / sum_expPathCosts 
+    
+    return u0 + U_update_jax, weights
+
+
 def symbolic_dynamics_bouncing():
     g = 9.81
     z,z_dot,u,dt = sp.symbols('z z_dot u dt')
@@ -169,15 +194,14 @@ bouncing_event_condition_jit = jax.jit(bouncing_event_condition_jax)
 
 def bouncing_cond_true_fun_jax(args):
     print("bouncing_cond: True")
-    (xt_current, current_mode, u, t, t_next, xt_next, next_mode, dt_int, dt_shr, RandN, eps) = args
+    (xt_current, current_mode, u, t, xt_next, next_mode, dt_int, dt_shr, RandN, eps) = args
     
     def while_cond(vars):
-        (xt_current, xt_swch, u, t, dt_int, dt_shr, RandN, eps, cnt, can_continue) = vars
+        (xt_current, xt_swch, u, t, dt_int, dt_shr, RandN, eps, cnt_shrink, can_continue) = vars
         return can_continue
     
     def while_loop_body(vars):
-        (xt_current, xt_swch, u, t, dt_int, dt_shr, RandN, eps, cnt, can_continue) = vars
-        cnt += 1
+        (xt_current, xt_swch, u, t, dt_int, dt_shr, RandN, eps, cnt_shrink, can_continue) = vars
         
         # Too far from the guard, shrink the step size.
         dt_int = dt_int * dt_shr
@@ -185,8 +209,10 @@ def bouncing_cond_true_fun_jax(args):
         
         xt_swch = stochastic_integration_euler(xt_current, u, dt_int, eps, dW_new)
         
-        new_condition = jnp.logical_not(jnp.logical_or(guard_bouncing_12(t, xt_swch)>0, cnt==10))
-        new_vars = (xt_current, xt_swch, u, t, dt_int, dt_shr, RandN, eps, cnt, new_condition)
+        new_condition = jnp.logical_not(jnp.logical_or(guard_bouncing_12(t, xt_swch)>0, cnt_shrink==10))
+        cnt_shrink += 1
+        
+        new_vars = (xt_current, xt_swch, u, t, dt_int, dt_shr, RandN, eps, cnt_shrink, new_condition)
         
         return new_vars
     
@@ -204,7 +230,7 @@ bouncing_true_fun_jit = jax.jit(bouncing_cond_true_fun_jax)
 
 def bouncing_cond_false_fun(args):
     print("bouncing_cond: False")
-    (xt_current, current_mode, u, t, t_next, xt_next, next_mode, dt_int, dt_shr, RandN, eps) = args
+    (xt_current, current_mode, u, t, xt_next, next_mode, dt_int, dt_shr, RandN, eps) = args
     dW = jnp.sqrt(dt_int)*RandN
     return xt_next, next_mode, dW
 bouncing_false_fun_jit = jax.jit(bouncing_cond_false_fun)
@@ -214,25 +240,39 @@ bouncing_false_fun_jit = jax.jit(bouncing_cond_false_fun)
 # ===============================================================================================================
 
 
-"""
-One step cost
-"""
-def cost_i(xt, current_mode, next_mode, cur_St, xref, uref, K, k, randN, eps, dt, dt_shrink, t0, tf):
-    # -------- compute control input --------
-    delta_xt = xt - xref
-    ut = uref + jnp.dot(K, delta_xt) + k    
+def hybrid_integration(xt, current_mode, next_mode, ut, randN, eps, dt, dt_shrink, t0):
     dW = jnp.sqrt(dt)*randN
-    
-    # -------- propagate dynamics --------
-    # stochastic_integration_euler_jit = jax.jit(stochastic_integration_euler)
     xt_next = stochastic_integration_euler(xt, ut, dt, eps, dW)
     
     # ----------------
     # change mode
     # ----------------
-    args_guard = (xt, current_mode, ut, t0, tf, xt_next, next_mode, dt, dt_shrink, randN, eps)
+    args_guard = (xt, current_mode, ut, t0, xt_next, next_mode, dt, dt_shrink, randN, eps)
     guard_hit = bouncing_event_condition_jit(xt, xt_next)
     xt, next_mode, dW = jax.lax.cond(guard_hit, bouncing_true_fun_jit, bouncing_false_fun_jit, args_guard)
+
+    return xt, next_mode, dW
+    
+"""
+One step cost
+"""
+def cost_i(xt, current_mode, next_mode, cur_St, xref, uref, K, k, randN, eps, dt, dt_shrink, t0):
+    # -------- compute control input --------
+    delta_xt = xt - xref
+    ut = uref + jnp.dot(K, delta_xt) + k    
+    
+    # -------- propagate dynamics with hybrid event --------
+    xt, next_mode, dW = hybrid_integration(xt, current_mode, next_mode, ut, randN, eps, dt, dt_shrink, t0)
+    
+    # # stochastic_integration_euler_jit = jax.jit(stochastic_integration_euler)
+    # xt_next = stochastic_integration_euler(xt, ut, dt, eps, dW)
+    
+    # # --------------
+    # # change mode
+    # # --------------
+    # args_guard = (xt, current_mode, ut, t0, xt_next, next_mode, dt, dt_shrink, randN, eps)
+    # guard_hit = bouncing_event_condition_jit(xt, xt_next)
+    # xt, next_mode, dW = jax.lax.cond(guard_hit, bouncing_true_fun_jit, bouncing_false_fun_jit, args_guard)
 
     # Collect cost: consider only the terminal state cost for now.
     cur_St += jnp.array([jnp.dot(ut.T, ut)/2.0 * dt + jnp.sqrt(eps) * jnp.dot(ut.T, dW)])
@@ -259,18 +299,16 @@ def feedback_cost_jax(carry, inputs, eps, dt, dt_shrink, t0, tf, v_mode_change, 
     cnt_event = 0
     ext_trj_fwd = v_ext_trj_fwd[0]
     ext_trj_bwd = v_ext_trj_bwd[0]
-    # mode_change_i, mode_exttrjs_i = mode_exttrjs_maps[cnt_event]
-    # extended_trj = mode_exttrjs_i[next_mode]
-    
-    # selected_exttrj = select_MM_ref(mode_exttrjs_maps, next_mode)
     
     is_MM = (next_mode != next_mode_ref)    
     args_MM = (next_mode, next_mode_ref, ext_trj_fwd, ext_trj_bwd, xref, indx, cnt_MM)
     xref, cnt_MM = jax.lax.cond(is_MM, MM_true_fun_jax, MM_false_fun_jax, args_MM)
    
-    ## testing comments
+    # ------------------------------ 
+    # rollout and collect costs 
+    # ------------------------------
     xt, MC, St = cost_i(xt, current_mode, next_mode, St, xref, uref, 
-                        K, k, randN, eps, dt, dt_shrink, t0, tf)
+                        K, k, randN, eps, dt, dt_shrink, t0)
     indx = indx + 1
     
     return (xt, MC, St, cnt_MM, indx), (xt, St, xref) 

@@ -115,7 +115,7 @@ if __name__ == '__main__':
     # === path integral parameters ===
     epsilon = 2.0
     n_samples = 100
-    n_exp = 100
+    n_exp = 3
     
     # === Do N experiments and compare the expected costs ===
     cost_pi_exp = np.zeros(n_exp)
@@ -138,7 +138,7 @@ if __name__ == '__main__':
     # (states, inputs, K_feedback, k_feedforward, PI, q) = solve_riccati(exp_params_riccati)
     
     # ------------ debug plot ------------ 
-    show_extended_ref = True
+    show_extended_ref = False
     if show_extended_ref:
         for (mode_change, ext_trj) in mode_exttrjs_maps:
             mode_before = mode_change[0]
@@ -154,7 +154,7 @@ if __name__ == '__main__':
             ax5.grid(True)
             ax5.plot(states[:,0], states[:,1],'k',label='iLQR-deterministic')
             ax5.plot(ext_states_fwd_ii[:,0], ext_states_fwd_ii[:,1],'r',label='iLQR-ext-fwd')
-            ax5.plot(ext_states_bwd_ii[:,0], ext_states_bwd_ii[:,1],'r',label='iLQR-ext-bwd')
+            ax5.plot(ext_states_bwd_ii[:,0], ext_states_bwd_ii[:,1],'b',label='iLQR-ext-bwd')
             ax5.scatter(target_state[0], target_state[1], color='g', marker='x', s=50.0, linewidths=6, label='Target')
             ax5.scatter(init_state[0], init_state[1], color='r', marker='x', s=50.0, linewidths=6, label='Start')
             
@@ -320,7 +320,7 @@ if __name__ == '__main__':
             print("*** lambda", 1.0 / np.mean(weights**2))
             
             # ------------------------ Visualize sampled trajectories ------------------------ 
-            show_samples = True
+            show_samples = False
             if show_samples:
             
                 fig3, ax6 = plt.subplots()
@@ -363,10 +363,11 @@ if __name__ == '__main__':
             current_modechange = np.array([current_mode, next_mode])
             current_mode = next_mode
         
-        # --- ilqr for comparison --- 
+        # --- ilqr for comparison ---                                 
         trj_ilqr, u_trj_ilqr, cost_ilqr = rollout_bouncing_feedback(init_state, np.array([1, 1]), states, modechanges, 
-                                                                                inputs, K_feedback, k_feedforward, target_state, R_k, Q_T,
-                                                                                start_time, end_time, epsilon, RndN_actual, dt_shrink, mode_exttrjs_maps)
+                                                                    inputs, K_feedback, k_feedforward, target_state, Q_T,
+                                                                    start_time, end_time, epsilon, RndN_actual, 
+                                                                    dt_shrink, v_ext_trj_fwd, v_ext_trj_bwd)
         
         # Compare cost
         dWs_zeros = np.zeros((nt, n_inputs))

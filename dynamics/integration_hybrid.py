@@ -170,9 +170,9 @@ def stochastic_integration(x0, u, t_span, epsilon, dW):
 #                                          epsilon, GaussianNoise, dt_shrinkingrate, mode_exttrjs_maps=None):
 
 def rollout_bouncing_feedback(x0, cur_mode_change, xt_ref, ref_modechanges, 
-                                         ut, Kt, kt, target_state, Q_T, t0, tf, 
-                                         epsilon, GaussianNoise, dt_shrinkingrate, 
-                                         v_ext_trj_fwd, v_ext_trj_bwd):
+                                ut, Kt, kt, target_state, Q_T, t0, tf, 
+                                epsilon, GaussianNoise, dt_shrinkingrate, 
+                                v_ext_trj_fwd, v_ext_trj_bwd):
 
     n_timestamps = xt_ref.shape[0]
     _, nu, nx = Kt.shape
@@ -186,8 +186,6 @@ def rollout_bouncing_feedback(x0, cur_mode_change, xt_ref, ref_modechanges,
     xt_trj = np.zeros((n_timestamps, nx), dtype=np.float64)
     xt_trj[0] = xt
     
-    # guard_thres = 1e-4
-    # dt_shrinkingrate = 1e-4
     dt_int = dt
     
     ut_cl = np.zeros((n_timestamps, nu))
@@ -253,7 +251,8 @@ def rollout_bouncing_feedback(x0, cur_mode_change, xt_ref, ref_modechanges,
         ref_next_mode = ref_modechanges[ii_t][1]
         if cond_mode_mismatch(next_mode, ref_next_mode):
             # print("===== numpy mode mismatch iter: {} =====", ii_t)
-            xref_i, cnt_mismatch = reaction_mode_mismatch(ii_t, next_mode, ref_next_mode, v_ext_trj_fwd[0], v_ext_trj_bwd[0], cnt_mismatch)
+            xref_i, cnt_mismatch = reaction_mode_mismatch(ii_t, next_mode, ref_next_mode, 
+                                                          v_ext_trj_fwd[0], v_ext_trj_bwd[0], cnt_mismatch)
             
         actual_xtref[ii_t] = xref_i
         

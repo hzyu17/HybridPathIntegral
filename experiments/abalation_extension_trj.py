@@ -158,9 +158,6 @@ if __name__ == '__main__':
     
     # ---------- Consider the mode mismatch ----------
     if (next_mode != ref_next_mode):    
-        print("mode mismatch true trajectory")
-        print("true state mode change: ", current_modechange)
-        print("reference mode change: ", modechange_i)
         if mode_exttrjs_maps is not None: # has extensions
             # Take the first hybrid event for now. Needs to find the correct corresponding one among all hybrid events.
             mode_change_i, mode_exttrjs_i = mode_exttrjs_maps[0]
