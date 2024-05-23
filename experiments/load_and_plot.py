@@ -7,7 +7,7 @@ if __name__ == '__main__':
     exp_params = ExpParams()
     exp_data = ExpData(exp_params)
 
-    filename = root_dir+"/data/bouncing/data_2024-04-17_06-07-52_hybrid_riccati.pickle"
+    filename = root_dir+"/data/bouncing/data_10000samples.pickle"
     
     print("loading data: ", filename)
     exp_data.load(filename)
@@ -23,7 +23,7 @@ if __name__ == '__main__':
     target_state = exp_params._target_state
     
     if exp_data.get_nominal_data():
-        (states,inputs,k_feedforward,K_feedback,current_cost,states_iter,_,_) = exp_data.get_nominal_data()
+        (states,inputs,k_feedforward,K_feedback,current_cost,states_iter) = exp_data.get_nominal_data()
     else:
         (states,inputs,k_feedforward,K_feedback,current_cost,states_iter,_,_) = solve_ilqr(exp_params)
 
@@ -76,15 +76,15 @@ if __name__ == '__main__':
         ax1.plot(time_span, trj_pi[:, 0], 'r', linewidth=0.8, alpha=0.6)
         ax2.plot(time_span, trj_pi[:, 1], 'r', linewidth=0.8, alpha=0.6)
         
-    ax1.plot(time_span, trj_ilqr[:, 0], 'b', linewidth=0.8, alpha=0.2, label='iLQR')
-    ax2.plot(time_span, trj_ilqr[:, 1], 'b', linewidth=0.8, alpha=0.2, label='iLQR')
+    # ax1.plot(time_span, trj_ilqr[:, 0], 'b', linewidth=0.8, alpha=0.2, label='iLQR')
+    # ax2.plot(time_span, trj_ilqr[:, 1], 'b', linewidth=0.8, alpha=0.2, label='iLQR')
 
-    ax1.plot(time_span, trj_pi[:, 0], 'r', linewidth=0.8, alpha=0.6, label='Path Integral')
-    ax2.plot(time_span, trj_pi[:, 1], 'r', linewidth=0.8, alpha=0.6, label='Path Integral')
+    ax1.plot(time_span, trj_pi[:, 0], 'r', linewidth=0.8, alpha=0.6, label='H-PathIntegral')
+    ax2.plot(time_span, trj_pi[:, 1], 'r', linewidth=0.8, alpha=0.6, label='H-PathIntegral')
 
     # ----------- Plot the reference -----------
-    ax1.plot(time_span, states[:,0],'k',label='iLQR-deterministic')
-    ax2.plot(time_span, states[:,1],'k',label='iLQR-deterministic')
+    ax1.plot(time_span, states[:,0],'k',label='H-iLQR')
+    ax2.plot(time_span, states[:,1],'k',label='H-iLQR')
 
     # ----------- Plot the start and goal states -----------
     ax1.scatter(time_span[-1], target_state[0], color='g', marker='o', s=50.0, linewidths=6, label='Target', zorder=2)
@@ -120,9 +120,9 @@ if __name__ == '__main__':
         ax5.plot(trj_ilqr[:, 0], trj_ilqr[:, 1], 'b', linewidth=0.8, alpha=0.2)
         ax5.plot(trj_pi[:, 0], trj_pi[:, 1], 'r', linewidth=0.8, alpha=0.6)
 
-    ax5.plot(trj_ilqr[:, 0], trj_ilqr[:, 1], 'b', linewidth=0.8, alpha=0.2, label='iLQR')
-    ax5.plot(trj_pi[:, 0], trj_pi[:, 1], 'r', linewidth=0.8, alpha=0.6, label='Path Integral')
-    ax5.plot(states[:,0], states[:,1],'k',label='iLQR-deterministic')
+    # ax5.plot(trj_ilqr[:, 0], trj_ilqr[:, 1], 'b', linewidth=0.8, alpha=0.2, label='iLQR')
+    ax5.plot(trj_pi[:, 0], trj_pi[:, 1], 'r', linewidth=0.8, alpha=0.6, label='H-PathIntegral')
+    ax5.plot(states[:,0], states[:,1],'k',label='H-iLQR')
     
     # ----------- Plot the start and goal states -----------
     ax5.scatter(target_state[0], target_state[1], color='g', marker='o', s=50.0, linewidths=6, label='Target', zorder=2)
@@ -150,7 +150,7 @@ if __name__ == '__main__':
     fig3, ax8 = plt.subplots(figsize=(8,6))
     ax8.grid(True)
     ax8.bar(range(n_exp), cost_ilqr_exp, width = 2, color='navy', alpha=0.1, label='Hybrid iLQR')
-    ax8.bar(range(n_exp), cost_pi_exp, width = 2, color='red', alpha=0.5, label='Hybrid Path Integral Control')
+    ax8.bar(range(n_exp), cost_pi_exp, width = 2, color='red', alpha=0.5, label='Hybrid Path Integral')
 
     ax8.set_xlabel(r"Experiment ID", fontsize=14)
     ax8.set_ylabel(r"$Costs$", fontsize=14)
@@ -175,12 +175,12 @@ if __name__ == '__main__':
     ax10.grid(True)
     
     # Mean as a solid line
-    ax9.plot(time_span[:-1], avg_variances, 'r-', label='Variance')
-    ax10.plot(time_span[:-1], avg_lbdas, 'r-', label=r'$\lambda(\%)$')
+    ax9.plot(time_span[:-1], avg_variances, 'r-', label='Weight Distribution Variance')
+    ax10.plot(time_span[:-1], avg_lbdas, 'r-', label=r'Effective Samples $\lambda (\%)$')
     
     # Shaded area for variability (e.g., ±1 standard deviation)
-    ax9.fill_between(time_span[:-1], avg_variances - std_variances, avg_variances + std_variances, color='gray', alpha=0.5, label='±1 Std.')
-    ax10.fill_between(time_span[:-1], avg_lbdas - std_lbdas, avg_lbdas + std_lbdas, color='gray', alpha=0.5, label='±1 Std.')
+    ax9.fill_between(time_span[:-1], avg_variances - std_variances, avg_variances + std_variances, color='gray', alpha=0.5, label='±1 Std. across experiments')
+    ax10.fill_between(time_span[:-1], avg_lbdas - std_lbdas, avg_lbdas + std_lbdas, color='gray', alpha=0.5, label='±1 Std. across experiments')
 
     # ax9.set_title('Weight Variance')
     ax9.set_xlabel('Time', fontsize=14)
@@ -202,7 +202,7 @@ if __name__ == '__main__':
     # plot step one cost distribution
     fig6, ax11 = plt.subplots(figsize=(8,6))
     ax11.grid(True)
-    ax11.bar(range(allPathCosts.shape[1]), allPathCosts[500])
+    ax11.bar(range(allPathCosts.shape[1]), allPathCosts[-1])
     ax11.set_title("Path Cost distribution")
     ax11.set_xlabel("Sample Number")
     ax11.set_ylabel("Costs")

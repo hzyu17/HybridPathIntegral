@@ -64,7 +64,6 @@ def process_compute_costs(sample_i, inputs, dWs, target_state, ref_states, index
     costs_i = compute_cost(sample_i, inputs, dWs, target_state, ref_states, Q_k, R_k, Q_T, epsilon, dt)
     return costs_i, index
 
-print("ddd")
 if __name__ == '__main__':
     
     # === ilqr parameters ===
@@ -116,8 +115,8 @@ if __name__ == '__main__':
     # path integral parameters 
     # --------------------------
     epsilon = 2.0
-    n_samples = 10000
-    n_exp = 3
+    n_samples = 5000
+    n_exp = 50
     
     # ----------------------------------------------------
     # Do N experiments and compare the expected costs 
