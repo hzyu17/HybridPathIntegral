@@ -7,7 +7,7 @@ if __name__ == '__main__':
     exp_params = ExpParams()
     exp_data = ExpData(exp_params)
 
-    filename = root_dir+"/data/bouncing/data_10000samples.pickle"
+    filename = root_dir+"/data/bouncing/data_2024-05-23_05-17-40_hybrid_riccati.pickle"
     
     print("loading data: ", filename)
     exp_data.load(filename)
@@ -64,8 +64,22 @@ if __name__ == '__main__':
         
     print("E[cost_pi]: ", np.mean(cost_pi_exp))
     print("E[cost_ilqr_exp]: ", np.mean(cost_ilqr_exp))
+    print("improved: ", (np.mean(cost_ilqr_exp) - np.mean(cost_pi_exp)) / np.mean(cost_ilqr_exp))
     
-    # # ----------- plot the path integral controlled trajectory -----------
+    
+    # ==============================================
+    #                   Plottings
+    # ============================================== 
+    from matplotlib.font_manager import FontProperties
+    # ---------------------------------------
+    # Setting font properties using fontdict
+    # ---------------------------------------
+    font_props = FontProperties(family='serif', size=18, weight='normal')
+    
+    
+    # --------------------------------------------
+    # plot the path integral controlled trajectory
+    # -------------------------------------------- 
     for i in range(n_exp):
         trj_ilqr = exp_data.get_data(i).x_trj_ilqr()
         trj_pi = exp_data.get_data(i).x_trj_pi()
@@ -93,14 +107,14 @@ if __name__ == '__main__':
     ax2.scatter(time_span[-1], target_state[1], color='g', marker='o', s=50.0, linewidths=6, label='Target', zorder=2)
     ax2.scatter(time_span[0], init_state[1], color='r', marker='o', s=50.0, linewidths=6, label='Start', zorder=2)
     
-    ax1.set_xlabel(r"Time", fontsize=18)
-    ax1.set_ylabel(r"$z$", fontsize=18)
-    ax1.set_title("Vertical Position", fontsize=18)
+    ax1.set_xlabel(r"Time", fontproperties=font_props)
+    ax1.set_ylabel(r"$z$", fontproperties=font_props)
+    ax1.set_title("Vertical Position", fontproperties=font_props)
     plt.tight_layout()
 
-    ax2.set_xlabel(r"Time", fontsize=18)
-    ax2.set_ylabel(r"$\dot z$", fontsize=18)
-    ax2.set_title("Vertical Velocity", fontsize=18)
+    ax2.set_xlabel(r"Time", fontproperties=font_props)
+    ax2.set_ylabel(r"$\dot z$", fontproperties=font_props)
+    ax2.set_title("Vertical Velocity", fontproperties=font_props)
     plt.tight_layout()
     
     ax1.legend()
@@ -128,9 +142,9 @@ if __name__ == '__main__':
     ax5.scatter(target_state[0], target_state[1], color='g', marker='o', s=50.0, linewidths=6, label='Target', zorder=2)
     ax5.scatter(init_state[0], init_state[1], color='r', marker='o', s=50.0, linewidths=6, label='Start', zorder=2)
 
-    ax5.set_xlabel(r"z", fontsize=18)
-    ax5.set_ylabel(r"$\dot z$", fontsize=18)
-    ax5.set_title("Controlled Bouncing Ball Dynamics", fontsize=18)
+    ax5.set_xlabel(r"$z$", fontproperties=font_props)
+    ax5.set_ylabel(r"$\dot z$", fontproperties=font_props)
+    ax5.set_title("Controlled Bouncing Ball Dynamics", fontproperties=font_props)
     ax5.legend()
     fig2.tight_layout()
     fig2.savefig(root_dir+'/data/figures/bouncing/bouncing_1D_zdotz.pdf', format='pdf', dpi=2000)
@@ -146,14 +160,31 @@ if __name__ == '__main__':
 
     # ax7.legend()
 
-    # plot PathCosts
-    fig3, ax8 = plt.subplots(figsize=(8,6))
+    # ------------------------------------------ 
+    # Bar Plot PathCosts for all experiments
+    # ------------------------------------------
+    fig3, ax8 = plt.subplots(figsize=(18,6))
     ax8.grid(True)
-    ax8.bar(range(n_exp), cost_ilqr_exp, width = 2, color='navy', alpha=0.1, label='Hybrid iLQR')
-    ax8.bar(range(n_exp), cost_pi_exp, width = 2, color='red', alpha=0.5, label='Hybrid Path Integral')
+    
+    # Set the bar width
+    bar_width = 0.35
+    # Set the opacity
+    opacity = 0.8
 
-    ax8.set_xlabel(r"Experiment ID", fontsize=14)
-    ax8.set_ylabel(r"$Costs$", fontsize=14)
+    index = np.arange(n_exp)
+
+    bars1 = ax8.bar(index, cost_ilqr_exp, bar_width, alpha=opacity, color='b', label='Hybrid iLQR')
+    bars2 = ax8.bar(index + bar_width, cost_pi_exp, bar_width, alpha=opacity, color='r', label='Hybrid Path Integral')
+    # bars2 = ax8.bar(index + bar_width, cost_pi_exp, bar_width, alpha=opacity, color='r', label='Hybrid Path Integral')
+
+    # Add some labels, title and axes ticks
+    ax8.set_xlabel(r"Experiment ID", fontproperties=font_props)
+    ax8.set_ylabel(r"$Costs$", fontproperties=font_props)
+    ax8.set_title('Comparison of Cost Statistics', fontproperties=font_props)
+    ax8.set_xticks(index + bar_width / 2)  # Positioning the x-axis ticks in the middle of the two bars
+    ax8.set_xticklabels(index)
+
+    # Adding a legend
     ax8.legend()
 
     fig3.tight_layout()
@@ -183,13 +214,13 @@ if __name__ == '__main__':
     ax10.fill_between(time_span[:-1], avg_lbdas - std_lbdas, avg_lbdas + std_lbdas, color='gray', alpha=0.5, label='±1 Std. across experiments')
 
     # ax9.set_title('Weight Variance')
-    ax9.set_xlabel('Time', fontsize=14)
-    ax9.set_ylabel(r'Var($\alpha$)', fontsize=14)
+    ax9.set_xlabel('Time', fontproperties=font_props)
+    ax9.set_ylabel(r'Var($\alpha$)', fontproperties=font_props)
     fig4.tight_layout()
     
     # ax10.set_title('Effective Weights')
-    ax10.set_xlabel('Time', fontsize=14)
-    ax10.set_ylabel(r'$\lambda^u (\%)$', fontsize=14)
+    ax10.set_xlabel('Time', fontproperties=font_props)
+    ax10.set_ylabel(r'$\lambda^u (\%)$', fontproperties=font_props)
     ax10.set_ylim(0, 110)
     fig5.tight_layout()
     
@@ -204,6 +235,6 @@ if __name__ == '__main__':
     ax11.grid(True)
     ax11.bar(range(allPathCosts.shape[1]), allPathCosts[-1])
     ax11.set_title("Path Cost distribution")
-    ax11.set_xlabel("Sample Number")
-    ax11.set_ylabel("Costs")
+    ax11.set_xlabel("Sample Number", fontproperties=font_props)
+    ax11.set_ylabel("Costs", fontproperties=font_props)
     plt.show()
