@@ -7,7 +7,7 @@ if __name__ == '__main__':
     exp_params = ExpParams()
     exp_data = ExpData(exp_params)
 
-    filename = root_dir+"/data/bouncing/data_2024-05-23_05-17-40_hybrid_riccati.pickle"
+    filename = root_dir+"/data/bouncing/data_2024-05-26_15-18-24_hybrid_riccati_5000samples_eps_4.0.pickle"
     
     print("loading data: ", filename)
     exp_data.load(filename)
@@ -51,10 +51,6 @@ if __name__ == '__main__':
         
         cost_pi = exp_data.get_data(i).cost_pi()
         cost_ilqr = exp_data.get_data(i).cost_ilqr()
-        
-        # dWs_zeros = np.zeros((nt, n_inputs))
-        # cost_pi = compute_cost(trj_pi, u_star_pi, dWs_zeros, target_state, states, Q_k, R_k, Q_T, epsilon)
-        # cost_ilqr = compute_cost(trj_ilqr, u_trj_ilqr, dWs_zeros, target_state, states, Q_k, R_k, Q_T, epsilon)
         
         # print("cost_pi:", cost_pi)
         # print("cost_ilqr:", cost_ilqr)
