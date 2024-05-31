@@ -71,7 +71,7 @@ def main(epsilon, n_samples):
     # Initialize timings
     
     # ---------------- bouncing example -----------------
-    dt = 0.005
+    dt = 0.01
     dt_shrink = 0.7
     start_time = 0
     end_time = 2.0
@@ -284,11 +284,12 @@ def main(epsilon, n_samples):
             # ------------------------------
             # update the control proposal
             # ------------------------------
-            GaussianNoises_ustar = np.random.randn(n_samples, n_inputs)
-            GaussianNoises_ustar_jax = jnp.asarray(GaussianNoises_ustar)
-            dt_ustar = dt
+            # GaussianNoises_ustar = np.random.randn(n_samples, n_inputs)
+            # GaussianNoises_ustar_jax = jnp.asarray(GaussianNoises_ustar)
+            # dt_ustar = dt
+            GaussianNoises_ustar_jax = GaussianNoise_i[:,0,:]
             u0_star_jax, weights_jax = update_u0_pathintegral_jax(u0_proposal, PathCosts_jax, 
-                                                                    GaussianNoises_ustar_jax, epsilon, dt_ustar)
+                                                                    GaussianNoises_ustar_jax, epsilon, dt)
             u_star_pi_jax[i_t] = u0_star_jax
             allPathCosts_jax[i_t] = PathCosts_jax
             
