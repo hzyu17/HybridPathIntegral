@@ -4,7 +4,7 @@ import os
 
 
 if __name__ == '__main__':
-    for n_spls in range(10, 5010, 500):
-        run_command = f'/usr/bin/python3 /home/hzyu/git/HybridPathIntegral/experiments/example_bouncingball_jax.py --epsilon=2 --nsamples={n_spls}'
+    for eps in [10, 20, 50]:
+        run_command = f'/usr/bin/python3 /home/hzyu/git/HybridPathIntegral/experiments/example_bouncingball_jax.py --epsilon={eps} --nsamples=10000'
         os.system(run_command)
     
