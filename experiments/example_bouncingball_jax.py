@@ -506,7 +506,7 @@ def main(epsilon, n_samples):
 import argparse
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="The epsilon parameter.")
-    parser.add_argument("--epsilon", type=float, default=2, help="The process noise intensity value, epsilon.")
+    parser.add_argument("--epsilon", type=float, default=5, help="The process noise intensity value, epsilon.")
     parser.add_argument("--nsamples", type=int, default=5000, help="The number of samples used in path integral control.")
 
     args = parser.parse_args()
