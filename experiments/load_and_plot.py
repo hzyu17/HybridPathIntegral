@@ -7,7 +7,7 @@ if __name__ == '__main__':
     exp_params = ExpParams()
     exp_data = ExpData(exp_params)
 
-    filename = root_dir+"/data/bouncing/data_10000samples_eps_20.0.pickle"
+    filename = root_dir+"/data/bouncing/data_5000samples_eps_15.0_coupling.pickle"
     
     print("loading data: ", filename)
     exp_data.load(filename)
@@ -86,15 +86,15 @@ if __name__ == '__main__':
         ax1.plot(time_span, trj_pi[:, 0], 'r', linewidth=0.8, alpha=0.6)
         ax2.plot(time_span, trj_pi[:, 1], 'r', linewidth=0.8, alpha=0.6)
         
-    # ax1.plot(time_span, trj_ilqr[:, 0], 'b', linewidth=0.8, alpha=0.2, label='iLQR')
-    # ax2.plot(time_span, trj_ilqr[:, 1], 'b', linewidth=0.8, alpha=0.2, label='iLQR')
+    ax1.plot(time_span, trj_ilqr[:, 0], 'b', linewidth=0.8, alpha=0.2, label='H-iLQR')
+    ax2.plot(time_span, trj_ilqr[:, 1], 'b', linewidth=0.8, alpha=0.2, label='H-iLQR')
 
     ax1.plot(time_span, trj_pi[:, 0], 'r', linewidth=0.8, alpha=0.6, label='H-PathIntegral')
     ax2.plot(time_span, trj_pi[:, 1], 'r', linewidth=0.8, alpha=0.6, label='H-PathIntegral')
 
     # ----------- Plot the reference -----------
-    ax1.plot(time_span, states[:,0],'k',label='H-iLQR')
-    ax2.plot(time_span, states[:,1],'k',label='H-iLQR')
+    ax1.plot(time_span, states[:,0],'k',label='H-iLQR reference')
+    ax2.plot(time_span, states[:,1],'k',label='H-iLQR reference')
 
     # ----------- Plot the start and goal states -----------
     ax1.scatter(time_span[-1], target_state[0], color='g', marker='o', s=50.0, linewidths=6, label='Target', zorder=2)
@@ -130,7 +130,7 @@ if __name__ == '__main__':
         ax5.plot(trj_ilqr[:, 0], trj_ilqr[:, 1], 'b', linewidth=0.8, alpha=0.2)
         ax5.plot(trj_pi[:, 0], trj_pi[:, 1], 'r', linewidth=0.8, alpha=0.6)
 
-    # ax5.plot(trj_ilqr[:, 0], trj_ilqr[:, 1], 'b', linewidth=0.8, alpha=0.2, label='iLQR')
+    ax5.plot(trj_ilqr[:, 0], trj_ilqr[:, 1], 'b', linewidth=0.8, alpha=0.2, label='H-iLQR')
     ax5.plot(trj_pi[:, 0], trj_pi[:, 1], 'r', linewidth=0.8, alpha=0.6, label='H-PathIntegral')
     ax5.plot(states[:,0], states[:,1],'k',label='H-iLQR')
     

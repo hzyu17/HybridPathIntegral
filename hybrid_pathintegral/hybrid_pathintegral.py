@@ -92,7 +92,7 @@ def variance_usefulportion(pathcosts, epsilon):
     # ------- Fraction of effective samples -------
     lbda = 1.0 / np.mean(weights**2)
     
-    print("variance", variance)
-    print("lbda", lbda)
+    # print("variance", variance)
+    # print("lbda", lbda)
     
     return variance, lbda*100.0

@@ -222,6 +222,9 @@ def main(epsilon, n_samples):
             k_feedforward_i = k_feedforward[i_t:,:]
             GaussianNoise_i = np.random.randn(n_samples, nt_i, n_inputs)
             
+            # ----- coupling to reduce variance -----
+            GaussianNoise_i[int(n_samples/2):,0,:] = -GaussianNoise_i[:int(n_samples/2),0,:]
+            
             cur_ref_modechange = modechanges[i_t]
             ref_next_mode = cur_ref_modechange[1]        
             
@@ -400,7 +403,7 @@ def main(epsilon, n_samples):
     from datetime import datetime
     current_datetime = datetime.now()
     formatted_datetime = current_datetime.strftime("%Y-%m-%d_%H-%M-%S")
-    filename = f"data_{formatted_datetime}_{script_filename}_{n_samples}samples_eps_{epsilon}.pickle"
+    filename = f"data_{formatted_datetime}_{script_filename}_{n_samples}samples_eps_{epsilon}_coupling.pickle"
     exp_data.dump(f"{root_dir}/data/bouncing/{filename}")
 
     show_results = False
@@ -498,7 +501,7 @@ def main(epsilon, n_samples):
 import argparse
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="The epsilon parameter.")
-    parser.add_argument("--epsilon", type=float, default=2, help="The process noise intensity value, epsilon.")
+    parser.add_argument("--epsilon", type=float, default=5, help="The process noise intensity value, epsilon.")
     parser.add_argument("--nsamples", type=int, default=5000, help="The number of samples used in path integral control.")
 
     args = parser.parse_args()
