@@ -7,7 +7,8 @@ if __name__ == '__main__':
     exp_params = ExpParams()
     exp_data = ExpData(exp_params)
 
-    filename = root_dir+"/data/bouncing/data_10000samples_eps_20.0.pickle"
+    root_dir = '/hddscratch/hyu419/hybrid_pathintegral/exp_200'
+    filename = root_dir+"/data/bouncing/data_5000samples_eps_2_coupling.pickle"
     
     print("loading data: ", filename)
     exp_data.load(filename)
@@ -27,7 +28,7 @@ if __name__ == '__main__':
     else:
         (states,inputs,k_feedforward,K_feedback,current_cost,states_iter,_,_) = solve_ilqr(exp_params)
 
-    print("plotting")
+    print("===================== plotting =====================")
     fig1, axes = plt.subplots(1, 2, figsize=(10, 8))
     (ax1, ax2) = axes.flatten()
     ax1.grid(True)
@@ -39,6 +40,7 @@ if __name__ == '__main__':
     variances, lbdas = np.zeros((n_exp, nt-1)), np.zeros((n_exp, nt-1))
     
     for i in range(n_exp):
+        print(exp_data._data.keys())
         trj_ilqr = exp_data.get_data(i).x_trj_ilqr()
         trj_pi = exp_data.get_data(i).x_trj_pi()
         u_star_pi = exp_data.get_data(i).u_trj_pi()
@@ -184,7 +186,7 @@ if __name__ == '__main__':
     ax8.legend()
 
     fig3.tight_layout()
-    fig3.savefig(root_dir+'/data/figures/bouncing/bouncing_1D_costs.pdf', format='pdf', dpi=2000)
+    fig3.savefig(root_dir+'/data/figures/bouncing/bouncing_1D_costs.pdf', dpi=2000)
 
     #--- plot the variances and useful portion
     # Calculating the mean and standard deviation along the repetitions
@@ -233,4 +235,5 @@ if __name__ == '__main__':
     ax11.set_title("Path Cost distribution")
     ax11.set_xlabel("Sample Number", fontproperties=font_props)
     ax11.set_ylabel("Costs", fontproperties=font_props)
-    plt.show()
+    
+    # plt.show()
