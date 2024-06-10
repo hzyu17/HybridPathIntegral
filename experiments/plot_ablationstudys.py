@@ -31,9 +31,19 @@ if __name__ == '__main__':
     
     #     print("loading data: ", filename)
     #     exp_data.load(filename)
+    #     print("loading data: ", filename)
+    #     exp_data.load(filename)
     
     #     exp_params = exp_data.get_params()
+    #     exp_params = exp_data.get_params()
     
+    #     n_exp = exp_params._n_exp
+    #     n_samples = exp_params._n_samples
+    #     time_span = np.arange(exp_params._start_time, exp_params._end_time, exp_params._dt).flatten()
+    #     nt = len(time_span)
+    #     epsilon = exp_params._epsilon
+    #     init_state = exp_params._init_state
+    #     target_state = exp_params._target_state
     #     n_exp = exp_params._n_exp
     #     n_samples = exp_params._n_samples
     #     time_span = np.arange(exp_params._start_time, exp_params._end_time, exp_params._dt).flatten()
@@ -46,7 +56,16 @@ if __name__ == '__main__':
     #     cost_pi_exp = np.zeros(n_exp)
     #     cost_ilqr_exp = np.zeros(n_exp)
     #     variances, lbdas = np.zeros((n_exp, nt-1)), np.zeros((n_exp, nt-1))
+    #     # # compute the costs and variances
+    #     cost_pi_exp = np.zeros(n_exp)
+    #     cost_ilqr_exp = np.zeros(n_exp)
+    #     variances, lbdas = np.zeros((n_exp, nt-1)), np.zeros((n_exp, nt-1))
         
+    #     for i in range(n_exp):
+    #         trj_ilqr = exp_data.get_data(i).x_trj_ilqr()
+    #         trj_pi = exp_data.get_data(i).x_trj_pi()
+    #         u_star_pi = exp_data.get_data(i).u_trj_pi()
+    #         u_trj_ilqr = exp_data.get_data(i).u_trj_ilqr()
     #     for i in range(n_exp):
     #         trj_ilqr = exp_data.get_data(i).x_trj_ilqr()
     #         trj_pi = exp_data.get_data(i).x_trj_pi()
@@ -54,35 +73,58 @@ if __name__ == '__main__':
     #         u_trj_ilqr = exp_data.get_data(i).u_trj_ilqr()
             
     #         allPathCosts = exp_data.get_data(i).allPathCosts()
+    #         allPathCosts = exp_data.get_data(i).allPathCosts()
             
+    #         for j in range(nt -1):
+    #             variances[i, j], lbdas[i, j] = variance_usefulportion(allPathCosts[j], epsilon)
     #         for j in range(nt -1):
     #             variances[i, j], lbdas[i, j] = variance_usefulportion(allPathCosts[j], epsilon)
             
     #         cost_pi = exp_data.get_data(i).cost_pi()
     #         cost_ilqr = exp_data.get_data(i).cost_ilqr()
+    #         cost_pi = exp_data.get_data(i).cost_pi()
+    #         cost_ilqr = exp_data.get_data(i).cost_ilqr()
             
     #         cost_pi_exp[i] = cost_pi
     #         cost_ilqr_exp[i] = cost_ilqr
+    #         cost_pi_exp[i] = cost_pi
+    #         cost_ilqr_exp[i] = cost_ilqr
         
+    #     v_costs_pi[i_nsample] = cost_pi_exp
+    #     v_costs_hilqr[i_nsample] = cost_ilqr_exp
     #     v_costs_pi[i_nsample] = cost_pi_exp
     #     v_costs_hilqr[i_nsample] = cost_ilqr_exp
         
     #     print("E[cost_pi]: ", np.mean(cost_pi_exp))
     #     print("E[cost_ilqr_exp]: ", np.mean(cost_ilqr_exp))
     #     print("improved: ", (np.mean(cost_ilqr_exp) - np.mean(cost_pi_exp)) / np.mean(cost_ilqr_exp))
+    #     print("E[cost_pi]: ", np.mean(cost_pi_exp))
+    #     print("E[cost_ilqr_exp]: ", np.mean(cost_ilqr_exp))
+    #     print("improved: ", (np.mean(cost_ilqr_exp) - np.mean(cost_pi_exp)) / np.mean(cost_ilqr_exp))
         
+    # # Plot the costs versus the number of samples
+    # fig, ax = plt.subplots()
     # # Plot the costs versus the number of samples
     # fig, ax = plt.subplots()
     
     # avg_cost_pi = np.mean(v_costs_pi, axis=1)
     # std_cost_pi = np.std(v_costs_pi, axis=1)
+    # avg_cost_pi = np.mean(v_costs_pi, axis=1)
+    # std_cost_pi = np.std(v_costs_pi, axis=1)
     
+    # avg_cost_hilqr = np.mean(v_costs_hilqr, axis=1)
+    # std_cost_hilqr = np.std(v_costs_hilqr, axis=1)
     # avg_cost_hilqr = np.mean(v_costs_hilqr, axis=1)
     # std_cost_hilqr = np.std(v_costs_hilqr, axis=1)
     
     # # Plotting        
     # ax.grid(True)
+    # # Plotting        
+    # ax.grid(True)
     
+    # # Mean as a solid line
+    # ax.plot(v_nsamples, avg_cost_pi, 'r-', label='avg cost path integral')
+    # ax.plot(v_nsamples, avg_cost_hilqr, 'b-', label='avg cost h-ilqr')
     # # Mean as a solid line
     # ax.plot(v_nsamples, avg_cost_pi, 'r-', label='avg cost path integral')
     # ax.plot(v_nsamples, avg_cost_hilqr, 'b-', label='avg cost h-ilqr')
@@ -90,7 +132,13 @@ if __name__ == '__main__':
     # # Shaded area for variability (e.g., ±1 standard deviation)
     # ax.fill_between(v_nsamples, avg_cost_pi - std_cost_pi, avg_cost_pi + std_cost_pi, color='red', alpha=0.1, label='±1 Std. cost path integral')
     # ax.fill_between(v_nsamples, avg_cost_hilqr - std_cost_hilqr, avg_cost_hilqr + std_cost_hilqr, color='blue', alpha=0.1, label='±1 Std. cost h-ilqr')
+    # # Shaded area for variability (e.g., ±1 standard deviation)
+    # ax.fill_between(v_nsamples, avg_cost_pi - std_cost_pi, avg_cost_pi + std_cost_pi, color='red', alpha=0.1, label='±1 Std. cost path integral')
+    # ax.fill_between(v_nsamples, avg_cost_hilqr - std_cost_hilqr, avg_cost_hilqr + std_cost_hilqr, color='blue', alpha=0.1, label='±1 Std. cost h-ilqr')
 
+    # ax.set_xlabel(r'Number of samples')
+    # ax.set_ylabel(r'Cost')
+    # ax.legend()
     # ax.set_xlabel(r'Number of samples')
     # ax.set_ylabel(r'Cost')
     # ax.legend()
@@ -100,7 +148,7 @@ if __name__ == '__main__':
     # plt.show()
     
     
-    # ==========================
+    # ============================
     # Ablation study for epsilon
     # ==========================
     n_exp = 100

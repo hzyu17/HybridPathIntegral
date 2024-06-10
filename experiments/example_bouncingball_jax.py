@@ -118,7 +118,7 @@ def main(epsilon, n_samples):
     # epsilon = 0.1 # epsilon default value is 0.1.
     # epsilon = 2.0
     # n_samples =10000
-    n_exp = 20
+    n_exp = 100
     
     # ----------------------------------------------------
     # Do N experiments and compare the expected costs 
@@ -167,7 +167,7 @@ def main(epsilon, n_samples):
     # Do sample experiments for n_exp number of experiments, under different randomness
     # =============================================================================================
     
-    for i_exp in prange(n_exp):
+    for i_exp in range(n_exp):
         print("The experiment index: ", i_exp)
         
         # -------------- result collectors, jax --------------
@@ -222,8 +222,10 @@ def main(epsilon, n_samples):
             k_feedforward_i = k_feedforward[i_t:,:]
             GaussianNoise_i = np.random.randn(n_samples, nt_i, n_inputs)
             
-            # ----- coupling to reduce variance -----
-            GaussianNoise_i[int(n_samples/2):,0,:] = -GaussianNoise_i[:int(n_samples/2),0,:]
+            # # --------------------------- 
+            # # Coupling of the randomness
+            # # ---------------------------
+            GaussianNoise_i[int(n_samples/2):, 0] = -GaussianNoise_i[:int(n_samples/2), 0]
             
             cur_ref_modechange = modechanges[i_t]
             ref_next_mode = cur_ref_modechange[1]        
@@ -404,7 +406,10 @@ def main(epsilon, n_samples):
     current_datetime = datetime.now()
     formatted_datetime = current_datetime.strftime("%Y-%m-%d_%H-%M-%S")
     filename = f"data_{formatted_datetime}_{script_filename}_{n_samples}samples_eps_{epsilon}_coupling.pickle"
-    exp_data.dump(f"{root_dir}/data/bouncing/{filename}")
+    
+    save_root = '/hddscratch/hyu419/hybrid_pathintegral/exp_200'
+    
+    exp_data.dump(f"{save_root}/data/bouncing/{filename}")
 
     show_results = False
     if show_results:
