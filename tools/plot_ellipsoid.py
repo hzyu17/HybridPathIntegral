@@ -25,13 +25,16 @@ def plot_2d_ellipsoid_boundary(mean, covariance, ax=None, color='blue'):
     order = eigenvalues.argsort()[::-1]
     eigenvalues = eigenvalues[order]
     eigenvectors = eigenvectors[:, order]
+    
+    nstd = 3
+    width, height = 2 * nstd * np.sqrt(eigenvalues)
 
     # Calculate the angle of rotation
     angle = np.degrees(np.arctan2(*eigenvectors[:, 0][::-1]))
 
     # Plot the ellipsoid boundary
-    ellipse_boundary = Ellipse(xy=mean, width=np.sqrt(eigenvalues[0]) * 2, height=np.sqrt(eigenvalues[1]) * 2,
-                               angle=angle, fill=False, edgecolor=color, linewidth=2.0)
+    ellipse_boundary = Ellipse(xy=mean, width=width, height=height,
+                               angle=angle, fill=False, edgecolor=color, linewidth=0.5)
 
     # Add the Ellipse boundary to the plot
     ax.add_patch(ellipse_boundary)
