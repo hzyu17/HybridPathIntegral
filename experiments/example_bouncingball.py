@@ -11,9 +11,9 @@ sys.path.append(root_dir)
 import time
 
 # Import pendulum dynamics
-from dynamics.integration_hybrid import *
+from dynamics.dynamics_bouncing import *
 # Import iLQR class
-from hybrid_ilqr.hybrid_ilqr import solve_ilqr
+from hybrid_ilqr.h_ilqr import solve_ilqr
 # Import Riccati class
 from hybrid_ilqr.hybrid_riccati import *
 # Importing path integral control

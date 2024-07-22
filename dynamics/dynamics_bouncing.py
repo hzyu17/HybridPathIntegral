@@ -5,7 +5,7 @@ current_dir = os.path.dirname(file_path)
 root_dir = os.path.abspath(os.path.join(current_dir, '..'))
 sys.path.append(root_dir)
 
-from dynamics.bouncing_guard_reset import *
+from dynamics.guard_reset_bouncing import *
 
 # numpy and scipy
 import scipy
@@ -432,10 +432,33 @@ def detect_bouncing(x0, u, t0, tf, current_mode, detection=True, backwards=False
     guard_bouncing_12.direction=-1
     
     guard_bouncing_21.terminal=True
-    guard_bouncing_21.direction=1
+    guard_bouncing_21.direction=-1
     
-    guards = {1:guard_bouncing_12, 2: guard_bouncing_21}
-    reset_maps = {1:reset_map_bouncing_12, 2:reset_map_bouncing_21}
+    smooth_dynamics = {0:dyn_bouncing, 1:dyn_bouncing}
+    
+    Rxs = {0:Rx_bouncing_12, 1:Rx_bouncing_21}
+    Rts = {0:Rt_bouncing_12, 1:Rt_bouncing_21}
+    
+    gxs = {0:gx_bouncing_12, 1:gx_bouncing_21}
+    gts = {0:gt_bouncing_12, 1:gt_bouncing_21}
+    
+    guards = {0:guard_bouncing_12, 1: guard_bouncing_21}
+    reset_maps = {0:reset_map_bouncing_12, 1:reset_map_bouncing_21}
+    
+    reset_controls = {0:reset_map_control_12, 1:reset_map_control_21}
+    
+    current_dyn = smooth_dynamics[current_mode]
+    
+    current_guard = guards[current_mode]
+    current_resetmap = reset_maps[current_mode]
+    current_resetcontrl = reset_controls[current_mode]
+    
+    current_Rx = Rxs[current_mode]
+    current_Rt = Rts[current_mode]
+    
+    current_gx = gxs[current_mode]
+    current_gt = gts[current_mode]
+    
     current_guard = guards[current_mode]
     current_resetmap = reset_maps[current_mode]
     
@@ -465,15 +488,20 @@ def detect_bouncing(x0, u, t0, tf, current_mode, detection=True, backwards=False
             t_event = solution.t_events[0][0]
             x_event = solution.y_events[0][0]
             x_reset, next_mode = current_resetmap(t_event, x_event, current_mode)
+            u_reset = current_resetcontrl(t_event, u)
             x0 = x_reset
             
             # ---------- Compute saltation matrix ---------- 
-            R_x = Rx_bouncing(t_event, x_event)
-            R_t = Rt_bouncing(t_event, x_event)
-            g_x = gx_bouncing(t_event, x_event)
-            g_t = gt_bouncing(t_event, x_event)
-            F_1 = dyn_bouncing(t_event, x_event)
-            F_2 = dyn_bouncing(t_event, x_reset) # Important, the F2 is evaluated at the reseted state!
+            R_x = current_Rx(t_event, x_event, current_mode)[0]
+            R_t = current_Rt(t_event, x_event, current_mode)[0]
+            
+            g_x = current_gx(t_event, x_event)
+            g_t = current_gt(t_event, x_event)
+            
+            next_dyn = smooth_dynamics[next_mode]
+            
+            F_1 = current_dyn(t_event, x_event)
+            F_2 = next_dyn(t_event, x_reset) # Important, the F2 is evaluated at the reseted state!
             saltation = saltation_matrix(F_1, F_2, R_t, R_x, g_t, g_x)
             
             t0 = t_event
@@ -482,10 +510,13 @@ def detect_bouncing(x0, u, t0, tf, current_mode, detection=True, backwards=False
             t_span = (t0, tf)
             t_eval = np.linspace(t0, tf, nt)
             
-            solution = scipy.integrate.solve_ivp(fun=dyn_fun, 
+            args = (u_reset, )
+            dyn_fun_next=lambda t, y: next_dyn(t, y, *args)
+            
+            solution = scipy.integrate.solve_ivp(fun=dyn_fun_next, 
                                                 t_span=t_span, y0=x0, method='RK45', 
                                                 t_eval=t_eval, dense_output=True)
-                                
+        
         # Had no contact
         else:
             x0 = None
@@ -506,6 +537,61 @@ def detect_bouncing(x0, u, t0, tf, current_mode, detection=True, backwards=False
     mode_mapping = np.array([current_mode, next_mode])
     
     return x_next, saltation, mode_mapping, t_event, x_event, x_reset
+
+
+def convert_state_21_bouncing(state_2):
+    return state_2
+
+
+def plot_bouncingball(time_span, modes, states, inputs, init_state, target_state, nt):
+    print("Plotting bouncing ball results")
+    # =============== plotting ===============
+    fig1, axes = plt.subplots(1, 2)
+    (ax1, ax2) = axes.flatten()
+    ax1.grid(True)
+    ax2.grid(True)
+
+    # ----------- Plot the start and goal states -----------
+    ax1.scatter(time_span[-1], target_state[0], color='g', marker='x', s=50.0, linewidths=6, label='Target')
+    ax1.scatter(time_span[0], init_state[0], color='r', marker='x', s=50.0, linewidths=6, label='Start')
+
+    ax2.scatter(time_span[-1], target_state[1], color='g', marker='x', s=50.0, linewidths=6, label='Target')
+    ax2.scatter(time_span[0], init_state[1], color='r', marker='x', s=50.0, linewidths=6, label='Start')
+
+    # ----------- Plot the reference -----------
+    for i in range(nt):
+        ax1.scatter(time_span[i], states[i][0], s=0.8, color='k')
+        ax2.scatter(time_span[i], states[i][1], s=0.8, color='k')
+    # ax1.plot(time_span, states[:,0],'k',label='iLQR-deterministic')
+    # ax2.plot(time_span, states[:,1],'k',label='iLQR-deterministic')
+
+    ax1.set_xlabel(r"Time")
+    ax1.set_ylabel(r"$z$")
+    ax1.set_title("Bouncing Ball Vertical Position")
+
+    ax2.set_xlabel(r"Time")
+    ax2.set_ylabel(r"$\dot z$")
+    ax2.set_title("Bouncing Ball Vertical Velocity")
+
+    ax1.legend()
+    ax2.legend()
+
+    # =========== Plot the z-\dot_z figure ===========
+    fig2, ax5 = plt.subplots()
+    ax5.grid(True)
+
+    # ----------- Plot the last iteration of iLQR controller ----------
+    for i in range(nt):
+        ax5.scatter(states[i][0], states[i][1], s=0.8, color='k')
+    # ax5.plot(states[:,0], states[:,1],'k',label='iLQR-reference')
+
+    # ----------- Plot the start and goal states -----------
+    ax5.scatter(target_state[0], target_state[1], color='g', marker='x', s=50.0, linewidths=6, label='Target')
+    ax5.scatter(init_state[0], init_state[1], color='r', marker='x', s=50.0, linewidths=6, label='Start')
+
+    ax5.legend()
+    
+    plt.show()
 
 
 if __name__ == '__main__':

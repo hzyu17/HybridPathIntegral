@@ -9,7 +9,7 @@ root_dir = os.path.abspath(os.path.join(current_dir, '..'))
 
 sys.path.append(root_dir)
 
-from dynamics.bouncing_guard_reset import *
+from dynamics.guard_reset_bouncing import *
 from simulation.propagate_covariance import *
 
 

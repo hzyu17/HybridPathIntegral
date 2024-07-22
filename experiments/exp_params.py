@@ -2,6 +2,8 @@ import pickle as pkl
 
 class ExpParams():
     def __init__(self):
+        self._current_mode = None
+        self._nstates = []
         self._init_state = []
         self._target_state = []
         self._start_time = []
@@ -16,8 +18,15 @@ class ExpParams():
         self._Q_T = []
         self._symbolic_dyn = None
         self._detection_func = None
+        self._nmodes = None
         
-    def update_params(self, init_state, target_state, start_time, end_time, dt, initial_guess, epsilon, n_exp, n_samples, Q_k, R_k, Q_T, symbolic_dyn, detection_func):
+    def update_params(self, nmodes, init_mode, target_mode, n_states, init_state, target_state, 
+                      start_time, end_time, dt, initial_guess, epsilon, 
+                      n_exp, n_samples, Q_k, R_k, Q_T, symbolic_dyn, detection_func, plotting_func, state_convert_func):
+        self._nmodes = nmodes
+        self._nstates = n_states
+        self._current_mode = init_mode
+        self._target_mode = target_mode
         self._init_state = init_state
         self._target_state = target_state
         self._start_time = start_time
@@ -32,12 +41,26 @@ class ExpParams():
         self._Q_T = Q_T
         self._symbolic_dyn = symbolic_dyn
         self._detection_func = detection_func
+        self._plotting_func = plotting_func
+        self.state_converters_ = state_convert_func
+        
+    def nmodes(self):
+        return self._nmodes
+    
+    def current_mode(self):
+        return self._current_mode
         
     def symbolic_dynamics(self):
         return self._symbolic_dyn
     
     def detection_func(self):
         return self._detection_func
+    
+    def plotting_function(self):
+        return self._plotting_func
+    
+    def state_convert_function(self):
+        return self.state_converters_
 
 class ExpData():
     def __init__(self, params):

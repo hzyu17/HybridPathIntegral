@@ -8,7 +8,7 @@ root_dir = os.path.abspath(os.path.join(current_dir, '..'))
 
 sys.path.append(root_dir)
 
-from saltation_matrix.saltation_matrix import *
+from hybrid_ilqr.saltation_matrix import *
 import numpy as np
 
 import sympy as sp

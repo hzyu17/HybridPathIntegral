@@ -5,7 +5,7 @@ current_dir = os.path.dirname(file_path)
 root_dir = os.path.abspath(os.path.join(current_dir, '..'))
 sys.path.append(root_dir)
 
-from dynamics.bouncing_guard_reset import *
+from dynamics.dynamics_bouncing import *
 
 # numpy
 import sympy as sp
@@ -24,27 +24,14 @@ os.environ['CUDA_VISIBLE_DEVICES'] = "0"
 print("Devices:", jax.devices())
 print("jax.default_backend()", jax.default_backend())
 
-def dyn_bouncing(t, x, *args):
-    """
-    Args:
-        t (_type_): time variable
-        x (_type_): state
-        args[0]: control input
-    """
-   
-    if len(args) == 0:
-        u = np.array([0.0])
-    else:
-        u = args[0]
-    return np.array([x[1], u[0]-g])
 
-def dyn_bouncing_euler(x, u):
-    return jnp.array([x[1], u[0]-9.81], dtype=jnp.float64)
+# def dyn_bouncing_euler(x, u):
+#     return jnp.array([x[1], u[0]-9.81], dtype=jnp.float64)
 
 
-def gdWt_bouncing(dWt, eps):
-    B = np.array([[0],[1.0]], dtype=np.float64)
-    return np.sqrt(eps) * B@dWt
+# def gdWt_bouncing(dWt, eps):
+#     B = np.array([[0],[1.0]], dtype=np.float64)
+#     return np.sqrt(eps) * B@dWt
     
 def stochastic_integration_euler(x0, u, dt, eps, dW):
     B = jnp.array([[0],[1.0]], dtype=jnp.float64)
@@ -74,29 +61,6 @@ def update_u0_pathintegral_jax(u0, PathCosts, GaussianNoise, epsilon, delta_t):
     U_update_jax = jnp.sqrt(epsilon/delta_t) * U_update_jax / sum_expPathCosts 
     
     return u0 + U_update_jax, weights
-
-
-def symbolic_dynamics_bouncing():
-    g = 9.81
-    z,z_dot,u,dt = sp.symbols('z z_dot u dt')
-
-    # Define the states and inputs
-    inputs = Matrix([u])
-    states = Matrix([z, z_dot])
-    # Defining the dynamics of the system
-    f = Matrix([z_dot, u-g])
-
-    # Discretize the dynamics usp.sing euler integration
-    f_disc = states+f*dt
-    
-    # Take the jacobian with respect to states and inputs
-    A_disc = f_disc.jacobian(states)
-    B_disc = f_disc.jacobian(inputs)
-
-    f_disc_func = sp.lambdify((states,inputs,dt),f_disc)
-    A_disc_func = sp.lambdify((states,inputs,dt),A_disc)
-    B_disc_func = sp.lambdify((states,inputs,dt),B_disc)
-    return (f_disc_func,A_disc_func,B_disc_func)
 
 # ------------------------------------- terminal loss ------------------------------------- 
 from functools import partial

@@ -15,7 +15,7 @@ import jax.numpy as jnp
 from dynamics.integration_hybrid_jax import roullout_bouncing_jax, hybrid_integration, update_u0_pathintegral_jax
 # from dynamics.integration_hybrid_jax import *
 # Import iLQR class
-from hybrid_ilqr.hybrid_ilqr import solve_ilqr
+from hybrid_ilqr.h_ilqr import solve_ilqr
 # Import Riccati class
 from hybrid_ilqr.hybrid_riccati import *
 # Importing path integral control
