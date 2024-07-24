@@ -22,7 +22,9 @@ class ExpParams():
         
     def update_params(self, nmodes, init_mode, target_mode, n_states, init_state, target_state, 
                       start_time, end_time, dt, initial_guess, epsilon, 
-                      n_exp, n_samples, Q_k, R_k, Q_T, symbolic_dyn, detection_func, plotting_func, state_convert_func):
+                      n_exp, n_samples, Q_k, R_k, Q_T, 
+                      symbolic_dyn, detection_func, plotting_func, state_convert_func, 
+                      init_reset_args, target_reset_args):
         self._nmodes = nmodes
         self._nstates = n_states
         self._current_mode = init_mode
@@ -43,6 +45,8 @@ class ExpParams():
         self._detection_func = detection_func
         self._plotting_func = plotting_func
         self.state_converters_ = state_convert_func
+        self._init_reset_args = init_reset_args
+        self._target_reset_args = target_reset_args
         
     def nmodes(self):
         return self._nmodes

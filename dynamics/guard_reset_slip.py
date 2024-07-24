@@ -34,39 +34,43 @@ def mode_change_maps(current_mode):
 # xf: [x, x_dot, z, z_dot, theta]
 # guard_12 = z - r0*sin(theta) = 0
 def guard_slip_12(t, x):
-    r0 = 1    
+    r0 = 1
     return  r0*jnp.sin(x[4]) - x[2]
 guard_slip_12_jit = jax.jit(guard_slip_12)
 
 # reset map from flight mode to stance mode
-def reset_map_slip_12(t, x_event, current_mode):
+def reset_map_slip_12(t, x_event, current_mode, args_reset):
     # x_event: [x, x_dot, z, z_dot, theta]
+    
+    r0 = 1
     new_mode = current_mode
     x, xdot, z, zdot, theta = x_event
-    theta_dot = 0
+    
     x_reset = x_event
-    r0 = 1
     args = (x_event, current_mode)
     
     stance_cond = jax.numpy.logical_and(z-r0*jnp.sin(theta) < 0, current_mode==0)
     
     def stance_true_fun(args):
-        x_event, current_mode = args
-        r = z*jnp.sin(theta)
+        r = r0
         r_dot = -xdot*jnp.cos(theta) + zdot*jnp.sin(theta)
+        # theta_dot = -(xdot * jnp.cos(theta) + zdot * jnp.sin(theta)) / r0
+        theta_dot = (x*zdot - z*xdot) / r / r
         x_reset = jnp.array([theta, theta_dot, r, r_dot])
-        return x_reset
+        return x_reset # We need to record the position x at the impact time
     
     def stance_false_fun(args):
         r = r0
         r_dot = -xdot*jnp.cos(theta) + zdot*jnp.sin(theta)
+        theta_dot = (x*zdot - z*xdot) / r / r
+        # theta_dot = -(xdot * jnp.cos(theta) + zdot * jnp.sin(theta)) / r0
         x_reset = jnp.array([theta, theta_dot, r, r_dot])
         return x_reset
     
     args = (x_event, current_mode)
     x_reset = jax.lax.cond(stance_cond, stance_true_fun, stance_false_fun, args)
     
-    return x_reset, 1
+    return x_reset, 1, (x_event[0], )
 
 resetmap_slip_jit = jax.jit(reset_map_slip_12)
 
@@ -86,57 +90,32 @@ def reset_control_slip_12(t, u_minus):
     return np.zeros(2)
     
 # reset map from stance mode to flight mode
-def reset_map_slip_21(t, x_event, current_mode):
+def reset_map_slip_21(t, x_event, current_mode, args_reset):
+    xp = args_reset[0]
+    # xp = 0.0
     r0 = 1
-    x_reset = x_event
-    new_mode = current_mode
+    # x_reset = x_event
     theta, theta_dot, r, r_dot = x_event
     
-    # TODO: add pxs as a constant
-    
-    # takeoff_cond = jax.numpy.logical_and(r>r0, current_mode==1)
-    # def takeoff_true_fun(args):
-    #     px_reset = r0*jnp.cos(theta)
-    #     vx_reset = r_dot*jnp.cos(theta) - r*theta_dot*jnp.sin(theta)
-    #     pz_reset = r0*jnp.sin(theta)
-    #     vz_reset = r0*theta_dot*jnp.cos(theta) + r_dot*jnp.sin(theta)
-    #     theta_reset = theta
-        
-    #     x_reset = jnp.array([px_reset, vx_reset, pz_reset, vz_reset, theta_reset])
-    #     return x_reset
-    
-    # def takeoff_false_fun(args):
-    #     px_reset = r0*jnp.cos(theta)
-    #     vx_reset = r_dot*jnp.cos(theta) - r*theta_dot*jnp.sin(theta)
-    #     pz_reset = r0*jnp.sin(theta)
-    #     vz_reset = r0*theta_dot*jnp.cos(theta) + r_dot*jnp.sin(theta)
-    #     theat_reset = theta
-        
-    #     x_reset = jnp.array([px_reset, vx_reset, pz_reset, vz_reset, theat_reset])
-    #     return x_reset
-    
-    # args = (x_event, current_mode)
-    # x_reset = jax.lax.cond(takeoff_cond, takeoff_true_fun, takeoff_false_fun, args)
-    
-    px_reset = r0*jnp.cos(theta)
+    px_reset = xp + r0*jnp.cos(theta)
     vx_reset = r_dot*jnp.cos(theta) - r*theta_dot*jnp.sin(theta)
     pz_reset = r0*jnp.sin(theta)
     vz_reset = r0*theta_dot*jnp.cos(theta) + r_dot*jnp.sin(theta)
     theta_reset = theta
 
     x_reset = jnp.array([px_reset, vx_reset, pz_reset, vz_reset, theta_reset])
-        
-    return x_reset, 0
+    
+    return x_reset, 0, (None, )
 
 
 # Define derivatives
-Rt_slip_12 = jax.jit(jacfwd(lambda t, x, current_mode: reset_map_slip_12(t, x, current_mode), 0))
+Rt_slip_12 = jax.jit(jacfwd(lambda t, x, current_mode, args: reset_map_slip_12(t, x, current_mode, args), 0))
 
-Rx_slip_12 = jax.jit(jacfwd(lambda t, x, current_mode: reset_map_slip_12(t, x, current_mode), 1))
+Rx_slip_12 = jax.jit(jacfwd(lambda t, x, current_mode, args: reset_map_slip_12(t, x, current_mode, args), 1))
 
-Rt_slip_21 = jax.jit(jacfwd(lambda t, x, current_mode: reset_map_slip_21(t, x, current_mode), 0))
+Rt_slip_21 = jax.jit(jacfwd(lambda t, x, current_mode, args: reset_map_slip_21(t, x, current_mode, args), 0))
 
-Rx_slip_21 = jax.jit(jacfwd(lambda t, x, current_mode: reset_map_slip_21(t, x, current_mode), 1))
+Rx_slip_21 = jax.jit(jacfwd(lambda t, x, current_mode, args: reset_map_slip_21(t, x, current_mode, args), 1))
 
 gt_slip_12 = jax.jit(grad(lambda t, x: guard_slip_12(t, x), 0))
     

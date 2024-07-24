@@ -130,7 +130,7 @@ def symbolic_flight_dynamics_slip():
 # ---------------------------
 def symbolic_stance_dynamics_slip_continuoustimes():
     g = 9.81
-    k = 10.0
+    k = 15.0
     m = 0.2
     r0 = 1
     theta,theta_dot,r,r_dot,u1,u2 = sp.symbols('theta theta_dot r r_dot u1 u2')
@@ -180,7 +180,7 @@ def dyn_stance_slip(t, x, *args):
 # ---------------------------
 def symbolic_stance_dynamics_slip():
     g = 9.81
-    k = 10.0
+    k = 15.0
     m = 0.2
     r0 = 1
     theta,theta_dot,r,r_dot,u1,u2,dt = sp.symbols('theta theta_dot r r_dot u1 u2 dt')
@@ -229,24 +229,22 @@ def convert_state_21_slip(state_2, foot_contact_pos=0.0):
     if polar_traj.ndim == 1:
         polar_traj = np.expand_dims(polar_traj, axis=1)
 
-    theta = polar_traj[0]
-    theta_dot = polar_traj[1]
-    r = polar_traj[2]
-    r_dot = polar_traj[3]
+    theta, theta_dot, r, r_dot = polar_traj[0], polar_traj[1], polar_traj[2], polar_traj[3]
 
     x = np.cos(theta) * r
-    x_dot = -np.sin(theta) * theta_dot * r + np.cos(theta) * r_dot
+    x_dot = -r * theta_dot * np.sin(theta) + np.cos(theta) * r_dot
     z = np.sin(theta) * r
     z_dot = np.cos(theta) * theta_dot * r + np.sin(theta) * r_dot
 
     # Center x dimension
+    # print("foot_contact_pos: ", foot_contact_pos)
     x += foot_contact_pos
 
     cartesian_state = np.array([x, x_dot, z, z_dot, theta])
     return cartesian_state
 
 
-def detect_slip(x0, u, t0, tf, current_mode, detection=True, backwards=False):
+def detect_slip(x0, u, t0, tf, current_mode, reset_args, detection=True, backwards=False):
     """Integrate controlled dynamics in a short period of time with hybrid event detection.
 
     Args:
@@ -255,6 +253,7 @@ def detect_slip(x0, u, t0, tf, current_mode, detection=True, backwards=False):
         t0 (scalar): start time
         tf (scalar): end time
         current_mode (int): the current mode
+        reset_args (tuple): the arguments used in the reset map function
         detection (bool, optional): With detection flag. Defaults to True.
         backwards (bool, optional): Integrate backwards flag. Defaults to False.
 
@@ -311,6 +310,7 @@ def detect_slip(x0, u, t0, tf, current_mode, detection=True, backwards=False):
     x_reset = None
     saltation = None
     next_mode = current_mode
+    reset_byproducts = (None, )
     
     u_reset = u
     
@@ -325,18 +325,13 @@ def detect_slip(x0, u, t0, tf, current_mode, detection=True, backwards=False):
                         
             t_event = solution.t_events[0][0]
             x_event = solution.y_events[0][0]
-            x_reset, next_mode = current_resetmap(t_event, x_event, current_mode)
             
-            print(f"guard function [{current_mode}, {next_mode}] hit")
+            # if current_mode == 0:
+            #     reset_args = (np.array([0.0]), )
             
-            # print("t_event")
-            # print(t_event)
+            x_reset, next_mode, reset_byproducts = current_resetmap(t_event, x_event, current_mode, reset_args)
             
-            # print("current_mode")
-            # print(current_mode)
-            
-            # print("next_mode")
-            # print(next_mode)
+            print(f"Guard function from mode {current_mode} to mode {next_mode} was hit during the integration!")
             
             u_reset = current_resetcontrl(t_event, u)
             x0 = x_reset
@@ -346,21 +341,9 @@ def detect_slip(x0, u, t0, tf, current_mode, detection=True, backwards=False):
             args_next = (u_reset, )
             next_dyn_fun=lambda t, y: next_dynamics(t, y, *args_next)
             
-            # print("xevent")
-            # print(x_event)
-            
-            # print("x_reset")
-            # print(x_reset)
-            
-            # print("current u")
-            # print(u)
-            
-            # print("u_reset")
-            # print(u_reset)
-            
             # ---------- Compute saltation matrix ---------- 
-            R_x = current_Rx(t_event, x_event, current_mode)[0]
-            R_t = current_Rt(t_event, x_event, current_mode)[0]
+            R_x = current_Rx(t_event, x_event, current_mode, reset_args)[0]
+            R_t = current_Rt(t_event, x_event, current_mode, reset_args)[0]
             g_x = current_gx(t_event, x_event)
             g_t = current_gt(t_event, x_event)
             F_1 = current_dynamics(t_event, x_event)
@@ -376,9 +359,7 @@ def detect_slip(x0, u, t0, tf, current_mode, detection=True, backwards=False):
             solution = scipy.integrate.solve_ivp(fun=next_dyn_fun, 
                                                  t_span=t_span_reset, y0=x_reset, method='RK45', 
                                                  t_eval=t_eval_reset, dense_output=True)
-            # print("finished integrate reset x until t=tf")
-        # Had no contact
-        else:
+        else: # Had no contact
             x0 = None
             
     else: # Do not detect contact 
@@ -393,17 +374,12 @@ def detect_slip(x0, u, t0, tf, current_mode, detection=True, backwards=False):
     f_disc = solution.sol(t) 
         
     x_next = f_disc[:, -1]
-    
-    # if next_mode == 1:
-    #     x_next_pad = np.zeros(5)
-    #     x_next_pad[0:4] = x_next
-    #     x_next = x_next_pad
-    
+
     mode_mapping = np.array([current_mode, next_mode])
     
-    return x_next, saltation, mode_mapping, t_event, x_event, x_reset
+    return x_next, saltation, mode_mapping, t_event, x_event, x_reset, reset_byproducts
 
-def plot_slip(time_span, modes, states, inputs, init_state, target_state, nt):
+def plot_slip(time_span, modes, states, inputs, init_state, target_state, nt, stance_xp):
     print("Plotting SLIP state and input trajectory")
     # =============== plotting ===============
     fig1, axes = plt.subplots(2, 7, figsize=(15, 10))
@@ -425,6 +401,9 @@ def plot_slip(time_span, modes, states, inputs, init_state, target_state, nt):
     ax27.grid(True)
 
     # ----------- Plot the start and goal states -----------
+    if (modes[0] == 1):
+        init_state = convert_state_21_slip(init_state, np.array([0.0]))
+        
     ax12.scatter(time_span[-1], target_state[0], color='g', marker='x', s=50.0, linewidths=6, label='Target')
     ax12.scatter(time_span[0], init_state[0], color='r', marker='x', s=50.0, linewidths=6, label='Start')
 
@@ -464,7 +443,7 @@ def plot_slip(time_span, modes, states, inputs, init_state, target_state, nt):
             ax26.scatter(time_span[i], inputs[modes[i]][i][1], s=0.8, color='r')
             
             # Plot the converted state in mode 0
-            equivalent_state = convert_state_21_slip(states[i])
+            equivalent_state = convert_state_21_slip(states[i], stance_xp[i][0])
             
             ax11.scatter(time_span[i], modes[i], s=0.8, color='k')   
             ax12.scatter(time_span[i], equivalent_state[0], s=0.8, color='k')
@@ -539,5 +518,101 @@ def plot_slip(time_span, modes, states, inputs, init_state, target_state, nt):
     # ax24.legend()
     # ax25.legend()
     ax26.legend()
+    
+    plt.tight_layout()
 
+    plt.show()
+    
+
+def plot_slip_flight_animate(state_flight, r0, ax=None, spring_color='c-'):
+    if ax is None:
+        fig, ax = plt.subplots()
+        ax.grid(True)
+
+    # Parameters
+    x, _, z, _, theta = state_flight[0], state_flight[1], state_flight[2], state_flight[3], state_flight[4]
+    
+    spring_coils = 15
+    spring_amplitude = 0.02
+    ball_radius = 0.02
+    theta_spring = np.pi / 2 - theta
+    
+    # Generate spring data
+    t = np.linspace(0, 2 * np.pi * spring_coils, 1000)
+    x_spring = spring_amplitude * np.sin(t)
+    y_spring = np.linspace(0, r0, 1000)
+    x_spring_rot = x_spring * np.cos(theta_spring) + y_spring * np.sin(theta_spring)
+    z_spring_rot = -x_spring * np.sin(theta_spring) + y_spring * np.cos(theta_spring)
+
+    x_spring_rot = x_spring_rot + x - r0*np.cos(theta)
+    z_spring_rot = z_spring_rot + z - r0*np.sin(theta)
+    
+    # Plot the spring
+    ax.plot(x_spring_rot, z_spring_rot, spring_color, lw=2)
+
+    # Calculate spring end position
+    spring_end_x = x
+    spring_end_z = z
+    
+    ball_x = x 
+    ball_y = z 
+    
+    ball = plt.Circle((ball_x, ball_y), ball_radius, color='k')
+    ax.add_patch(ball)
+    
+    colors = ['r', 'g', 'b', 'c']
+    labels = ['Start', 'Goal', 'Stance', 'Flight']
+    proxy_artists = [plt.Line2D([0], [0], color=color, lw=2) for color in colors]
+    ax.legend(proxy_artists, labels)
+    
+    plt.tight_layout()
+    
+
+def plot_slip_stance_animate(state_stance, xp, ax=None, spring_color='b-'):
+    if ax is None:
+        fig, ax = plt.subplots()
+        ax.grid(True)
+
+    # Parameters
+    theta, theta_dot, r, rdot = state_stance[0], state_stance[1], state_stance[2], state_stance[3]
+    
+    spring_coils = 15
+    spring_amplitude = 0.02
+    ball_radius = 0.02
+    theta_spring = np.pi / 2 - theta
+    
+    # Generate spring data
+    t = np.linspace(0, 2 * np.pi * spring_coils, 1000)
+    x_spring = spring_amplitude * np.sin(t)
+    y_spring = np.linspace(0, r, 1000)
+    x_spring_rot = x_spring * np.cos(theta_spring) + y_spring * np.sin(theta_spring)
+    z_spring_rot = -x_spring * np.sin(theta_spring) + y_spring * np.cos(theta_spring)
+
+    x_spring_rot = x_spring_rot + xp
+    
+    # Plot the spring
+    ax.plot(x_spring_rot, z_spring_rot, spring_color, lw=2)
+
+    # Calculate spring end position
+    spring_end_x = xp + r * np.cos(theta)
+    spring_end_z = r * np.sin(theta)
+    
+    ball_x = spring_end_x
+    ball_y = spring_end_z
+    
+    ball = plt.Circle((ball_x, ball_y), ball_radius, color='k')
+    ax.add_patch(ball)
+    
+    plt.tight_layout()
+
+    
+if __name__ == '__main__':
+    r0 = 1.0
+    xp = 1.0
+    stance_state = np.array([np.pi/4, 0.0, 0.9*r0, 0.0], dtype=np.float64)
+    plot_slip_stance_animate(stance_state, xp)
+    
+    flight_state = np.array([3.0, 0.0, 3.0, 0.0, np.pi/3], dtype=np.float64)
+    plot_slip_flight_animate(flight_state, r0)
+    
     plt.show()

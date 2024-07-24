@@ -70,6 +70,8 @@ if __name__ == '__main__':
 
     n_exp = 1
     n_samples = 10
+    
+    init_reset_args = [None for _ in range(nt)]
 
     # ====================================
     # solve for hybrid ilqr proposal
@@ -83,12 +85,13 @@ if __name__ == '__main__':
     exp_params.update_params(n_modes, init_mode, target_mode, n_states, init_state, target_state, 
                              start_time, end_time, dt, initial_guess, 
                              epsilon, n_exp, n_samples, 
-                             Q_k, R_k, Q_T, flow_dynamics, detect_bouncing,plot_bouncingball, convert_state_21_bouncing)
+                             Q_k, R_k, Q_T, flow_dynamics, 
+                             detect_bouncing,plot_bouncingball, convert_state_21_bouncing, init_reset_args)
     exp_data = ExpData(exp_params)
     
     hybrid_ilqr_result = solve_ilqr(exp_params, detect=True)
     
-    (modes,states,inputs,k_feedforward,K_feedback,current_cost,states_iter,modechanges,mode_exttrjs_maps) = hybrid_ilqr_result
+    (modes,states,inputs,k_feedforward,K_feedback,current_cost,states_iter,modechanges,mode_exttrjs_maps, _) = hybrid_ilqr_result
     
     exp_data.add_nominal_data((states,inputs,k_feedforward,K_feedback,current_cost,states_iter))
 

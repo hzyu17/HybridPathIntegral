@@ -410,7 +410,7 @@ def rollout_bouncing_stochastic(x0, ut, t0, tf, epsilon, GaussianNoise):
     return xt_trj
     
     
-def detect_bouncing(x0, u, t0, tf, current_mode, detection=True, backwards=False):
+def detect_bouncing(x0, u, t0, tf, current_mode, reset_args, detection=True, backwards=False):
     """Integrate controlled dynamics in a short period of time with hybrid event detection.
 
     Args:
@@ -476,6 +476,7 @@ def detect_bouncing(x0, u, t0, tf, current_mode, detection=True, backwards=False
     x_reset = None
     saltation = None
     next_mode = current_mode
+    reset_byproduct = (None, )
     
     if detection:
         solution = scipy.integrate.solve_ivp(fun=dyn_fun, 
@@ -487,13 +488,13 @@ def detect_bouncing(x0, u, t0, tf, current_mode, detection=True, backwards=False
         if len(solution.t_events[0]) > 0:
             t_event = solution.t_events[0][0]
             x_event = solution.y_events[0][0]
-            x_reset, next_mode = current_resetmap(t_event, x_event, current_mode)
+            x_reset, next_mode, reset_byproduct = current_resetmap(t_event, x_event, current_mode, reset_args)
             u_reset = current_resetcontrl(t_event, u)
             x0 = x_reset
             
             # ---------- Compute saltation matrix ---------- 
-            R_x = current_Rx(t_event, x_event, current_mode)[0]
-            R_t = current_Rt(t_event, x_event, current_mode)[0]
+            R_x = current_Rx(t_event, x_event, current_mode, reset_args)[0]
+            R_t = current_Rt(t_event, x_event, current_mode, reset_args)[0]
             
             g_x = current_gx(t_event, x_event)
             g_t = current_gt(t_event, x_event)
@@ -536,14 +537,14 @@ def detect_bouncing(x0, u, t0, tf, current_mode, detection=True, backwards=False
     
     mode_mapping = np.array([current_mode, next_mode])
     
-    return x_next, saltation, mode_mapping, t_event, x_event, x_reset
+    return x_next, saltation, mode_mapping, t_event, x_event, x_reset, reset_byproduct
 
 
 def convert_state_21_bouncing(state_2):
     return state_2
 
 
-def plot_bouncingball(time_span, modes, states, inputs, init_state, target_state, nt):
+def plot_bouncingball(time_span, modes, states, inputs, init_state, target_state, nt, args=None):
     print("Plotting bouncing ball results")
     # =============== plotting ===============
     fig1, axes = plt.subplots(1, 2)
