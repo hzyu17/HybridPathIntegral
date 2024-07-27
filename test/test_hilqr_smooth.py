@@ -11,9 +11,9 @@ root_dir = os.path.abspath(os.path.join(current_dir, '..'))
 sys.path.append(root_dir)
 
 # Import pendulum dynamics
-from dynamics.integration_hybrid import *
+from dynamics.dynamics_bouncing import *
 # Import iLQR class
-from hybrid_ilqr.hybrid_ilqr import solve_ilqr
+from hybrid_ilqr.h_ilqr import solve_ilqr
 # Importing path integral control
 from hybrid_pathintegral.hybrid_pathintegral import *
 # Import experiment parameter class

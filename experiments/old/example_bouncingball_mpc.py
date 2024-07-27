@@ -10,11 +10,11 @@ sys.path.append(root_dir)
 # Import Path Integral Control functions
 from example_bouncingball import process_sampling_feedback, process_compute_costs
 # Import iLQR class
-from hybrid_ilqr import hybrid_ilqr
+from hybrid_ilqr import h_ilqr
 # Importing path integral control
 from hybrid_pathintegral.hybrid_pathintegral import update_control_pathintegral
 # Import pendulum dynamics
-from dynamics.integration_hybrid import *
+from dynamics.dynamics_bouncing import *
 # Import plotting
 import matplotlib.pyplot as plt
 
@@ -100,7 +100,7 @@ parameters = np.array([mass,gravity])
 n_iterations = 10
 
 # Initialize hybrid ilqr object
-ilqr_ = hybrid_ilqr(init_state,target_state,initial_guess,dt,start_time,end_time,detect_bouncing,f,A,B,Q_k,R_k,Q_T,parameters,n_iterations)
+ilqr_ = h_ilqr(init_state,target_state,initial_guess,dt,start_time,end_time,detect_bouncing,f,A,B,Q_k,R_k,Q_T,parameters,n_iterations)
 
 # Solve for swing up
 (states,inputs,k_feedforward,K_feedback,current_cost,states_iter) = ilqr_.solve()

@@ -5,7 +5,7 @@ current_dir = os.path.dirname(file_path)
 root_dir = os.path.abspath(os.path.join(current_dir, '..'))
 sys.path.append(root_dir)
 
-from dynamics.bouncing_guard_reset import *
+from dynamics.guard_reset_bouncing import *
 
 # numpy and scipy
 import scipy
@@ -17,6 +17,32 @@ import jax.numpy as jnp
 
 # plotting
 import matplotlib.pyplot as plt
+
+
+def gdWt_bouncing(dWt, eps):
+    B = np.array([[0],[1.0]], dtype=np.float64)
+    return np.sqrt(eps) * B@dWt
+    
+    
+def symbolic_dynamics_bouncing_continuoustime():
+    g = 9.81
+    z,z_dot,u = sp.symbols('z z_dot u')
+
+    # Define the states and inputs
+    inputs = Matrix([u])
+    states = Matrix([z, z_dot])
+    # Defining the dynamics of the system
+    f_contin = Matrix([z_dot, u-g])    
+    A_contin = f_contin.jacobian(states)
+    B_contin = f_contin.jacobian(inputs)
+    
+    f_contin_func = sp.lambdify((states,inputs),f_contin)
+    A_contin_func = sp.lambdify((states,inputs),A_contin)
+    B_contin_func = sp.lambdify((states,inputs),B_contin)
+    
+    return (f_contin_func, A_contin_func, B_contin_func)
+
+f_cont_func, _, _ = symbolic_dynamics_bouncing_continuoustime()
 
 
 def dyn_bouncing(t, x, *args):
@@ -31,31 +57,8 @@ def dyn_bouncing(t, x, *args):
         u = np.array([0.0])
     else:
         u = args[0]
-    return np.array([x[1], u[0]-g])
-
-
-def gdWt_bouncing(dWt, eps):
-    B = np.array([[0],[1.0]], dtype=np.float64)
-    return np.sqrt(eps) * B@dWt
-    
-    
-def symbolic_dynamics_bouncing_continuoustime():
-    g = 9.81
-    z,z_dot,u,dt = sp.symbols('z z_dot u dt')
-
-    # Define the states and inputs
-    inputs = Matrix([u])
-    states = Matrix([z, z_dot])
-    # Defining the dynamics of the system
-    f_contin = Matrix([z_dot, u-g])
-    
-    A_contin = f_contin.jacobian(states)
-    B_contin = f_contin.jacobian(inputs)
-
-    A_contin_func = sp.lambdify((states,inputs),A_contin)
-    B_contin_func = sp.lambdify((states,inputs),B_contin)
-    
-    return (f_contin,A_contin_func,B_contin_func)
+        
+    return f_cont_func(x, u).flatten()
 
 
 def symbolic_dynamics_bouncing():
@@ -165,10 +168,6 @@ def stochastic_integration(x0, u, t_span, epsilon, dW):
     return xt_next
 
 
-# def rollout_bouncing_feedback(x0, cur_mode_change, xt_ref, ref_modechanges, 
-#                                          ut, Kt, kt, target_state, R_k, Q_T, t0, tf, 
-#                                          epsilon, GaussianNoise, dt_shrinkingrate, mode_exttrjs_maps=None):
-
 def rollout_bouncing_feedback(x0, cur_mode_change, xt_ref, ref_modechanges, 
                                 ut, Kt, kt, target_state, Q_T, t0, tf, 
                                 epsilon, GaussianNoise, dt_shrinkingrate, 
@@ -196,8 +195,8 @@ def rollout_bouncing_feedback(x0, cur_mode_change, xt_ref, ref_modechanges,
     guard_bouncing_21.terminal=True
     guard_bouncing_21.direction=1
     
-    guards = {1:guard_bouncing_12, 2: guard_bouncing_21}
-    reset_maps = {1:reset_map_bouncing_12, 2:reset_map_bouncing_21}
+    guards = {0:guard_bouncing_12, 2: guard_bouncing_21}
+    reset_maps = {0:reset_map_bouncing_12, 2:reset_map_bouncing_21}
     
     current_mode = cur_mode_change[0]
     
@@ -335,79 +334,6 @@ def process_sampling_feedback(sample_i, init_state, current_modechange, xt_ref, 
                                                                     start_time, end_time, 
                                                                     epsilon, RandN[sample_index], dt_shrinkingrate, mode_exttrjs_maps)
     return sample_i, ut_cl_i, Su_i, ref_trj_i, sample_index
-
-
-def rollout_bouncing_stochastic(x0, ut, t0, tf, epsilon, GaussianNoise):
-
-    nt, nu = ut.shape
-    nx = len(x0)
-    
-    dt = (tf - t0) / (nt-1.0)
-    # Define the time span and discretizations
-    t_eval = np.linspace(t0, tf, nt)
-    
-    # Integration of the stochastic system
-    xt = x0
-    
-    # returning trajectory
-    xt_trj = np.zeros((nt, nx), dtype=np.float64)
-    xt_trj[0] = xt
-    
-    # guard_thres = 1e-4
-    dt_shrinkingrate = 0.3
-    dt_int = dt
-    
-    for i in range(nt-1):
-        u = ut[i]
-        u_next = ut[i+1]
-        args = (u, )
-        
-        # One step integration
-        t = t_eval[i]
-        t_next = t_eval[i+1]
-        
-        dW = np.sqrt(dt_int)*GaussianNoise[i]
-        # ---- solver for the deterministic part
-        t_plus = t + dt_int
-        t_span = (t, t_plus)
-        t_eval = np.linspace(t, t_plus, nt)
-        
-        xt_next = stochastic_integration(xt, u, t_span, t_eval, epsilon, dW, nt)
-        # /---- solver for the deterministic part
-        
-        # Guard condition: direction is -1     
-        if (guard_bouncing(t, xt)>0) and (guard_bouncing(t_plus, xt_next)<=0): # Hit the guard function.
-            xt_swch = xt_next
-            
-            # Sandwich rule to find finer grind 
-            cnt = 0
-            while (True):
-                cnt += 1
-                xt_last = xt_swch
-                
-                # Too far from the guard, shrink the step size.
-                dt_int = dt_int * dt_shrinkingrate
-                dW = np.sqrt(dt_int)*GaussianNoise[i]
-                
-                # ---- solver for the deterministic part
-                t_span = (t, t_next)
-                t_eval = np.linspace(t, t_next, nt)
-                
-                xt_swch = stochastic_integration(xt, u, t_span, t_eval, epsilon, dW, nt)
-
-                # /---- solver for the deterministic part
-                
-                if (guard_bouncing(t, xt_swch)>0) or (cnt==10): # Until the guard condition is no longer met.
-                    # The reset map is called on the last integration for which the guard is not met.
-                    # print("xt ", xt)
-                    # print("xt_last ", xt_last)
-                    xt_next = reset_map_bouncing(t, xt_last)
-                    dt_int = dt
-                    break
-        xt = xt_next
-        xt_trj[i+1] = xt
-    
-    return xt_trj
     
     
 def detect_bouncing(x0, u, t0, tf, current_mode, detection=True, backwards=False):
@@ -434,10 +360,30 @@ def detect_bouncing(x0, u, t0, tf, current_mode, detection=True, backwards=False
     guard_bouncing_21.terminal=True
     guard_bouncing_21.direction=1
     
-    guards = {1:guard_bouncing_12, 2: guard_bouncing_21}
-    reset_maps = {1:reset_map_bouncing_12, 2:reset_map_bouncing_21}
+    guards = {0:guard_bouncing_12, 1: guard_bouncing_21}
+    reset_maps = {0:reset_map_bouncing_12, 1:reset_map_bouncing_21}
+    
+    Rxs = {0:Rx_bouncing_12, 1:Rx_bouncing_21}
+    Rts = {0:Rt_bouncing_12, 1:Rt_bouncing_21}
+    
+    gxs = {0:gx_bouncing_12, 1:gx_bouncing_21}
+    gts = {0:gt_bouncing_12, 1:gt_bouncing_21}
+    
+    smooth_dynamics = {0:dyn_bouncing, 1:dyn_bouncing}
+    
+    next_mode = mode_change_maps(current_mode)
+    
+    current_dynamics = smooth_dynamics[current_mode]
+    next_dynamics = smooth_dynamics[next_mode]
+    
     current_guard = guards[current_mode]
     current_resetmap = reset_maps[current_mode]
+    
+    current_Rx = Rxs[current_mode]
+    current_Rt = Rts[current_mode]
+    
+    current_gx = gxs[current_mode]
+    current_gt = gts[current_mode]
     
     args = (u, )
     if backwards:
@@ -446,7 +392,7 @@ def detect_bouncing(x0, u, t0, tf, current_mode, detection=True, backwards=False
     else:
         t_span = (t0, tf)
         t_eval = np.linspace(t0, tf, nt)
-        dyn_fun=lambda t, y: dyn_bouncing(t, y, *args)
+        dyn_fun=lambda t, y: current_dynamics(t, y, *args)
     
     x_event = None
     t_event = None
@@ -456,9 +402,9 @@ def detect_bouncing(x0, u, t0, tf, current_mode, detection=True, backwards=False
     
     if detection:
         solution = scipy.integrate.solve_ivp(fun=dyn_fun, 
-                                            t_span=t_span, y0=x0, method='RK45', 
-                                            t_eval=t_eval, dense_output=True, 
-                                            events=current_guard, vectorized=False)
+                                             t_span=t_span, y0=x0, method='RK45', 
+                                             t_eval=t_eval, dense_output=True, 
+                                             events=current_guard, vectorized=False)
     
         # Hit guard
         if len(solution.t_events[0]) > 0:
@@ -468,12 +414,12 @@ def detect_bouncing(x0, u, t0, tf, current_mode, detection=True, backwards=False
             x0 = x_reset
             
             # ---------- Compute saltation matrix ---------- 
-            R_x = Rx_bouncing(t_event, x_event)
-            R_t = Rt_bouncing(t_event, x_event)
-            g_x = gx_bouncing(t_event, x_event)
-            g_t = gt_bouncing(t_event, x_event)
-            F_1 = dyn_bouncing(t_event, x_event)
-            F_2 = dyn_bouncing(t_event, x_reset) # Important, the F2 is evaluated at the reseted state!
+            R_x = current_Rx(t_event, x_event, current_mode)[0]
+            R_t = current_Rt(t_event, x_event, current_mode)[0]
+            g_x = current_gx(t_event, x_event)
+            g_t = current_gt(t_event, x_event)
+            F_1 = current_dynamics(t_event, x_event)
+            F_2 = next_dynamics(t_event, x_reset) # Important, the F2 is evaluated at the reseted state!
             saltation = saltation_matrix(F_1, F_2, R_t, R_x, g_t, g_x)
             
             t0 = t_event
@@ -506,33 +452,3 @@ def detect_bouncing(x0, u, t0, tf, current_mode, detection=True, backwards=False
     mode_mapping = np.array([current_mode, next_mode])
     
     return x_next, saltation, mode_mapping, t_event, x_event, x_reset
-
-
-if __name__ == '__main__':
-   
-    x0 = np.array([5.0, 0.0])
-    u = np.array([0.0])
-    
-    t0 = 0.0
-    dt = 5.0
-    
-    x_next, saltation = detect_bouncing(x0, u, t0, dt)
-    
-    print(x_next.shape)
-    print(saltation)
-    
-    # stochastic rollouts
-    nt = 1000
-    nu = 1
-    ut = np.zeros((nt, nu), dtype=np.float64)
-    epsilon = 0.1
-    t0 = 0.0
-    tf = 3.0
-    t_eval = np.linspace(t0, tf, nt)
-    x0 = np.array([5.0, 1.0])
-    xt_trj = rollout_bouncing_stochastic(x0, ut, t0, tf, epsilon)
-    
-    fig, ax = plt.subplots()
-    ax.grid(True)
-    ax.scatter(t_eval, xt_trj[:, 0], color='k', s=0.8)
-    plt.show()

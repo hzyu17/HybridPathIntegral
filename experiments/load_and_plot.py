@@ -7,7 +7,7 @@ if __name__ == '__main__':
     exp_params = ExpParams()
     exp_data = ExpData(exp_params)
 
-    filename = root_dir+"/data/bouncing/data_5000samples_eps_15.0_coupling.pickle"
+    filename = root_dir+"/data/bouncing/ablation_study_nsamples/data_5000samples_eps_15.0_coupling.pickle"
     
     print("loading data: ", filename)
     exp_data.load(filename)
@@ -39,7 +39,6 @@ if __name__ == '__main__':
     variances, lbdas = np.zeros((n_exp, nt-1)), np.zeros((n_exp, nt-1))
     
     for i in range(n_exp):
-        print(exp_data._data.keys())
         trj_ilqr = exp_data.get_data(i).x_trj_ilqr()
         trj_pi = exp_data.get_data(i).x_trj_pi()
         u_star_pi = exp_data.get_data(i).u_trj_pi()
@@ -63,6 +62,47 @@ if __name__ == '__main__':
     print("E[cost_ilqr_exp]: ", np.mean(cost_ilqr_exp))
     print("improved: ", (np.mean(cost_ilqr_exp) - np.mean(cost_pi_exp)) / np.mean(cost_ilqr_exp))
     
+    
+    # ================================
+    # Sorting the cost improvements
+    # ================================
+    cost_diff = (cost_ilqr_exp - cost_pi_exp) / cost_ilqr_exp * 100
+    sorted_indices = [index for index, value in sorted(enumerate(cost_diff), key=lambda x: x[1])]
+    sorted_cost_diff = sorted(cost_diff)
+    
+    # ------------------------------------------------------------------
+    #   Compute CVaR: check the cases where h-iLQR do not perform well
+    # ------------------------------------------------------------------
+    def compute_cvar(samples, confidence_level=0.95):
+        # Step 1: Sort the samples
+        samples_sorted = np.sort(samples)
+        
+        # Step 2: Find the VaR (confidence_level percentile)
+        var_index = int(np.floor(confidence_level * len(samples_sorted)))
+        var_value = samples_sorted[var_index]
+        
+        # Step 3: Calculate CVaR as the mean of the losses exceeding the VaR
+        cvar_value = np.mean(samples_sorted[var_index:])
+        
+        return var_value, cvar_value
+    
+    for confidence in [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]:
+        cVaR = compute_cvar(cost_diff, confidence)[1]
+        print("cVaR at confidence level: ", confidence, " is ", cVaR)
+    
+    
+    # Check the costs of the 10% tail of h-iLQR costs
+    sorted_indices = [index for index, value in sorted(enumerate(cost_ilqr_exp), key=lambda x: x[1])]
+    sorted_costilqr = sorted(cost_ilqr_exp)
+    
+    ilqr_tail_index = sorted_indices[int(np.floor(0.9 * len(sorted_indices))):]
+    
+    cost_diff_tail = (cost_ilqr_exp[ilqr_tail_index] - cost_pi_exp[ilqr_tail_index]) / cost_ilqr_exp[ilqr_tail_index]
+    mean_cost_diff_tail = np.mean(cost_diff_tail) * 100.0
+    
+    print("mean hilqg tail cost: ", np.mean(cost_ilqr_exp[ilqr_tail_index]))
+    print("mean h pathintegral tail cost: ", np.mean(cost_pi_exp[ilqr_tail_index]))
+    print("mean_cost_diff_tail: ", mean_cost_diff_tail)
     
     # ==============================================
     #                   Plottings
@@ -146,17 +186,6 @@ if __name__ == '__main__':
     fig2.tight_layout()
     fig2.savefig(root_dir+'/data/figures/bouncing/bouncing_1D_zdotz.pdf', format='pdf', dpi=2000)
 
-    # # plot control inputs
-    # fig3, ax7 = plt.subplots(1, 1)
-    # ax7.grid(True)
-    # ax7.plot(time_span, inputs[:,0],'k',label='Final iteration ilqr')
-    # ax7.plot(time_span, u_star_pi[:,0],'r',label='Path integral controller')
-    # ax7.set_xlabel(r"Timestep")
-    # ax7.set_ylabel(r"$u$")
-    # ax7.set_title("Bouncing Ball Final Control Input")
-
-    # ax7.legend()
-
     # ------------------------------------------ 
     # Bar Plot PathCosts for all experiments
     # ------------------------------------------
@@ -235,4 +264,4 @@ if __name__ == '__main__':
     ax11.set_xlabel("Sample Number", fontproperties=font_props)
     ax11.set_ylabel("Costs", fontproperties=font_props)
     
-    # plt.show()
+    plt.show()
