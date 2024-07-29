@@ -10,7 +10,7 @@ class hybrid_ilqr:
                  contact_detect,smooth_dynamics,
                  Q_k,R_k,Q_T,parameters,n_iterations,
                  detect,plot_func,state_convert_func, 
-                 init_reset_args, target_reset_args, animate_func=None):
+                 init_reset_args, target_reset_args, animate_func=None, verbose=True):
         
         self.nmodes_ = nmodes
         self._n_states = nstates
@@ -23,6 +23,7 @@ class hybrid_ilqr:
         self._plot_states_func = plot_func
         self._state_convert_func = state_convert_func
         self._animate_func = animate_func
+        self._verbose = verbose
         
         # time definitions
         self.dt_ = dt
@@ -152,9 +153,6 @@ class hybrid_ilqr:
             l_uu = self.R_k_[current_mode]
 
             l_x = self.Q_k_[current_mode]@np.zeros(self._n_states[current_mode]).flatten() # For now zeros, can add in a target to track later on
-            # print("current_mode: ", current_mode)
-            # print("current_u: ", current_u)
-            # print("self.R_k_[current_mode]: ", self.R_k_[current_mode])
             
             l_u = self.R_k_[current_mode]@(current_u).flatten()
 
@@ -236,10 +234,11 @@ class hybrid_ilqr:
                      learning_rate=1,
                      check_modemismatch=True):
         
-        if not use_feedback:
-            print("---------- Initial rollout ----------")
-        else:
-            print(f"---------- Forward pass. Learning rate: {learning_rate} ----------")
+        if self._verbose:
+            if (not use_feedback):
+                print("---------- Initial rollout ----------")
+            else:
+                print(f"---------- Forward pass. Learning rate: {learning_rate} ----------")
         
         # Lists to collect the current forward pass trajectories (Dimensions might vary so use list)
         states = [np.array([0.0]) for _ in range(self._n_timesteps)]
@@ -266,11 +265,12 @@ class hybrid_ilqr:
             (v_mode_change_ref, v_ext_trj_bwd_ref, v_ext_trj_fwd_ref, 
              v_Kfb_ext_trj_bwd_ref, v_Kfb_ext_trj_fwd_ref, 
              v_kff_ext_trj_bwd_ref, v_kff_ext_trj_fwd_ref, v_tevents_ref) = extract_extensions(self._reference_extension_helper)
-        
-            print(f"Reference trajectory bouncing event numbers: {len(v_ext_trj_bwd_ref)}")
-            for i_bounce in range(len(v_ext_trj_bwd_ref)):
-                print(f"bounce {i_bounce}: From mode {v_mode_change_ref[i_bounce][0]} to mode {v_mode_change_ref[i_bounce][1]} at time {v_tevents_ref[i_bounce]}")
-            print("------------------------------------------------")
+
+            if self._verbose:
+                print(f"Reference trajectory bouncing event numbers: {len(v_ext_trj_bwd_ref)}")
+                for i_bounce in range(len(v_ext_trj_bwd_ref)):
+                    print(f"bounce {i_bounce}: From mode {v_mode_change_ref[i_bounce][0]} to mode {v_mode_change_ref[i_bounce][1]} at time {v_tevents_ref[i_bounce]}")
+                print("------------------------------------------------")
             
            
         # -------------------------------
@@ -319,9 +319,9 @@ class hybrid_ilqr:
                     
                     # ----------------------------------- Early Arrival ----------------------------------- 
                     if ((current_mode == ref_modechange_hybrid[1]) and (current_mode_ref==ref_modechange_hybrid[0])):
-                        
-                        print(f"early arrival, Time: {ii}. Current mode: {current_mode}, Reference mode: {current_mode_ref}")
-                        print(f"Reference mode change from mode {ref_modechange_hybrid[0]} to mode {ref_modechange_hybrid[1]} at time {v_tevents_ref[hybrid_index_ref]}")
+                        if self._verbose:
+                            print(f"early arrival, Time: {ii}. Current mode: {current_mode}, Reference mode: {current_mode_ref}")
+                            print(f"Reference mode change from mode {ref_modechange_hybrid[0]} to mode {ref_modechange_hybrid[1]} at time {v_tevents_ref[hybrid_index_ref]}")
                         
                         trj_extension = v_ext_trj_bwd_ref[hybrid_index_ref]
                         
@@ -330,9 +330,9 @@ class hybrid_ilqr:
                         
                     # ----------------------------------- Late Arrival ----------------------------------- 
                     elif ((current_mode == ref_modechange_hybrid[0]) and (current_mode_ref==ref_modechange_hybrid[1])):
-                        
-                        print(f"late arrival, Time: {ii}. Current mode: {current_mode}, Reference mode: {current_mode_ref}")
-                        print(f"Reference mode change from mode {ref_modechange_hybrid[0]} to mode {ref_modechange_hybrid[1]} at time {v_tevents_ref[hybrid_index_ref]}")
+                        if self._verbose:
+                            print(f"late arrival, Time: {ii}. Current mode: {current_mode}, Reference mode: {current_mode_ref}")
+                            print(f"Reference mode change from mode {ref_modechange_hybrid[0]} to mode {ref_modechange_hybrid[1]} at time {v_tevents_ref[hybrid_index_ref]}")
                         
                         trj_extension = v_ext_trj_fwd_ref[hybrid_index_ref]
                         
@@ -344,7 +344,8 @@ class hybrid_ilqr:
                     current_feedback = fb_ext_trj[ii]
                     current_feedforward = learning_rate * ff_ext_trj[ii]
                     
-                    print("current_nominal_input: ", current_input)
+                    if self._verbose:
+                        print("current_nominal_input: ", current_input)
                 
                 current_feedback_input = current_feedback@(current_state-ref_state)
                 current_input = current_input + current_feedback_input + current_feedforward
@@ -368,7 +369,8 @@ class hybrid_ilqr:
             
             # Only consider the transition from mode 0 to mode 1 for now
             if (mode_change[0]!=mode_change[1]):
-                print(f"At Time {ii}, the system has a mode change from mode {mode_change[0]} to mode {mode_change[1]}")
+                if self._verbose:
+                    print(f"At Time {ii}, the system has a mode change from mode {mode_change[0]} to mode {mode_change[1]}")
                 event_args.append(reset_byproduct)
                 cnt_event += 1
                 
@@ -379,8 +381,9 @@ class hybrid_ilqr:
             inputs[current_mode][ii] = current_input.flatten()
             mode_changess[ii+1] = mode_change
             modes[ii+1] = mode_change[1]
-                
-        print(f"--------------------- Total number of contacts: {cnt_event} ---------------------" )
+        
+        if self._verbose:
+            print(f"--------------------- Total number of contacts: {cnt_event} ---------------------" )
         
         return (modes,states,inputs,saltations,mode_changess,hybrid_event_info,reset_args)
     
@@ -554,6 +557,7 @@ class hybrid_ilqr:
         # ------------------------------------
         [modes,states,inputs,saltations,modechanges] = self.rollout()
         
+
         print("===================== Finished initial rollout =====================")
         
         show_rollout = False
@@ -583,10 +587,11 @@ class hybrid_ilqr:
         # =============
         for ii in range(0,self.n_iterations_):
             print('========== Starting Iteration: ',ii,', Current cost: ',current_cost, ' ==========')
+            print("-------- Backward Pass --------")
+                
             # --------------------------------------------------------
             # Compute the backwards pass and update the control gains
             # --------------------------------------------------------
-            print("-------- Backward Pass --------")
             (k_feedforward,K_feedback,expected_reduction) = self.backwards_pass()    
             
             # --------------------------------------------------------------
@@ -653,6 +658,7 @@ class hybrid_ilqr:
             
                 new_cost = self.compute_cost(new_modes, new_states, new_inputs, self.dt_)
 
+                
                 print("new_cost: ", new_cost)
                 
                 # Calculate armijo condition
@@ -678,7 +684,9 @@ class hybrid_ilqr:
                     
             if(learning_rate<low_learning_rate):
                 # If learning rate is low, then stop optimization
+                
                 print(" -------- Stopping optimization, low learning rate --------")
+                
                 current_cost = new_cost
                 self._states = new_states
                 self._inputs = new_inputs
@@ -715,7 +723,7 @@ class hybrid_ilqr:
                 modechanges,reference_extension_helper,reset_args)
 
 
-def solve_ilqr(params, detect=True):
+def solve_ilqr(params, detect=True, verbose=False):
     # Dynamics functions
     smooth_dynamis = params.symbolic_dynamics()
     detect_integration = params.detection_func()
@@ -768,7 +776,7 @@ def solve_ilqr(params, detect=True):
                         dt,start_time,end_time,detect_integration,smooth_dynamis,
                         Q_k,R_k,Q_T,parameters,n_iterations,
                         detect,plotting_function,state_convert_function, 
-                        init_reset_args, target_reset_args, animate_function)
+                        init_reset_args, target_reset_args, animate_function, verbose)
     
     (modes,states,inputs,k_feedforward,K_feedback,
      current_cost,states_iter,

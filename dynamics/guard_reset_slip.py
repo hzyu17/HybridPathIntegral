@@ -31,14 +31,13 @@ def mode_change_maps(current_mode):
 # The guard and reset map from flight mode to stance mode
 # =========================================================
 
-# xf: [x, x_dot, z, z_dot, theta]
-# guard_12 = z - r0*sin(theta) = 0
+@jax.jit
 def guard_slip_12(t, x):
     r0 = 1
     return  r0*jnp.sin(x[4]) - x[2]
-guard_slip_12_jit = jax.jit(guard_slip_12)
 
 # reset map from flight mode to stance mode
+@jax.jit
 def reset_map_slip_12(t, x_event, current_mode, args_reset):
     # x_event: [x, x_dot, z, z_dot, theta]
     
@@ -71,8 +70,6 @@ def reset_map_slip_12(t, x_event, current_mode, args_reset):
     x_reset = jax.lax.cond(stance_cond, stance_true_fun, stance_false_fun, args)
     
     return x_reset, 1, (x_event[0], )
-
-resetmap_slip_jit = jax.jit(reset_map_slip_12)
 
 # =========================================================
 # The guard and reset map from stance mode to flight mode

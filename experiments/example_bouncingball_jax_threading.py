@@ -8,16 +8,9 @@ script_filename = os.path.splitext(os.path.basename(file_path))[0]
 root_dir = os.path.abspath(os.path.join(exp_dir, '..'))
 sys.path.append(root_dir)
 
-import time
-import jax.numpy as jnp
-
-# Import pendulum dynamics
-from dynamics.integration_hybrid_jax import sample_bouncing_jax, hybrid_integration, update_u0_pathintegral_jax
-# from dynamics.integration_hybrid_jax import *
+from dynamics.dynamics_bouncing import *
 # Import iLQR class
 from hybrid_ilqr.h_ilqr import solve_ilqr
-# Import Riccati class
-from hybrid_ilqr.hybrid_riccati import *
 # Importing path integral control
 from hybrid_pathintegral.hybrid_pathintegral import *
 # Import plotting
@@ -25,9 +18,6 @@ import matplotlib.pyplot as plt
 # Import experiment parameter class
 from experiments.exp_params import *
 from experiments.h_pathintegral_example_bouncingball_jax import run_experiment
-
-# for paralle sampling on cpu
-from joblib import Parallel, delayed
 
 # Set environment variable to control the GPU memory fraction used by JAX
 os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "0.9"
@@ -63,14 +53,16 @@ def process_compute_costs(sample_i, inputs, dWs, target_state, ref_states, index
     return costs_i, index
 
 
-def main(epsilon, n_samples):
+def main(epsilon, n_samples, dt):
+    
     print(f"The value of epsilon input is: {epsilon}")
     print(f"The value of number of samples input is: {n_samples}")
+    print(f"The value of time discretization dt is: {dt}")
     # === ilqr parameters ===
     # Initialize timings
     
     # ---------------- bouncing example -----------------
-    dt = 0.01
+    # dt = 0.01
     dt_shrink = 0.7
     
     start_time = 0
@@ -299,10 +291,12 @@ def main(epsilon, n_samples):
 import argparse
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="The epsilon parameter.")
-    parser.add_argument("--epsilon", type=float, default=2, help="The process noise intensity value, epsilon.")
+    
+    parser.add_argument("--epsilon", type=float, default=5.0, help="The process noise intensity value, epsilon.")
     parser.add_argument("--nsamples", type=int, default=5000, help="The number of samples used in path integral control.")
-
+    parser.add_argument("--dt", type=int, default=0.005, help="The time discretization.")
+    
     args = parser.parse_args()
 
-    main(args.epsilon, args.nsamples)
+    main(args.epsilon, args.nsamples, args.dt)
     

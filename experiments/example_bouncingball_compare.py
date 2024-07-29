@@ -12,7 +12,7 @@ import time
 
 # Import rollout functions
 from dynamics.dynamics_bouncing import *
-from dynamics.integration_hybrid_jax import sample_bouncing_jax
+from hybrid_pathintegral.sampling_rollout_jax_bouncing import sample_bouncing_jax
 # Import iLQR class
 from hybrid_ilqr.h_ilqr import solve_ilqr
 # Import Riccati class

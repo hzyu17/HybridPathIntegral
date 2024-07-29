@@ -293,7 +293,7 @@ if __name__ == '__main__':
             # ====== samples using jax ====== 
             cur_ref_modechange = modechanges[i_t]
             
-            from dynamics.integration_hybrid_jax import sample_bouncing_jax
+            from hybrid_pathintegral.sampling_rollout_jax_bouncing import sample_bouncing_jax
             
             # print("=== extended trajectories 1: ", mode_exttrjs_maps[0][1][1])
             # print("=== extended trajectories 2: ", mode_exttrjs_maps[0][1][2])

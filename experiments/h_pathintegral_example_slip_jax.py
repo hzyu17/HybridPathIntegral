@@ -15,15 +15,14 @@ import jax.numpy as jnp
 from hybrid_ilqr.h_ilqr import solve_ilqr, extract_extensions
 # Importing path integral control
 from hybrid_pathintegral.hybrid_pathintegral import *
-from hybrid_pathintegral.sampling_rollout_jax_bouncing import *
-
+from hybrid_pathintegral.sampling_rollout_jax import *
 # Import plotting
 import matplotlib.pyplot as plt
 # Import experiment parameter class
 from experiments.exp_params import *
-# Import bouncing ball dynamics
-from hybrid_pathintegral.sampling_rollout_jax_bouncing import sample_bouncing_jax
-from dynamics.dynamics_bouncing import *
+# Import slip model dynamics
+from hybrid_pathintegral.sampling_rollout_jax_slip import sample_slip_jax, hybrid_integration
+from dynamics.dynamics_slip import *
 
 # Set environment variable to control the GPU memory fraction used by JAX
 os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "0.9"
@@ -213,23 +212,23 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         # ---------------------------------------------------------------------------------------
         
         # timer_start_tic = time.perf_counter()
-        Ksamples_jax_i, PathCosts_jax_i, _ = sample_bouncing_jax(n_samples, xt, 
-                                                                 current_mode_actual, 
-                                                                 states_i, 
-                                                                 modes_i, 
-                                                                 inputs_i[0], 
-                                                                 inputs_i[1], 
-                                                                 K_feedback_i, k_feedforward_i, 
-                                                                 target_state, Q_T, 
-                                                                 start_time_i, dt, end_time, dt_shrinkingrate, 
-                                                                 epsilon, 
-                                                                 GaussianNoise_i[0], 
-                                                                 GaussianNoise_i[1], 
-                                                                 v_mode_change_ref_i, 
-                                                                 v_ref_ext_fwd_i, v_ref_ext_bwd_i, 
-                                                                 v_Kfb_ref_ext_fwd_i, v_kff_ref_ext_fwd_i, 
-                                                                 v_Kfb_ref_ext_bwd_i, v_kff_ref_ext_bwd_i, 
-                                                                 reset_args_i)
+        Ksamples_jax_i, PathCosts_jax_i, _ = sample_slip_jax(n_samples, xt, 
+                                                            current_mode_actual, 
+                                                            states_i, 
+                                                            modes_i, 
+                                                            inputs_i[0], 
+                                                            inputs_i[1], 
+                                                            K_feedback_i, k_feedforward_i, 
+                                                            target_state, Q_T, 
+                                                            start_time_i, dt, end_time, dt_shrinkingrate, 
+                                                            epsilon, 
+                                                            GaussianNoise_i[0], 
+                                                            GaussianNoise_i[1], 
+                                                            v_mode_change_ref_i, 
+                                                            v_ref_ext_fwd_i, v_ref_ext_bwd_i, 
+                                                            v_Kfb_ref_ext_fwd_i, v_kff_ref_ext_fwd_i, 
+                                                            v_Kfb_ref_ext_bwd_i, v_kff_ref_ext_bwd_i, 
+                                                            reset_args_i)
         
         # save the samples at t=0
         if (i_t == 0):
@@ -244,7 +243,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         k_ff = k_feedforward_i[0]
         xref_i = states_i[0]
         
-        if cond_mode_mismatch_bouncing(current_mode_actual, ref_current_mode):
+        if cond_mode_mismatch_slip(current_mode_actual, ref_current_mode):
             print("--------------- mode mismatch happened ---------------")
             xref_i, K_fb, k_ff, cnt_mismatch = reaction_mode_mismatch(cond_early_arrival_bouncing, i_t, 
                                                                       current_mode_actual, ref_current_mode, 
@@ -322,9 +321,9 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         reset_args_actual[i_t] = event_args_actual[cnt_event_actual]
         actual_noise_i = RndN_actual[current_mode_actual][i_t]
         
-        xt_next, next_mode_actual, _, new_reset_arg = hybrid_integration_bouncing(xt, current_mode_actual,
-                                                                                    u0_star_jax, actual_noise_i, 
-                                                                                    epsilon, dt, dt_shrink, start_time_i, reset_args_actual[i_t])
+        xt_next, next_mode_actual, _, new_reset_arg = hybrid_integration_slip(xt, current_mode_actual,
+                                                                                u0_star_jax, actual_noise_i, 
+                                                                                epsilon, dt, dt_shrink, start_time_i, reset_args_actual[i_t])
 
         next_mode_actual = int(next_mode_actual)
         # current_modechange = np.array([current_mode_actual, next_mode_actual])
@@ -379,10 +378,9 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
     return cost_pi, cost_ilqr, data_i
 
 def main(epsilon, n_samples, dt):
-    
+    print(f"The value of time discretization dt is: {dt}")
     print(f"The value of epsilon input is: {epsilon}")
     print(f"The value of number of samples input is: {n_samples}")
-    print(f"The value of time discretization dt is: {dt}")
     # === ilqr parameters ===
     # Initialize timings
     

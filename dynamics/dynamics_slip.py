@@ -192,6 +192,167 @@ def symbolic_stance_dynamics_slip():
     B_disc_func = sp.lambdify((states,inputs,dt),B_disc)
     return (f_disc_func,A_disc_func,B_disc_func)
 
+def stochastic_integration_slip(x0, u, t_span, epsilon, dW):
+    return stochastic_integration(x0, u, t_span, epsilon, dW, dyn_slip, gdWt_slip)
+
+
+# ----------------------------- 
+# Define condition functions
+# -----------------------------
+# --------------------------------- Condition: mode mismatch --------------------------------- 
+def cond_mode_mismatch_bouncing(current_mode, ref_current_mode): 
+    return (current_mode != ref_current_mode)
+
+# --------------------------------- Condition: early arrival ---------------------------------
+def cond_early_arrival_bouncing(current_mode, ref_current_mode): 
+    return (current_mode==1) and (ref_current_mode==0) 
+
+# Condition: guard function hit
+def cond_guard_function_hit_bouncing(xt, xt_next, guard_func): 
+    return ((guard_func(0.0, xt)>0) and (guard_func(0.0, xt_next)<=0))
+
+
+guard_slip_12.terminal=True
+guard_slip_12.direction=1
+
+guard_slip_21.terminal=True
+guard_slip_21.direction=1
+
+guards_slip = {0:guard_slip_12, 1: guard_slip_21}
+reset_maps_slip = {0:reset_map_slip_12, 1:reset_map_slip_21}
+
+
+def stochastic_feedback_rollout_slip(init_mode, x0, n_inputs, xt_ref, ref_modechanges, 
+                                    ut, Kt, kt, target_state, Q_T, t0, tf, 
+                                    epsilon, GaussianNoise, dt_shrinkingrate, 
+                                    reference_extension_helper, init_reset_args):
+
+    (_, v_ref_ext_bwd, v_ref_ext_fwd, 
+    v_Kfb_ref_ext_bwd, v_Kfb_ref_ext_fwd, 
+    v_kff_ref_ext_bwd, v_kff_ref_ext_fwd, _) = extract_extensions(reference_extension_helper, start_index = 0)
+    
+    n_timestamps = xt_ref.shape[0]
+    
+    dt = (tf - t0) / n_timestamps
+    dt_int = dt
+    
+    # returning trajectory
+    mode_trj = np.zeros(n_timestamps, dtype=np.int64)
+    mode_trj[0] = init_mode
+    
+    xt_trj = [np.array([0.0]) for _ in range(n_timestamps)]
+    xt_trj[0] = x0   
+    
+    # closed-loop controls 
+    ut_cl_trj = [np.zeros((n_timestamps, n_inputs[0])), np.zeros((n_timestamps, n_inputs[1]))]
+    
+    # only consider the 1->2 reset for now (bouncing)
+    current_guard = guards_slip[init_mode]
+    
+    cnt_mismatch = 0
+    xt_ref_actual = np.zeros_like(xt_ref)
+    
+    # path cost
+    Sk = 0
+    
+    # hybrid event related 
+    cnt_event = 0
+    reset_args = init_reset_args
+    event_args = [init_reset_args[0]]
+    
+    # -------------- roullout function --------------
+    for ii_t in range(n_timestamps-1):   
+
+        t0_i = t0 + ii_t*dt   
+        
+        current_mode = mode_trj[ii_t]
+        xt = xt_trj[ii_t]
+        
+        ref_current_mode = ref_modechanges[ii_t][0]
+        reset_args[ii_t] = event_args[cnt_event]
+        
+        # ======== Handle mode mismatch ========
+        K_fb_i = Kt[ii_t]
+        k_ff_i = kt[ii_t]
+        
+        xref_i = xt_ref[ii_t] 
+        if cond_mode_mismatch_bouncing(current_mode, ref_current_mode):
+            xref_i, K_fb_i, k_ff_i, cnt_mismatch = reaction_mode_mismatch(cond_early_arrival_bouncing, ii_t, current_mode, ref_current_mode, 
+                                                                            v_ref_ext_fwd[0], v_ref_ext_bwd[0], 
+                                                                            v_Kfb_ref_ext_fwd[0], v_kff_ref_ext_fwd[0],
+                                                                            v_Kfb_ref_ext_bwd[0], v_kff_ref_ext_bwd[0],
+                                                                            cnt_mismatch)
+            
+        xt_ref_actual[ii_t] = xref_i
+        
+        delta_xt_i = xt_trj[ii_t] - xref_i
+        u = ut[current_mode][ii_t] + K_fb_i@delta_xt_i + k_ff_i
+        ut_cl_trj[current_mode][ii_t] = u
+        
+        dW_i = np.sqrt(dt_int)*GaussianNoise[current_mode][ii_t]
+        
+        # ============================== One step integration ==============================        
+        # ---- solver for the deterministic part
+        t_span = (t0_i, t0_i + dt_int)
+        
+        xt_next = stochastic_integration_slip(xt, u, t_span, epsilon, dW_i).flatten()
+        
+        current_guard = guards_bouncing[current_mode]
+        next_mode = current_mode
+        # Condition: Hit the guard function.  
+        if cond_guard_function_hit_bouncing(xt, xt_next, current_guard): 
+            
+            args = (xt, current_mode, u, t0_i, t0_i+dt_int, xt_next, 
+                    dt_int, dt_shrinkingrate, GaussianNoise[current_mode][ii_t], epsilon, 
+                    stochastic_integration_bouncing, guards_bouncing, reset_maps_bouncing, reset_args[ii_t])
+            
+            xt_next, next_mode, dW_i, new_reset_args = event_reactive_fun(args)
+            dt_int = dt
+            
+            event_args.append(new_reset_args)
+            cnt_event += 1
+        
+        # Collect cost: consider only the terminal state cost for now.
+        Sk += u.T@u/2.0 * dt + np.sqrt(epsilon) * np.dot(u.T, dW_i)
+        
+        # Update trajectories
+        xt_trj[ii_t+1] = xt_next
+        mode_trj[ii_t+1] = next_mode
+    
+    xt_ref_actual[-1] = xt_ref[-1]
+    
+    # Terminal cost
+    Sk += (xt-target_state)@Q_T@(xt-target_state) / 2.0
+    
+    show_mismatch = False
+    if show_mismatch:
+        # ======== Show mode mismatch ======== 
+        fig2, axes = plt.subplots(1,2, figsize=(9, 6))
+        ax5, ax6 = axes.flatten()
+        ax5.grid(True)
+        ax6.grid(True)
+        
+        ax5.plot(xt_trj[:,0], xt_trj[:,1],color='b',linewidth=1.5,label='Rollout')
+        ax5.plot(xt_ref[:,0], xt_ref[:,1],color='k',linewidth=2.5,label='Reference')
+        ax5.plot(xt_ref_actual[:,0], xt_ref_actual[:,1],color='r',linewidth=1.5,linestyle='--', label='Modified Reference')
+        
+        ax5.set_xlabel(r"z", fontsize=14)
+        ax5.set_ylabel(r"$\dot z$", fontsize=14)
+        ax5.legend(loc='upper right')
+        plt.tight_layout()
+        
+        ax6.plot(xt_trj[:,0], xt_trj[:,1],color='b',linewidth=1.5,label='Rollout')
+        ax6.plot(xt_ref[:,0], xt_ref[:,1],color='k',linewidth=2.5,label='Reference')
+        ax6.plot(xt_ref_actual[:,0], xt_ref_actual[:,1],color='r',linewidth=1.5,linestyle='--',label='Modified Reference')
+        ax6.set_xlabel(r"z", fontsize=14)
+        ax6.set_ylabel(r"$\dot z$", fontsize=14)
+        ax6.legend(loc='upper right')
+        plt.tight_layout()
+        
+        plt.show()
+    
+    return mode_trj, xt_trj, ut_cl_trj, Sk, xt_ref_actual
+
 
 def event_detect_slip(x0, u, t0, tf, current_mode, reset_args, detection=True, backwards=False):
     guard_slip_12.terminal=True
