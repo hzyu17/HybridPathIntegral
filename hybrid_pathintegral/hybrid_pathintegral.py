@@ -1,9 +1,8 @@
 import numpy as np
 from numba import njit, float64, int32, prange
+import jax.numpy as jnp
+import jax
 
-# Hybrid path integral control
-# @njit(float64[:](
-#     float64[:], float64[:], float64, float64), parallel=True)
 def update_u0_pathintegral(u0, PathCosts, GaussianNoise, epsilon, dt):
     nu = len(u0)
     n_samples = len(PathCosts)
@@ -20,6 +19,30 @@ def update_u0_pathintegral(u0, PathCosts, GaussianNoise, epsilon, dt):
     U_update = np.sqrt(epsilon/dt) * U_update / sum_expPathCosts 
     
     return u0 + U_update
+
+
+def update_u0_pathintegral_jax(u0, PathCosts, GaussianNoise, epsilon, delta_t):
+    # ------- numerical processing -------
+    PathCosts = PathCosts - jnp.min(PathCosts)
+    exp_PathCosts = jnp.exp(-PathCosts/epsilon)
+    sum_expPathCosts = jnp.sum(exp_PathCosts)
+    
+    # ------- Compute the weights ---------
+    E_expS_jax = jnp.mean(exp_PathCosts)
+    weights = exp_PathCosts / E_expS_jax
+    
+    # ------- Compute the update to control -------
+    
+    def Cost_Noise_mult(exp_PathCosts_k, GaussianNoise_k):
+        return exp_PathCosts_k*GaussianNoise_k
+    
+    Cost_Noise_vmap = jax.vmap(Cost_Noise_mult, in_axes=(0,0))
+    Cost_Noise_prod = Cost_Noise_vmap(exp_PathCosts, GaussianNoise)
+    U_update_jax = jnp.sum(Cost_Noise_prod)
+        
+    U_update_jax = jnp.sqrt(epsilon/delta_t) * U_update_jax / sum_expPathCosts 
+    
+    return u0 + U_update_jax, weights
 
 
 # Hybrid path integral control

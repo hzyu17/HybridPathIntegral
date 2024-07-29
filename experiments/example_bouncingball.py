@@ -11,9 +11,9 @@ sys.path.append(root_dir)
 import time
 
 # Import pendulum dynamics
-from dynamics.integration_hybrid import *
+from dynamics.dynamics_bouncing import *
 # Import iLQR class
-from hybrid_ilqr.hybrid_ilqr import solve_ilqr
+from hybrid_ilqr.h_ilqr import solve_ilqr
 # Import Riccati class
 from hybrid_ilqr.hybrid_riccati import *
 # Importing path integral control
@@ -22,9 +22,6 @@ from hybrid_pathintegral.hybrid_pathintegral import *
 import matplotlib.pyplot as plt
 # Import experiment parameter class
 from experiments.exp_params import *
-
-# for paralle sampling on cpu
-from joblib import Parallel, delayed
 
 
 # ====================================== Path Integral Control ====================================== 
@@ -160,8 +157,6 @@ if __name__ == '__main__':
             
             plt.show()
     
-    # exp_data.add_nominal_data((states,inputs,k_feedforward,K_feedback,current_cost,states_iter))
-
     step_one_samples = np.zeros((n_samples, n_states))
     for i_exp in prange(n_exp):
         print("The experiment number: ", i_exp)

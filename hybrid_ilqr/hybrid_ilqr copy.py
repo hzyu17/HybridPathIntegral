@@ -2,9 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 class hybrid_ilqr:
-    def __init__(self,init_state,target_state,initial_guess,
-                 dt,start_time,end_time,contact_detect,f_disc,
-                 A,B,Q_k,R_k,Q_T,parameters,n_iterations,detect):
+    def __init__(self,init_mode,init_state,target_state,initial_guess,
+                 dt,start_time,end_time,contact_detect,smooth_dynamics,Q_k,R_k,Q_T,parameters,n_iterations,detect):
+        self.current_mode = init_mode
         self.init_state_ = init_state
         self.target_state_ = target_state
         self.inputs_ = initial_guess
@@ -25,10 +25,11 @@ class hybrid_ilqr:
         self.txmode_map_ = {}
         
         # Dynamics
-        self.f_ = f_disc
+        self.smooth_dyn_ = smooth_dynamics
         self.detection_func_ = contact_detect
-        self.A_ = A
-        self.B_ = B
+        
+        self.f_, self.A_, self.B_ = smooth_dynamics[init_mode]()
+        
         # Weighting
         self.Q_k_ = Q_k
         self.R_k_ = R_k
@@ -42,16 +43,21 @@ class hybrid_ilqr:
         self.detect_ = detect
 
     def rollout(self):
-        states = np.zeros((self.n_timesteps_, self.n_states_))
-        inputs = np.zeros((self.n_timesteps_, self.n_inputs_))
+        # states = np.zeros((self.n_timesteps_, self.n_states_))
+        # inputs = np.zeros((self.n_timesteps_, self.n_inputs_))
+        states = [0.0 for _ in range(self.n_timesteps_)]
+        inputs = [0.0 for _ in range(self.n_timesteps_)]
+        modes = np.zeros(self.n_timesteps_, dtype=np.int64)
+        
         mode_changes = [np.array([0, 0]) for _ in range(self.n_timesteps_)]
         
         saltations = [None for i in range(self.n_timesteps_)]
         
         current_state = self.init_state_
-        current_mode = 1
+        current_mode = 0
         states[0] = current_state
         mode_changes[0] = np.array([current_mode, current_mode])
+        modes[0] = current_mode
         
         for ii in range(self.n_timesteps_-1):
             current_input = self.inputs_[ii,:]
@@ -61,13 +67,12 @@ class hybrid_ilqr:
             saltations[ii] = saltation
             next_state = next_state.flatten()
             
-            # next_state = self.f_(current_state, current_input, self.dt_).flatten()
             # Store states and inputs
-            states[ii + 1,:] = next_state
-            inputs[ii,:] = current_input # in case we have a control law, we store the input used
+            states[ii+1] = next_state
+            inputs[ii] = current_input # in case we have a control law, we store the input used
             mode_changes[ii+1] = mode_change
+            modes[ii+1] = mode_change[1]
             
-            # Update the current state
             current_state = next_state
             current_mode = mode_change[1]
 
@@ -76,20 +81,21 @@ class hybrid_ilqr:
         self.inputs_ = inputs
         self.saltations_ = saltations
         self.modechages_ = mode_changes
+        self.modes_ = modes
         return states, inputs, saltations, mode_changes
 
     def compute_cost(self,states,inputs,dt):
         # Initialize cost
         total_cost = 0.0
         for ii in range(0,self.n_timesteps_-1):
-            current_x = states[ii,:] # Not being used currently
-            current_u = inputs[ii,:].flatten()
+            current_x = states[ii] # Not being used currently
+            current_u = inputs[ii].flatten()
 
             current_cost = 0.5*current_u.T@self.R_k_@current_u # Right now only considering cost in input
             total_cost = total_cost+current_cost*dt
-            
+        
         # Compute terminal cost
-        terminal_difference = (self.target_state_-states[-1]).flatten()
+        terminal_difference = (self.target_state_ - states[-1]).flatten()
         terminal_cost = 0.5*terminal_difference.T@self.Q_T_@terminal_difference
         total_cost = total_cost+terminal_cost
         return total_cost
@@ -114,9 +120,10 @@ class hybrid_ilqr:
         # for loop backwards in time
         for idx in reversed(range(0, self.n_timesteps_-1)):
             # Grab the current variables in the trajectory
-            current_x = self.states_[idx,:]
-            current_u = self.inputs_[idx,:]
+            current_x = self.states_[idx]
+            current_u = self.inputs_[idx]
             saltation = self.saltations_[idx]
+            mode = self.modes_[idx]
 
             # R_k_updated
             # Define the expansion coefficients and the loss gradients
@@ -127,6 +134,8 @@ class hybrid_ilqr:
             l_u = self.R_k_@(current_u).flatten()
 
             # Get the jacobian of the discretized dynamics
+            self.f_, self.A_, self.B_ = self.smooth_dyn_[mode]()
+            
             A_k = self.A_(current_x, current_u, self.dt_)
             B_k = self.B_(current_x, current_u, self.dt_)
             
@@ -204,7 +213,6 @@ class hybrid_ilqr:
             # simulate forward
             t_ii = self.time_span_[ii]
             
-            # next_state = self.f_(current_state, current_input, self.dt_, self.parameters_).flatten()
             next_state, saltation, mode_chage, t_event, x_event, x_reset = self.detection_func_(current_state, current_input, t_ii, t_ii+self.dt_, current_mode, self.detect_)
             saltations[ii] = saltation
             
@@ -328,30 +336,7 @@ class hybrid_ilqr:
                 xtrj_ext_bwd_i[jj+1] = next_state
 
                 # Update the current state
-                current_state = next_state
-            
-            # ------------------------------------------------------------------------------
-            # padding the backward extension to make the two extensions the same length
-            # ------------------------------------------------------------------------------
-            # -------------------------------------------
-            # simulate the forward extension from x_reset 
-            # -------------------------------------------
-            # xtrj_ext_padding_bwd_i[0] = x_reset_i
-            # current_state = x_reset_i
-            # for jj in range(nt_ext_fwd-1):
-            #     t_jj = timespan_ext_fwd[jj]
-                
-            #     # Using zero control, modify if needed.
-            #     current_input = np.zeros(self.n_inputs_)
-                
-            #     next_state, _, _, _, _, _ = self.detection_func_(current_state, current_input, t_jj, t_jj+self.dt_, current_mode=current_mode_i, detection=False)
-                
-            #     # Store states and inputs
-            #     xtrj_ext_padding_bwd_i[jj+1] = next_state
-
-            #     # Update the current state
-            #     current_state = next_state
-            
+                current_state = next_state            
             
             # -------------------------------
             # reverse the backward extension 
@@ -373,6 +358,7 @@ class hybrid_ilqr:
         # Compute the rollout to get the initial trajectory with the
         # initial guess
         [states,inputs,saltations,modechanges] = self.rollout()
+        
         # Compute the current cost of the initial trajectory
         current_cost = self.compute_cost(states,inputs,self.dt_)
         
@@ -397,6 +383,62 @@ class hybrid_ilqr:
             
             (new_states,new_inputs,new_feedback,new_feedforward,new_saltations,mode_changes,new_txmode_map)=self.forward_pass(learning_rate)
             new_cost = self.compute_cost(new_states, new_inputs, self.dt_)
+            
+            
+            show_results = False
+            if show_results:
+                print("plotting results")
+                # =============== plotting ===============
+                fig1, axes = plt.subplots(1, 2)
+                (ax1, ax2) = axes.flatten()
+                ax1.grid(True)
+                ax2.grid(True)
+
+                start_time = 0
+                end_time = 2.0
+                time_span = np.arange(start_time, end_time, self.dt_).flatten()
+                
+                init_state = np.array([5, 1.5])    # Define the initial state to be the origin with no velocity
+                target_state = np.array([3.5, 0])  # Swing pendulum upright
+        
+                # ----------- Plot the start and goal states -----------
+                ax1.scatter(time_span[-1], target_state[0], color='g', marker='x', s=50.0, linewidths=6, label='Target')
+                ax1.scatter(time_span[0], init_state[0], color='r', marker='x', s=50.0, linewidths=6, label='Start')
+
+                ax2.scatter(time_span[-1], target_state[1], color='g', marker='x', s=50.0, linewidths=6, label='Target')
+                ax2.scatter(time_span[0], init_state[1], color='r', marker='x', s=50.0, linewidths=6, label='Start')
+
+                # ----------- Plot the reference -----------
+                for i in range(self.n_timesteps_):
+                    ax1.scatter(time_span[i], self.states_[i][0], color='k')
+                    ax2.scatter(time_span[i], self.states_[i][1], color='k')
+
+                ax1.set_xlabel(r"Time")
+                ax1.set_ylabel(r"$z$")
+                ax1.set_title("Bouncing Ball Vertical Position")
+
+                ax2.set_xlabel(r"Time")
+                ax2.set_ylabel(r"$\dot z$")
+                ax2.set_title("Bouncing Ball Vertical Velocity")
+
+                ax1.legend()
+                ax2.legend()
+
+                # =========== Plot the z-\dot_z figure ===========
+                fig2, ax5 = plt.subplots()
+                ax5.grid(True)
+
+                # ----------- Plot the last iteration of iLQR controller ----------
+                for i in range(self.n_timesteps_):
+                    ax5.scatter(self.states_[i][0], self.states_[i][1], color='k')
+
+                # ----------- Plot the start and goal states -----------
+                ax5.scatter(target_state[0], target_state[1], color='g', marker='x', s=50.0, linewidths=6, label='Target')
+                ax5.scatter(init_state[0], init_state[1], color='r', marker='x', s=50.0, linewidths=6, label='Start')
+
+                ax5.legend()
+                
+                plt.show()
 
             # print("new_cost: ", new_cost) 
             
@@ -474,11 +516,11 @@ class hybrid_ilqr:
 
 def solve_ilqr(params, detect=True):
     # Import dynamics
-    dynamis = params.symbolic_dynamics()
+    smooth_dynamis = params.symbolic_dynamics()
     
     detect_integration = params.detection_func()
 
-    (f,A,B) = dynamis()
+    # (f,A,B) = dynamis()
     
     # Initialize timings
     dt = params._dt
@@ -512,9 +554,17 @@ def solve_ilqr(params, detect=True):
 
     # Specify max number of iterations
     n_iterations = 10
+    
+    init_mode = params.current_mode()
 
-    ilqr_ = hybrid_ilqr(init_state,target_state,initial_guess,dt,start_time,end_time,detect_integration,f,A,B,Q_k,R_k,Q_T,parameters,n_iterations,detect)
-    (states,inputs,k_feedforward,K_feedback,current_cost,states_iter,modechanges,mode_exttrjs_maps) = ilqr_.solve()
+    # ilqr_ = hybrid_ilqr(init_state,target_state,initial_guess,dt,start_time,end_time,detect_integration,f,A,B,Q_k,R_k,Q_T,parameters,n_iterations,detect)
+    ilqr_ = hybrid_ilqr(init_mode,init_state,target_state,initial_guess,
+                        dt,start_time,end_time,detect_integration,smooth_dynamis,
+                        Q_k,R_k,Q_T,parameters,n_iterations,detect)
+    
+    (states,inputs,k_feedforward,K_feedback,
+     current_cost,states_iter,
+     modechanges,mode_exttrjs_maps) = ilqr_.solve()
         
     return (states,inputs,k_feedforward,K_feedback,current_cost,states_iter,modechanges,mode_exttrjs_maps)
         

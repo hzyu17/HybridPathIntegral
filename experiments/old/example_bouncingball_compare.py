@@ -11,9 +11,9 @@ sys.path.append(root_dir)
 import time
 
 # Import pendulum dynamics
-from dynamics.integration_hybrid import *
+from dynamics.dynamics_bouncing import *
 # Import iLQR class
-from hybrid_ilqr.hybrid_ilqr import solve_ilqr
+from hybrid_ilqr.h_ilqr import solve_ilqr
 # Import Riccati class
 from hybrid_ilqr.hybrid_riccati import *
 # Importing path integral control
@@ -159,7 +159,6 @@ if __name__ == '__main__':
             
             plt.show()
     
-    # exp_data.add_nominal_data((states,inputs,k_feedforward,K_feedback,current_cost,states_iter))
 
     step_one_samples = np.zeros((n_samples, n_states))
     for i_exp in prange(n_exp):
@@ -228,9 +227,9 @@ if __name__ == '__main__':
             # ilqr proposal control
             
             if (next_mode != ref_next_mode):    
-                print("mode mismatch true trajectory")
-                print("true state mode change: ", current_modechange)
-                print("reference mode change: ", modechange_i)
+                # print("mode mismatch true trajectory")
+                # print("true state mode change: ", current_modechange)
+                # print("reference mode change: ", modechange_i)
                 if mode_exttrjs_maps is not None: # has extensions
                     # Take the first hybrid event for now. Needs to find the correct corresponding one among all hybrid events.
                     mode_change_i, mode_exttrjs_i = mode_exttrjs_maps[0]
@@ -289,17 +288,17 @@ if __name__ == '__main__':
                 ref_trj[i_sample] = ref_trj_i
             
             end_time = time.perf_counter()
-            print("numpy time elapsed : ", end_time - start_time)
+            # print("numpy time elapsed : ", end_time - start_time)
             
             # ====== samples using jax ====== 
             cur_ref_modechange = modechanges[i_t]
             
-            from dynamics.integration_hybrid_jax import roullout_bouncing_jax
+            from hybrid_pathintegral.sampling_rollout_jax_bouncing import sample_bouncing_jax
             
             # print("=== extended trajectories 1: ", mode_exttrjs_maps[0][1][1])
             # print("=== extended trajectories 2: ", mode_exttrjs_maps[0][1][2])
             start_time = time.perf_counter()
-            Ksamples_jax, PathCosts_jax, actual_ref_jax = roullout_bouncing_jax(n_samples, xt, current_modechange, 
+            Ksamples_jax, PathCosts_jax, actual_ref_jax = sample_bouncing_jax(n_samples, xt, current_modechange, 
                                                                                 states_i, modechange_i, 
                                                                                 inputs_i, K_feedback_i, k_feedforward_i, 
                                                                                 target_state, Q_T, 
@@ -307,9 +306,9 @@ if __name__ == '__main__':
                                                                                 epsilon, GaussianNoise_i, 
                                                                                 mode_exttrjs_maps)
             
-            print("jax parallel sampling complete")
+            # print("jax parallel sampling complete")
             end_time = time.perf_counter()
-            print("jax time elapsed : ", end_time - start_time)
+            # print("jax time elapsed : ", end_time - start_time)
             
             
             # --- cpu parallel ---
@@ -329,8 +328,8 @@ if __name__ == '__main__':
             diff_Ksamples = sampled_trjs - Ksamples_jax
             diff_PathCosts = PathCosts - PathCosts_jax
             
-            print("diff_Ksamples norm :", np.linalg.norm(diff_Ksamples))
-            print("diff_PathCosts norm :", np.linalg.norm(diff_PathCosts))
+            # print("diff_Ksamples norm :", np.linalg.norm(diff_Ksamples))
+            # print("diff_PathCosts norm :", np.linalg.norm(diff_PathCosts))
             
             show_samples = True
             if show_samples:

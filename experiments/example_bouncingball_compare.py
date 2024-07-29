@@ -11,10 +11,10 @@ sys.path.append(root_dir)
 import time
 
 # Import rollout functions
-from dynamics.integration_hybrid import *
-from dynamics.integration_hybrid_jax import roullout_bouncing_jax
+from dynamics.dynamics_bouncing import *
+from hybrid_pathintegral.sampling_rollout_jax_bouncing import sample_bouncing_jax
 # Import iLQR class
-from hybrid_ilqr.hybrid_ilqr import solve_ilqr
+from hybrid_ilqr.h_ilqr import solve_ilqr
 # Import Riccati class
 from hybrid_ilqr.hybrid_riccati import *
 # Importing path integral control
@@ -160,7 +160,6 @@ if __name__ == '__main__':
             
             plt.show()
     
-    # exp_data.add_nominal_data((states,inputs,k_feedforward,K_feedback,current_cost,states_iter))
 
     step_one_samples = np.zeros((n_samples, n_states))
 
@@ -309,7 +308,7 @@ if __name__ == '__main__':
             #                                   Sampling using JAX
             # ------------------------------------------------------------------------------------------
             start_time = time.perf_counter()
-            Ksamples_jax, PathCosts_jax, actual_ref_jax = roullout_bouncing_jax(n_samples, xt, current_modechange, 
+            Ksamples_jax, PathCosts_jax, actual_ref_jax = sample_bouncing_jax(n_samples, xt, current_modechange, 
                                                                                 states_i, modechange_i, 
                                                                                 inputs_i, K_feedback_i, k_feedforward_i, 
                                                                                 target_state, Q_T, 
