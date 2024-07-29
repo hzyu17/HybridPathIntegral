@@ -24,7 +24,7 @@ class ExpParams():
                       start_time, end_time, dt, initial_guess, epsilon, 
                       n_exp, n_samples, Q_k, R_k, Q_T, 
                       symbolic_dyn, detection_func, plotting_func, state_convert_func, 
-                      init_reset_args, target_reset_args):
+                      init_reset_args, target_reset_args, animate_function=None):
         self._nmodes = nmodes
         self._nstates = n_states
         self._current_mode = init_mode
@@ -47,6 +47,7 @@ class ExpParams():
         self.state_converters_ = state_convert_func
         self._init_reset_args = init_reset_args
         self._target_reset_args = target_reset_args
+        self._animate_function = animate_function
         
     def nmodes(self):
         return self._nmodes
@@ -65,6 +66,9 @@ class ExpParams():
     
     def state_convert_function(self):
         return self.state_converters_
+    
+    def animate_function(self):
+        return self._animate_function
 
 class ExpData():
     def __init__(self, params):
@@ -76,6 +80,9 @@ class ExpData():
 
     def add_nominal_data(self, ilqr_solution):
         self._data['nominal'] = ilqr_solution
+        
+    def add_plotting_function(self, plotting_func):
+        self._data['plotting_func'] = plotting_func
         
     def dump(self, file_name):
         with open(file_name, 'wb') as f:
@@ -96,26 +103,43 @@ class ExpData():
             return self._data['nominal']
         else:
             return []
+    
+    def get_plotting_function(self):
+        if 'plotting_func' in self._data.keys():
+            return self._data['plotting_func']
+        else:
+            return []
 
 
 class DataOneSample():
-    def __init__(self, x_trj_pi, u_trj_pi, x_trj_ilqr, u_trj_ilqr, allPathCosts, cost_pi, cost_ilqr):
+    def __init__(self, mode_trj_pi, x_trj_pi, u_trj_pi, mode_trj_ilqr, x_trj_ilqr, u_trj_ilqr, allPathCosts, cost_pi, cost_ilqr, all_samples=None):
         """ The data to save for a path integral control in [0, T].
         Args:
+            mode_trj_pi (_type_): mode of the controlled path integral trajectory
             x_trj_pi (_type_): controlled state trajectory
             u_trj_pi (_type_): path integral controller
+            mode_trj_ilqr (_type_): mode of the controlled i-lqr trajectory
             x_trj_ilqr (_type_): ilqr controlled state trajectory
             u_trj_ilqr (_type_): ilqr controller
             allPathCosts (_type_): All the PathCosts used. shape: [nt, n_samples]
         """
+        self._mode_trj_pi = mode_trj_pi
         self._x_trj_pi = x_trj_pi
         self._u_trj_pi = u_trj_pi
+        self._mode_trj_ilqr = mode_trj_ilqr
         self._x_trj_ilqr = x_trj_ilqr
         self._u_trj_ilqr = u_trj_ilqr
         self._allPathCosts = allPathCosts
         self._cost_pi = cost_pi
         self._cost_ilqr = cost_ilqr
-        
+        self._all_samples = all_samples
+    
+    def mode_trj_pi(self):
+        return self._mode_trj_pi
+    
+    def mode_trj_ilqr(self):
+        return self._mode_trj_ilqr
+    
     def x_trj_pi(self):
         return self._x_trj_pi
     
@@ -136,3 +160,6 @@ class DataOneSample():
     
     def cost_ilqr(self):
         return self._cost_ilqr
+    
+    def all_samples(self):
+        return self._all_samples

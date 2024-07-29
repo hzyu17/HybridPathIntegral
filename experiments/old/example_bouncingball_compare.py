@@ -159,7 +159,6 @@ if __name__ == '__main__':
             
             plt.show()
     
-    # exp_data.add_nominal_data((states,inputs,k_feedforward,K_feedback,current_cost,states_iter))
 
     step_one_samples = np.zeros((n_samples, n_states))
     for i_exp in prange(n_exp):
@@ -294,12 +293,12 @@ if __name__ == '__main__':
             # ====== samples using jax ====== 
             cur_ref_modechange = modechanges[i_t]
             
-            from dynamics.integration_hybrid_jax import roullout_bouncing_jax
+            from dynamics.integration_hybrid_jax import sample_bouncing_jax
             
             # print("=== extended trajectories 1: ", mode_exttrjs_maps[0][1][1])
             # print("=== extended trajectories 2: ", mode_exttrjs_maps[0][1][2])
             start_time = time.perf_counter()
-            Ksamples_jax, PathCosts_jax, actual_ref_jax = roullout_bouncing_jax(n_samples, xt, current_modechange, 
+            Ksamples_jax, PathCosts_jax, actual_ref_jax = sample_bouncing_jax(n_samples, xt, current_modechange, 
                                                                                 states_i, modechange_i, 
                                                                                 inputs_i, K_feedback_i, k_feedforward_i, 
                                                                                 target_state, Q_T, 

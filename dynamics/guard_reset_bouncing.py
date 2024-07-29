@@ -52,7 +52,7 @@ def reset_map_bouncing_21(t, x_minus, current_mode, args_reset):
     if (x_minus[1] < 0) and (current_mode==1):
         x_plus = x_minus
         current_mode = 0
-    return x_plus, current_mode, (None,)
+    return x_plus, current_mode, args_reset
 
 def reset_map_bouncing_21_jax(t, x_minus, current_mode, args_reset):
     bouncing_cond = jax.numpy.logical_and(x_minus[1] < 0, current_mode==1)
@@ -68,7 +68,7 @@ def reset_map_bouncing_21_jax(t, x_minus, current_mode, args_reset):
     args = (x_minus, current_mode)
     x_plus, new_mode = jax.lax.cond(bouncing_cond, bouncing_true_fun, bouncing_false_fun, args)
         
-    return x_plus, new_mode, (None,)
+    return x_plus, new_mode, args_reset
 
 
 def reset_map_bouncing_12_jax(t, x_minus, current_mode, args_reset):
@@ -87,7 +87,7 @@ def reset_map_bouncing_12_jax(t, x_minus, current_mode, args_reset):
     args = (x_minus, current_mode)
     x_plus, new_mode = jax.lax.cond(bouncing_cond, bouncing_true_fun, bouncing_false_fun, args)
         
-    return x_plus, new_mode, (None,)
+    return x_plus, new_mode, args_reset
     
 def reset_map_bouncing_12(t, x_minus, current_mode, args_reset):
     e2 = 0.6
@@ -98,7 +98,7 @@ def reset_map_bouncing_12(t, x_minus, current_mode, args_reset):
         x_plus = coeff@x_minus
         new_mode = 1
         
-    return x_plus, new_mode, (None,)
+    return x_plus, new_mode, args_reset
 
 resetmap_bouncing_jit = jax.jit(reset_map_bouncing_12)
 

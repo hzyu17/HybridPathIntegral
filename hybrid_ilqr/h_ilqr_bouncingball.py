@@ -13,8 +13,6 @@ sys.path.append(root_dir)
 from hybrid_ilqr.h_ilqr import solve_ilqr
 # Import bouncing ball dynamics
 from dynamics.dynamics_bouncing import *
-# Import plotting
-import matplotlib.pyplot as plt
 # Import experiment parameter class
 from experiments.exp_params import *
 
@@ -71,8 +69,9 @@ if __name__ == '__main__':
     n_exp = 1
     n_samples = 10
     
-    init_reset_args = [None for _ in range(nt)]
-
+    init_reset_args = [np.array([0.0]) for _ in range(nt)]
+    target_reset_args = [np.array([0.0]) for _ in range(nt)]
+    
     # ====================================
     # solve for hybrid ilqr proposal
     # ====================================
@@ -86,16 +85,22 @@ if __name__ == '__main__':
                              start_time, end_time, dt, initial_guess, 
                              epsilon, n_exp, n_samples, 
                              Q_k, R_k, Q_T, flow_dynamics, 
-                             detect_bouncing,plot_bouncingball, convert_state_21_bouncing, init_reset_args)
+                             event_detect_bouncing, 
+                             plot_bouncingball, 
+                             convert_state_21_bouncing, 
+                             init_reset_args, target_reset_args)
     exp_data = ExpData(exp_params)
     
     hybrid_ilqr_result = solve_ilqr(exp_params, detect=True)
     
-    (modes,states,inputs,k_feedforward,K_feedback,current_cost,states_iter,modechanges,mode_exttrjs_maps, _) = hybrid_ilqr_result
-    
-    exp_data.add_nominal_data((states,inputs,k_feedforward,K_feedback,current_cost,states_iter))
+    (modes,states,inputs,
+     k_feedforward,K_feedback,
+     current_cost,states_iter,
+     ref_modechanges,reference_extension_helper, ref_reset_args) = hybrid_ilqr_result
+        
+    exp_data.add_nominal_data(hybrid_ilqr_result)
 
 
     show_results = True
     if show_results:
-        plot_bouncingball(time_span, modes, states, inputs, init_state, target_state, nt)
+        fig1, axes = plot_bouncingball(time_span, modes, states, inputs, init_state, target_state, nt, color='k')

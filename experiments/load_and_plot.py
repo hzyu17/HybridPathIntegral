@@ -7,8 +7,8 @@ if __name__ == '__main__':
     exp_params = ExpParams()
     exp_data = ExpData(exp_params)
 
-    filename = root_dir+"/data/bouncing/ablation_study_nsamples/data_5000samples_eps_15.0_coupling.pickle"
-    
+    # filename = root_dir+"/data/bouncing/ablation_study_nsamples/data_5000samples_eps_15.0_coupling.pickle"
+    filename = root_dir+"/experiments/data/bouncing/data_2024-07-28_19-35-18_h_pathintegral_example_bouncingball_jax_1experiments_100samples_eps_5_coupling_dt_0.01.pickle"
     print("loading data: ", filename)
     exp_data.load(filename)
     
@@ -23,9 +23,17 @@ if __name__ == '__main__':
     target_state = exp_params._target_state
     
     if exp_data.get_nominal_data():
-        (states,inputs,k_feedforward,K_feedback,current_cost,states_iter) = exp_data.get_nominal_data()
+        (modes,states,inputs, 
+         k_feedforward, K_feedback, current_cost, 
+         states_iter, ref_modechanges,
+         reference_extension_helper, ref_reset_args) = exp_data.get_nominal_data()
     else:
-        (states,inputs,k_feedforward,K_feedback,current_cost,states_iter,_,_) = solve_ilqr(exp_params)
+        (modes,states,inputs, 
+         k_feedforward, K_feedback, current_cost, 
+         states_iter, ref_modechanges,
+         reference_extension_helper, ref_reset_args) = solve_ilqr(exp_params)
+        
+    plotting_function = exp_data.get_plotting_function()
 
     print("===================== plotting =====================")
     fig1, axes = plt.subplots(1, 2, figsize=(10, 8))
@@ -43,7 +51,6 @@ if __name__ == '__main__':
         trj_pi = exp_data.get_data(i).x_trj_pi()
         u_star_pi = exp_data.get_data(i).u_trj_pi()
         u_trj_ilqr = exp_data.get_data(i).u_trj_ilqr()
-        
         allPathCosts = exp_data.get_data(i).allPathCosts()
         
         for j in range(nt -1):
@@ -51,9 +58,6 @@ if __name__ == '__main__':
         
         cost_pi = exp_data.get_data(i).cost_pi()
         cost_ilqr = exp_data.get_data(i).cost_ilqr()
-        
-        # print("cost_pi:", cost_pi)
-        # print("cost_ilqr:", cost_ilqr)
         
         cost_pi_exp[i] = cost_pi
         cost_ilqr_exp[i] = cost_ilqr
@@ -69,6 +73,11 @@ if __name__ == '__main__':
     cost_diff = (cost_ilqr_exp - cost_pi_exp) / cost_ilqr_exp * 100
     sorted_indices = [index for index, value in sorted(enumerate(cost_diff), key=lambda x: x[1])]
     sorted_cost_diff = sorted(cost_diff)
+    
+    # Check the costs of the 10% tail of h-iLQR costs
+    sorted_cost_ilqr_indices = [index for index, value in sorted(enumerate(cost_ilqr_exp), key=lambda x: x[1])]
+    sorted_costilqr = sorted(cost_ilqr_exp)
+    ilqr_tail_index = sorted_cost_ilqr_indices[int(np.floor(0.9 * len(sorted_cost_ilqr_indices))):]
     
     # ------------------------------------------------------------------
     #   Compute CVaR: check the cases where h-iLQR do not perform well
@@ -88,14 +97,7 @@ if __name__ == '__main__':
     
     for confidence in [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]:
         cVaR = compute_cvar(cost_diff, confidence)[1]
-        print("cVaR at confidence level: ", confidence, " is ", cVaR)
-    
-    
-    # Check the costs of the 10% tail of h-iLQR costs
-    sorted_indices = [index for index, value in sorted(enumerate(cost_ilqr_exp), key=lambda x: x[1])]
-    sorted_costilqr = sorted(cost_ilqr_exp)
-    
-    ilqr_tail_index = sorted_indices[int(np.floor(0.9 * len(sorted_indices))):]
+        print("cVaR at confidence level: ", confidence, " is ", cVaR)   
     
     cost_diff_tail = (cost_ilqr_exp[ilqr_tail_index] - cost_pi_exp[ilqr_tail_index]) / cost_ilqr_exp[ilqr_tail_index]
     mean_cost_diff_tail = np.mean(cost_diff_tail) * 100.0
@@ -113,77 +115,21 @@ if __name__ == '__main__':
     # ---------------------------------------
     font_props = FontProperties(family='serif', size=18, weight='normal')
     
-    
     # --------------------------------------------
     # plot the path integral controlled trajectory
     # -------------------------------------------- 
-    for i in range(n_exp):
-        trj_ilqr = exp_data.get_data(i).x_trj_ilqr()
-        trj_pi = exp_data.get_data(i).x_trj_pi()
-        
-        ax1.plot(time_span, trj_ilqr[:, 0], 'b', linewidth=0.8, alpha=0.2)
-        ax2.plot(time_span, trj_ilqr[:, 1], 'b', linewidth=0.8, alpha=0.2)
-        
-        ax1.plot(time_span, trj_pi[:, 0], 'r', linewidth=0.8, alpha=0.6)
-        ax2.plot(time_span, trj_pi[:, 1], 'r', linewidth=0.8, alpha=0.6)
-        
-    ax1.plot(time_span, trj_ilqr[:, 0], 'b', linewidth=0.8, alpha=0.2, label='H-iLQR')
-    ax2.plot(time_span, trj_ilqr[:, 1], 'b', linewidth=0.8, alpha=0.2, label='H-iLQR')
-
-    ax1.plot(time_span, trj_pi[:, 0], 'r', linewidth=0.8, alpha=0.6, label='H-PathIntegral')
-    ax2.plot(time_span, trj_pi[:, 1], 'r', linewidth=0.8, alpha=0.6, label='H-PathIntegral')
-
-    # ----------- Plot the reference -----------
-    ax1.plot(time_span, states[:,0],'k',label='H-iLQR reference')
-    ax2.plot(time_span, states[:,1],'k',label='H-iLQR reference')
-
-    # ----------- Plot the start and goal states -----------
-    ax1.scatter(time_span[-1], target_state[0], color='g', marker='o', s=50.0, linewidths=6, label='Target', zorder=2)
-    ax1.scatter(time_span[0], init_state[0], color='r', marker='o', s=50.0, linewidths=6, label='Start', zorder=2)
-
-    ax2.scatter(time_span[-1], target_state[1], color='g', marker='o', s=50.0, linewidths=6, label='Target', zorder=2)
-    ax2.scatter(time_span[0], init_state[1], color='r', marker='o', s=50.0, linewidths=6, label='Start', zorder=2)
+    fig1, axes_12 = plt.subplots(1, 2)
+    fig2, ax3 = plt.subplots()
+    fig1, axes_12, fig2, ax3 =  plot_bouncingball_nexp(n_exp, exp_data, time_span, init_state, 
+                                                        target_state, args=None)
     
-    ax1.set_xlabel(r"Time", fontproperties=font_props)
-    ax1.set_ylabel(r"$z$", fontproperties=font_props)
-    ax1.set_title("Vertical Position", fontproperties=font_props)
-    plt.tight_layout()
-
-    ax2.set_xlabel(r"Time", fontproperties=font_props)
-    ax2.set_ylabel(r"$\dot z$", fontproperties=font_props)
-    ax2.set_title("Vertical Velocity", fontproperties=font_props)
-    plt.tight_layout()
+    fig1.tight_layout()
+    fig2.tight_layout()
     
-    ax1.legend()
-    ax2.legend()
-
+    plt.show()
+    
     # save figures
     fig1.savefig(root_dir+'/data/figures/bouncing/bouncing_1D.pdf', format='pdf', dpi=2000)
-    
-    # =========== Plot the z-\dot_z figure ===========
-    fig2, ax5 = plt.subplots(figsize=(10, 8))
-    ax5.grid(True)
-
-    # ----------- Plot the last iteration of iLQR controller ----------
-    for i in range(n_exp):
-        trj_ilqr = exp_data.get_data(i).x_trj_ilqr()
-        trj_pi = exp_data.get_data(i).x_trj_pi()
-        ax5.plot(trj_ilqr[:, 0], trj_ilqr[:, 1], 'b', linewidth=0.8, alpha=0.2)
-        ax5.plot(trj_pi[:, 0], trj_pi[:, 1], 'r', linewidth=0.8, alpha=0.6)
-
-    ax5.plot(trj_ilqr[:, 0], trj_ilqr[:, 1], 'b', linewidth=0.8, alpha=0.2, label='H-iLQR')
-    ax5.plot(trj_pi[:, 0], trj_pi[:, 1], 'r', linewidth=0.8, alpha=0.6, label='H-PathIntegral')
-    ax5.plot(states[:,0], states[:,1],'k',label='H-iLQR')
-    
-    # ----------- Plot the start and goal states -----------
-    ax5.scatter(target_state[0], target_state[1], color='g', marker='o', s=50.0, linewidths=6, label='Target', zorder=2)
-    ax5.scatter(init_state[0], init_state[1], color='r', marker='o', s=50.0, linewidths=6, label='Start', zorder=2)
-
-    ax5.set_xlabel(r"$z$", fontproperties=font_props)
-    ax5.set_ylabel(r"$\dot z$", fontproperties=font_props)
-    ax5.set_title("Controlled Bouncing Ball Dynamics", fontproperties=font_props)
-    ax5.legend()
-    fig2.tight_layout()
     fig2.savefig(root_dir+'/data/figures/bouncing/bouncing_1D_zdotz.pdf', format='pdf', dpi=2000)
 
     # ------------------------------------------ 
@@ -201,7 +147,6 @@ if __name__ == '__main__':
 
     bars1 = ax8.bar(index, cost_ilqr_exp, bar_width, alpha=opacity, color='b', label='Hybrid iLQR')
     bars2 = ax8.bar(index + bar_width, cost_pi_exp, bar_width, alpha=opacity, color='r', label='Hybrid Path Integral')
-    # bars2 = ax8.bar(index + bar_width, cost_pi_exp, bar_width, alpha=opacity, color='r', label='Hybrid Path Integral')
 
     # Add some labels, title and axes ticks
     ax8.set_xlabel(r"Experiment ID", fontproperties=font_props)
@@ -264,4 +209,21 @@ if __name__ == '__main__':
     ax11.set_xlabel("Sample Number", fontproperties=font_props)
     ax11.set_ylabel("Costs", fontproperties=font_props)
     
+    
+    # ----------------------------------------------------
+    # Plot the samples for the i-lqr tail performances
+    # ----------------------------------------------------
+    fig7, ax12 = plt.subplots(figsize=(8,6))
+    highcost_index = sorted_cost_ilqr_indices[-1]
+    highcost_Ksamples = exp_data.get_data(highcost_index).all_samples()
+    
+    fig3, ax6 = plt.subplots()
+    ax6.grid(True)
+    for i_s in range(n_samples):
+        ax6.plot(highcost_Ksamples[0, i_s,:,0], highcost_Ksamples[i_s,:,1],'b', alpha=0.2)
+        
+    ax6.scatter(target_state[0], target_state[1], color='g', marker='x', s=50.0, linewidths=6, label='Target')
+    ax6.scatter(init_state[0], init_state[1], color='r', marker='x', s=50.0, linewidths=6, label='Start')
+    
     plt.show()
+    

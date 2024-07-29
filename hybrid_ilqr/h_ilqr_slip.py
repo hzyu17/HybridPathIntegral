@@ -76,6 +76,9 @@ if __name__ == '__main__':
     start_time = 0
     end_time = 0.5
     
+    time_span = np.arange(start_time, end_time, dt).flatten()
+    nt = len(time_span)
+    
     # Terminal cost 
     target_mode = 0
     Q_T = 80.0*np.eye(n_states[0])
@@ -87,8 +90,8 @@ if __name__ == '__main__':
     init_theta = init_theta_deg / 180 * np.pi
     init_state = np.array([init_theta, -4.0, 0.5*r0, 0.0], dtype=np.float64)
     target_state = np.array([1.1, 2.5, 1.5, 0.0, np.pi/3], dtype=np.float64)  # Swing pendulum upright
-    init_reset_args = (0.0, )
-    target_reset_args = (None, )
+    init_reset_args = [np.array([0.0]) for _ in range(nt)]
+    target_reset_args = [np.array([0.0]) for _ in range(nt)]
     
     # ---------------- / slip example -----------------
     
@@ -96,8 +99,6 @@ if __name__ == '__main__':
     # solve for hybrid ilqr proposal
     # ================================
     exp_params = ExpParams()
-    time_span = np.arange(start_time, end_time, dt).flatten()
-    nt = len(time_span)
     
     initial_guess = [0.0*np.ones((np.shape(time_span)[0],n_inputs[0])), 0.0*np.ones((np.shape(time_span)[0],n_inputs[1]))]
     symbolic_dynamics = [symbolic_flight_dynamics_slip, symbolic_stance_dynamics_slip]
@@ -109,39 +110,28 @@ if __name__ == '__main__':
     exp_params.update_params(n_modes, init_mode, target_mode, n_states, init_state, target_state, 
                              start_time, end_time, dt, initial_guess, 
                              epsilon, n_exp, n_samples, Q_k, R_k, Q_T, symbolic_dynamics, 
-                             detect_slip, plot_slip, convert_state_21_slip, init_reset_args, target_reset_args)
+                             event_detect_slip, plot_slip, convert_state_21_slip, 
+                             init_reset_args, target_reset_args, 
+                             animate_slip)
+    
     exp_data = ExpData(exp_params)
     hybrid_ilqr_result = solve_ilqr(exp_params, detect=True)
     
-    (modes,states,inputs,k_feedforward,K_feedback,current_cost,states_iter,modechanges,mode_exttrjs_maps,stance_xpos) = hybrid_ilqr_result
+    (modes,states,inputs,
+     k_feedforward,K_feedback,
+     current_cost,states_iter,
+     ref_modechanges,reference_extension_helper, ref_reset_args) = hybrid_ilqr_result
     
-    exp_data.add_nominal_data((states,inputs,k_feedforward,K_feedback,current_cost,states_iter))
+    exp_data.add_nominal_data(hybrid_ilqr_result)
+    
+    (v_mode_change_ref, v_ref_ext_bwd, v_ref_ext_fwd, 
+    v_Kfb_ref_ext_bwd, v_Kfb_ref_ext_fwd, 
+    v_kff_ref_ext_bwd, v_kff_ref_ext_fwd, _) = extract_extensions(reference_extension_helper, start_index = 0)
 
 
     show_results = True
     if show_results:
-        plot_slip(time_span, modes, states, inputs, init_state, target_state, nt, stance_xpos)
+        plot_slip(time_span, modes, states, inputs, init_state, target_state, nt, ref_reset_args)
 
-        fig, ax = plt.subplots()
-        ax.grid(True)
-        for ii in range(nt):
-            if modes[ii] == 0:
-                plot_slip_flight_animate(states[ii], r0, ax)
-            elif modes[ii] == 1:
-                plot_slip_stance_animate(states[ii], stance_xpos[ii], ax)
-        
-        # Plot start and goal 
-        
-        if init_mode == 0:
-            plot_slip_flight_animate(init_state, r0, ax, 'r-')
-        elif init_mode == 1:
-            plot_slip_stance_animate(init_state, init_reset_args, ax, 'r-')
-            
-        if target_mode == 0:
-            plot_slip_flight_animate(target_state, r0, ax, 'g-')
-        elif target_mode == 1:
-            plot_slip_stance_animate(target_state, target_reset_args, ax, 'g-')
-            
-            
-        plt.show()
+        animate_slip(modes, states, init_mode, init_state, target_mode, target_state, nt, ref_reset_args, target_reset_args)
     

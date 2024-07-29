@@ -23,9 +23,6 @@ import matplotlib.pyplot as plt
 # Import experiment parameter class
 from experiments.exp_params import *
 
-# for paralle sampling on cpu
-from joblib import Parallel, delayed
-
 
 # ====================================== Path Integral Control ====================================== 
 def compute_cost(states,inputs,randN,target_state,trj_ref, Qk, Rk, QT, epsilon, dt):
@@ -160,8 +157,6 @@ if __name__ == '__main__':
             
             plt.show()
     
-    # exp_data.add_nominal_data((states,inputs,k_feedforward,K_feedback,current_cost,states_iter))
-
     step_one_samples = np.zeros((n_samples, n_states))
     for i_exp in prange(n_exp):
         print("The experiment number: ", i_exp)

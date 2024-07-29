@@ -3,24 +3,8 @@
 # mode 2 (stance): x = [theta, theta_dot, r, r_dot], u = [r_delta, \tau_hip]
 # reset maps: identity
 
-import os
-import sys
-file_path = os.path.abspath(__file__)
-current_dir = os.path.dirname(file_path)
-root_dir = os.path.abspath(os.path.join(current_dir, '..'))
-sys.path.append(root_dir)
-
+from dynamics.dynamics import *
 from dynamics.guard_reset_slip import *
-
-# numpy and scipy
-import scipy
-import sympy as sp
-from sympy.matrices import Matrix
-import numpy as np
-
-# plotting
-import matplotlib.pyplot as plt
-
 
 def dyn_slip(t, x, *args):
     """
@@ -209,175 +193,41 @@ def symbolic_stance_dynamics_slip():
     return (f_disc_func,A_disc_func,B_disc_func)
 
 
-# --------------------------------------------------------------
-# Conversion between the two state space (from stance to flight)
-# --------------------------------------------------------------
-def convert_state_21_slip(state_2, foot_contact_pos=0.0):
-    """
-    Utility function to convert an actuated SLIP CoM trajectory in polar coordinates to cartesian.
-    This function assumes the extended SLIP model presented in "Optimal Control of a Differentially Flat
-    Two-Dimensional Spring-Loaded Inverted Pendulum Model".
-    :param trajectory: (4, k) Polar trajectory of the SLIP model during stance phase
-    :param control_signal: (2, k) Optional leg length displacement and hip torque of exerted at every timestep during the
-    stance phase.
-    :param foot_contact_pos: Cartesian x coordinate of the foot contact point during the stance phase of the input
-    trajectory.
-    :return:
-    """
-    polar_traj = np.array(state_2)
-    assert polar_traj.shape[0] == 4, 'Provide a valid (4, k) polar trajectory: %s' % polar_traj.shape
-    if polar_traj.ndim == 1:
-        polar_traj = np.expand_dims(polar_traj, axis=1)
-
-    theta, theta_dot, r, r_dot = polar_traj[0], polar_traj[1], polar_traj[2], polar_traj[3]
-
-    x = np.cos(theta) * r
-    x_dot = -r * theta_dot * np.sin(theta) + np.cos(theta) * r_dot
-    z = np.sin(theta) * r
-    z_dot = np.cos(theta) * theta_dot * r + np.sin(theta) * r_dot
-
-    # Center x dimension
-    # print("foot_contact_pos: ", foot_contact_pos)
-    x += foot_contact_pos
-
-    cartesian_state = np.array([x, x_dot, z, z_dot, theta])
-    return cartesian_state
-
-
-def detect_slip(x0, u, t0, tf, current_mode, reset_args, detection=True, backwards=False):
-    """Integrate controlled dynamics in a short period of time with hybrid event detection.
-
-    Args:
-        x0 (array): starting state
-        u (array): control input
-        t0 (scalar): start time
-        tf (scalar): end time
-        current_mode (int): the current mode
-        reset_args (tuple): the arguments used in the reset map function
-        detection (bool, optional): With detection flag. Defaults to True.
-        backwards (bool, optional): Integrate backwards flag. Defaults to False.
-
-    Returns:
-        tuple: Containing the next state and contact information if a hybrid event happens.
-    """
-    # Define the dynamics using the integration
-    nt = 100
-    
+def event_detect_slip(x0, u, t0, tf, current_mode, reset_args, detection=True, backwards=False):
     guard_slip_12.terminal=True
     guard_slip_12.direction=1
     
     guard_slip_21.terminal=True
     guard_slip_21.direction=1
     
-    guards = {0:guard_slip_12, 1: guard_slip_21}
-    reset_maps = {0:reset_map_slip_12, 1:reset_map_slip_21}
+    guards_slip = {0:guard_slip_12, 1: guard_slip_21}
+    reset_maps_slip = {0:reset_map_slip_12, 1:reset_map_slip_21}
     
-    reset_controls = {0:reset_control_slip_12, 1:reset_control_slip_21}
+    reset_controls_slip = {0:reset_control_slip_12, 1:reset_control_slip_21}
     
-    Rxs = {0:Rx_slip_12, 1:Rx_slip_21}
-    Rts = {0:Rt_slip_12, 1:Rt_slip_21}
+    Rxs_slip = {0:Rx_slip_12, 1:Rx_slip_21}
+    Rts_slip = {0:Rt_slip_12, 1:Rt_slip_21}
     
-    gxs = {0:gx_slip_12, 1:gx_slip_21}
-    gts = {0:gt_slip_12, 1:gt_slip_21}
+    gxs_slip = {0:gx_slip_12, 1:gx_slip_21}
+    gts_slip = {0:gt_slip_12, 1:gt_slip_21}
     
-    smooth_dynamics = {0:dyn_flight_slip, 1:dyn_stance_slip}
+    smooth_dynamics_slip = {0:dyn_flight_slip, 1:dyn_stance_slip}
     
-    next_mode = mode_change_maps(current_mode)
+    return event_detect_onestep(x0, 
+                                u, 
+                                t0, 
+                                tf, 
+                                current_mode, 
+                                smooth_dynamics_slip, 
+                                guards_slip,
+                                gxs_slip,
+                                gts_slip,
+                                reset_maps_slip,
+                                reset_controls_slip,
+                                Rxs_slip,
+                                Rts_slip,
+                                reset_args, detection, backwards)
     
-    current_dynamics = smooth_dynamics[current_mode]
-    
-    current_guard = guards[current_mode]
-    current_resetmap = reset_maps[current_mode]
-    current_resetcontrl = reset_controls[current_mode]
-    
-    current_Rx = Rxs[current_mode]
-    current_Rt = Rts[current_mode]
-    
-    current_gx = gxs[current_mode]
-    current_gt = gts[current_mode]
-    
-    args = (u, )
-    if backwards:
-        # integrate backwards
-        t_span = (t0, tf)
-    else:
-        t_span = (t0, tf)
-        t_eval = np.linspace(t0, tf, nt)
-        current_dyn_fun=lambda t, y: current_dynamics(t, y, *args)
-        
-    x_event = None
-    t_event = None
-    x_reset = None
-    saltation = None
-    next_mode = current_mode
-    reset_byproducts = (None, )
-    
-    u_reset = u
-    
-    if detection:
-        solution = scipy.integrate.solve_ivp(fun=current_dyn_fun, 
-                                             t_span=t_span, y0=x0, method='RK45', 
-                                             t_eval=t_eval, dense_output=True, 
-                                             events=current_guard, vectorized=False)
-    
-        # Hit guard
-        if len(solution.t_events[0]) > 0:
-                        
-            t_event = solution.t_events[0][0]
-            x_event = solution.y_events[0][0]
-            
-            # if current_mode == 0:
-            #     reset_args = (np.array([0.0]), )
-            
-            x_reset, next_mode, reset_byproducts = current_resetmap(t_event, x_event, current_mode, reset_args)
-            
-            print(f"Guard function from mode {current_mode} to mode {next_mode} was hit during the integration!")
-            
-            u_reset = current_resetcontrl(t_event, u)
-            x0 = x_reset
-            
-            next_dynamics = smooth_dynamics[next_mode]
-            
-            args_next = (u_reset, )
-            next_dyn_fun=lambda t, y: next_dynamics(t, y, *args_next)
-            
-            # ---------- Compute saltation matrix ---------- 
-            R_x = current_Rx(t_event, x_event, current_mode, reset_args)[0]
-            R_t = current_Rt(t_event, x_event, current_mode, reset_args)[0]
-            g_x = current_gx(t_event, x_event)
-            g_t = current_gt(t_event, x_event)
-            F_1 = current_dynamics(t_event, x_event)
-            F_2 = next_dynamics(t_event, x_reset) # Important, the F2 is evaluated at the reseted state!
-            saltation = saltation_matrix(F_1, F_2, R_t, R_x, g_t, g_x)
-            
-            t0 = t_event
-            
-            # ---------- Regardless of contact, integrate until t=tf ----------
-            t_span_reset = (t_event, tf)
-            t_eval_reset = np.linspace(t_event, tf, nt)
-            
-            solution = scipy.integrate.solve_ivp(fun=next_dyn_fun, 
-                                                 t_span=t_span_reset, y0=x_reset, method='RK45', 
-                                                 t_eval=t_eval_reset, dense_output=True)
-        else: # Had no contact
-            x0 = None
-            
-    else: # Do not detect contact 
-        solution = scipy.integrate.solve_ivp(fun=current_dyn_fun, 
-                                             t_span=t_span, y0=x0, method='RK45', 
-                                             t_eval=t_eval, dense_output=True)
-    
-    # Solve for the continuous trajectory before the contact 
-    t = np.linspace(t0, tf, nt).flatten()
-    
-    # The solved trajecoty, in shape (nx+nx*nx, nt)
-    f_disc = solution.sol(t) 
-        
-    x_next = f_disc[:, -1]
-
-    mode_mapping = np.array([current_mode, next_mode])
-    
-    return x_next, saltation, mode_mapping, t_event, x_event, x_reset, reset_byproducts
 
 def plot_slip(time_span, modes, states, inputs, init_state, target_state, nt, stance_xp):
     print("Plotting SLIP state and input trajectory")
@@ -614,5 +464,31 @@ if __name__ == '__main__':
     
     flight_state = np.array([3.0, 0.0, 3.0, 0.0, np.pi/3], dtype=np.float64)
     plot_slip_flight_animate(flight_state, r0)
+    
+    plt.show()
+    
+    
+def animate_slip(modes, states, init_mode, init_state, target_mode, target_state, nt, reset_args, target_reset_args):
+    r0 = 1
+    fig, ax = plt.subplots()
+    ax.grid(True)
+    for ii in range(nt):
+        if modes[ii] == 0:
+            plot_slip_flight_animate(states[ii].flatten(), r0, ax)
+        elif modes[ii] == 1:
+            plot_slip_stance_animate(states[ii].flatten(), reset_args[ii][0], ax)
+    
+    # Plot start and goal 
+
+    if init_mode == 0:
+        plot_slip_flight_animate(init_state, r0, ax, 'r-')
+    elif init_mode == 1:
+        plot_slip_stance_animate(init_state, reset_args[0], ax, 'r-')
+        
+        
+    if target_mode == 0:
+        plot_slip_flight_animate(target_state, r0, ax, 'g-')
+    elif target_mode == 1:
+        plot_slip_stance_animate(target_state, target_reset_args, ax, 'g-')
     
     plt.show()

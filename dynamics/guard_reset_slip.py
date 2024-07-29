@@ -105,7 +105,42 @@ def reset_map_slip_21(t, x_event, current_mode, args_reset):
 
     x_reset = jnp.array([px_reset, vx_reset, pz_reset, vz_reset, theta_reset])
     
-    return x_reset, 0, (None, )
+    return x_reset, 0, args_reset
+
+
+# --------------------------------------------------------------
+# Conversion between the two state space (from stance to flight)
+# --------------------------------------------------------------
+def convert_state_21_slip(state_2, foot_contact_pos=0.0):
+    """
+    Utility function to convert an actuated SLIP CoM trajectory in polar coordinates to cartesian.
+    This function assumes the extended SLIP model presented in "Optimal Control of a Differentially Flat
+    Two-Dimensional Spring-Loaded Inverted Pendulum Model".
+    :param trajectory: (4, k) Polar trajectory of the SLIP model during stance phase
+    :param control_signal: (2, k) Optional leg length displacement and hip torque of exerted at every timestep during the
+    stance phase.
+    :param foot_contact_pos: Cartesian x coordinate of the foot contact point during the stance phase of the input
+    trajectory.
+    :return:
+    """
+    polar_traj = np.array(state_2)
+    assert polar_traj.shape[0] == 4, 'Provide a valid (4, k) polar trajectory: %s' % polar_traj.shape
+    if polar_traj.ndim == 1:
+        polar_traj = np.expand_dims(polar_traj, axis=1)
+
+    theta, theta_dot, r, r_dot = polar_traj[0], polar_traj[1], polar_traj[2], polar_traj[3]
+
+    x = np.cos(theta) * r
+    x_dot = -r * theta_dot * np.sin(theta) + np.cos(theta) * r_dot
+    z = np.sin(theta) * r
+    z_dot = np.cos(theta) * theta_dot * r + np.sin(theta) * r_dot
+
+    # Center x dimension
+    # print("foot_contact_pos: ", foot_contact_pos)
+    x += foot_contact_pos
+
+    cartesian_state = np.array([x, x_dot, z, z_dot, theta])
+    return cartesian_state
 
 
 # Define derivatives
