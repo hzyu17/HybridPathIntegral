@@ -70,6 +70,12 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
      current_cost,states_iter,
      ref_modechanges,reference_extension_helper, ref_reset_args) = hybrid_ilqr_result
     
+    time_span = jnp.arange(start_time, end_time, dt).flatten()
+    
+    show_ilqr_result = True
+    if show_ilqr_result:
+        plot_slip(time_span, modes, states, inputs, init_state, target_state, nt, ref_reset_args)
+    
     # mode-dependent reference states. Assuming 2 modes
     # States with padded dimensions
     states_0 = np.zeros((nt, 5))
@@ -94,15 +100,18 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         
         if mode_i == 1:
             states_1[i, :n_states[1]] = states[i]
+            equiv_state_0 = convert_state_21_slip(states[i])
+            states_0[i, :n_states[0]] = equiv_state_0.flatten()
             inputs_1[i, :n_inputs[1]] = inputs[1][i]
             K_feedback_1[i, :n_inputs[1], :n_states[1]] = K_feedback[i]
             k_feedforward_1[i, :n_inputs[1]] = k_feedforward[i]
     
-    ref_reset_args = np.array(ref_reset_args)
     k_feedforward_0 = np.array(k_feedforward_0)
     k_feedforward_1 = np.array(k_feedforward_1)
     K_feedback_0 = np.array(K_feedback_0)
     K_feedback_1 = np.array(K_feedback_1)
+    
+    ref_reset_args = np.array(ref_reset_args)
     
     print(f"=================== The experiment index: {i_exp} ===================" )
     
@@ -126,7 +135,6 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
     
     current_mode_actual = init_mode
     next_mode_actual = current_mode_actual
-    # current_modechange = np.array([current_mode_actual, next_mode_actual])
     
     dt_shrinkingrate = 0.7
     
@@ -149,11 +157,16 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
     # ---------------------------------
     (v_mode_change_ref, v_ref_ext_bwd, v_ref_ext_fwd, 
     v_Kfb_ref_ext_bwd, v_Kfb_ref_ext_fwd, 
-    v_kff_ref_ext_bwd, v_kff_ref_ext_fwd, _) = extract_extensions(reference_extension_helper, start_index = 0)
+    v_kff_ref_ext_bwd, v_kff_ref_ext_fwd, v_tevent) = extract_extensions(reference_extension_helper, start_index = 0)
+    
+    # Add the references to the start of the backward extensions
+    n_extensions = len(v_tevent)
+    for i_ext in range(n_extensions):
+        t_event_i = v_tevent[i_ext]
+        v_ref_ext_bwd[i_ext][t_event_i+1:] = states[t_event_i+1:]
     
     show_trj_extensions = False
     if show_trj_extensions:
-        time_span = np.arange(start_time, end_time, dt).flatten()
          
         fig_ext, axes_ext = plt.subplots(3, 1, figsize=(10, 12))
         (ax_ext_1, ax_ext_2, ax_ext_3) = axes_ext.flatten()
@@ -162,12 +175,12 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         ax_ext_2.grid(True)
         ax_ext_3.grid(True)
         
-        ax_ext_1.plot(time_span, v_ref_ext_bwd[0][:-1, 0], color='r', label='Backward extension')
-        ax_ext_1.plot(time_span, v_ref_ext_fwd[0][:-1, 0], color='b', label='Forward extension')
+        ax_ext_1.plot(time_span, v_ref_ext_bwd[0][:, 0], color='r', label='Backward extension')
+        ax_ext_1.plot(time_span, v_ref_ext_fwd[0][:, 0], color='b', label='Forward extension')
         ax_ext_1.plot(time_span, states[:, 0], color='k')
         
-        ax_ext_2.plot(time_span, v_ref_ext_bwd[0][:-1, 1], color='r', label='Backward extension')
-        ax_ext_2.plot(time_span, v_ref_ext_fwd[0][:-1, 1], color='b', label='Forward extension')
+        ax_ext_2.plot(time_span, v_ref_ext_bwd[0][:, 1], color='r', label='Backward extension')
+        ax_ext_2.plot(time_span, v_ref_ext_fwd[0][:, 1], color='b', label='Forward extension')
         ax_ext_2.plot(time_span, states[:, 1], color='k')
         
         ax_ext_3.plot(v_ref_ext_bwd[0][:, 0], v_ref_ext_bwd[0][:, 1], color='r', label='Backward extension')
@@ -185,7 +198,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
     Ksamples_jax_saving = np.zeros((n_samples, nt, n_modes))
     
     # ======================================================
-    # Main loop for the hybrid path integral control
+    #     Main loop for the hybrid path integral control
     # ======================================================
     for i_t in range(nt-1):
         
@@ -194,36 +207,36 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         start_time_i = start_time + i_t*dt
         nt_i = nt - i_t
         
-        # ------------------------------------------------------------------------------------
-        # Calculate the slice of the variables for the current future horizon 
-        # ------------------------------------------------------------------------------------
+        # ------------------------------------------------------------------------
+        #   Calculate the slice of the variables for the current future horizon 
+        # ------------------------------------------------------------------------
+        
+        # mode-dependent references
+        modes_i = modes[i_t:]
+        ref_current_mode = modes[i_t]
+        
+        states_0_i = states_0[i_t:]
+        states_1_i = states_1[i_t:]
+        
+        inputs_0_i = inputs_0[i_t:]
+        inputs_1_i = inputs_1[i_t:]
+        
+        states_i = [states_0_i, states_1_i]
+        inputs_i = [inputs_0_i, inputs_1_i]       
+        
+        K_feedback_0_i = K_feedback_0[i_t:]
+        K_feedback_1_i = K_feedback_1[i_t:]
+        
+        k_feedforward_0_i = k_feedforward_0[i_t:]
+        k_feedforward_1_i = k_feedforward_1[i_t:]
+        
+        # Combined gains
+        K_feedback_i = [K_feedback_0_i, K_feedback_1_i]
+        k_feedforward_i = [k_feedforward_0_i, k_feedforward_1_i]
         
         # actual modes and states
         current_mode_actual = modes_pi_jax[i_t]
         xt = trj_pi_jax[i_t]
-        
-        # references
-        states_0_i = states_0[i_t:, :]
-        states_1_i = states_1[i_t:, :]
-        inputs_0_i = inputs_0[i_t:, :]
-        inputs_1_i = inputs_1[i_t:, :]
-        
-        states_i = [states_0_i, states_1_i]
-        inputs_i = [inputs_0_i, inputs_1_i]
-        
-        # ref_modechange_i = ref_modechanges[i_t:]
-        modes_i = modes[i_t:]
-        
-        K_feedback_0_i = K_feedback_0[i_t:,:]
-        K_feedback_1_i = K_feedback_1[i_t:,:]
-        
-        k_feedforward_0_i = k_feedforward_0[i_t:,:]
-        k_feedforward_1_i = k_feedforward_1[i_t:,:]
-        
-        K_feedback_i = [K_feedback_0_i, K_feedback_1_i]
-        k_feedforward_i = [k_feedforward_0_i, k_feedforward_1_i]
-        
-        ref_current_mode = ref_modechanges[i_t][0]
         
         # Randomness is mode dependent, same as control. Assuming 2-mode system.
         n_modes = 2
@@ -242,9 +255,16 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         # ----------------------------------------------------------
         (v_mode_change_ref_i, v_ref_ext_bwd_i, v_ref_ext_fwd_i, 
         v_Kfb_ref_ext_bwd_i, v_Kfb_ref_ext_fwd_i, 
-        v_kff_ref_ext_bwd_i, v_kff_ref_ext_fwd_i, _) = extract_extensions(reference_extension_helper, 
-                                                                          start_index = i_t, 
-                                                                          padding=True) 
+        v_kff_ref_ext_bwd_i, v_kff_ref_ext_fwd_i, v_tevent_i) = extract_extensions(reference_extension_helper, 
+                                                                                    start_index = i_t, 
+                                                                                    padding=True) 
+        
+        # Add the references to the start of the backward extensions
+        n_ext_i = len(v_tevent_i)
+        for i_e in range(n_ext_i):
+            mc_i = v_mode_change_ref_i[i_e]
+            t_e_i = v_tevent_i[i_e]
+            v_ref_ext_bwd_i[i_e][t_e_i+1:] = states_i[mc_i[1]][t_e_i+1:]
         
         # ====================
         # Sampling using jax 
@@ -252,29 +272,67 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         
         # ---------------------------------------------------------------------------------------
         #                               Sample future trajectories
-        # ---------------------------------------------------------------------------------------
+        # ---------------------------------------------------------------------------------------                    
         
-        # timer_start_tic = time.perf_counter()
-        Ksamples_jax_i, PathCosts_jax_i, _ = sample_slip_jax(n_samples, xt, 
-                                                            current_mode_actual, 
-                                                            states_0_i, states_1_i, 
-                                                            modes_i, 
-                                                            inputs_0_i, inputs_1_i, 
-                                                            K_feedback_0_i, k_feedforward_0_i, 
-                                                            K_feedback_1_i, k_feedforward_1_i, 
-                                                            target_state, Q_T, 
-                                                            start_time_i, dt, end_time, dt_shrinkingrate, 
-                                                            epsilon, 
-                                                            GaussianNoise_i[0], GaussianNoise_i[1], 
-                                                            v_mode_change_ref_i, 
-                                                            v_ref_ext_fwd_i, v_ref_ext_bwd_i, 
-                                                            v_Kfb_ref_ext_fwd_i, v_kff_ref_ext_fwd_i, 
-                                                            v_Kfb_ref_ext_bwd_i, v_kff_ref_ext_bwd_i, 
-                                                            reset_args_i)
+        Kmodes_jax_i, Ksamples_jax_i, PathCosts_jax_i, Ksamples_ut, Ksamples_xref = sample_slip_jax(n_samples, xt, 
+                                                                                                    current_mode_actual, 
+                                                                                                    states_0_i, states_1_i, 
+                                                                                                    modes_i, 
+                                                                                                    inputs_0_i, inputs_1_i, 
+                                                                                                    K_feedback_0_i, k_feedforward_0_i, 
+                                                                                                    K_feedback_1_i, k_feedforward_1_i, 
+                                                                                                    target_state, Q_T, 
+                                                                                                    start_time_i, dt, dt_shrinkingrate, 
+                                                                                                    epsilon, 
+                                                                                                    GaussianNoise_i[0], GaussianNoise_i[1], 
+                                                                                                    v_mode_change_ref_i, 
+                                                                                                    v_ref_ext_fwd_i, v_ref_ext_bwd_i, 
+                                                                                                    v_Kfb_ref_ext_fwd_i, v_kff_ref_ext_fwd_i, 
+                                                                                                    v_Kfb_ref_ext_bwd_i, v_kff_ref_ext_bwd_i, 
+                                                                                                    reset_args_i)
         
-        # # save the samples at t=0
-        # if (i_t == 0):
-        #     Ksamples_jax_saving = Ksamples_jax_i
+        # -------------------------------
+        # Visualize sampled trajectories
+        # -------------------------------
+        show_samples = True
+        if show_samples:
+            time_span = np.arange(start_time, end_time, dt).flatten()
+            
+            fig, axes = plt.subplots(2, 7, figsize=(15, 10))
+            for i_s in range(1):
+                sample_modes_i = Kmodes_jax_i[i_s]
+                sample_xref_i = Ksamples_xref[i_s]
+                sample_ut_i = Ksamples_ut[i_s]
+                sample_states_i = Ksamples_jax_i[i_s]
+                sample_states_i = unpad_state_slip(sample_modes_i, sample_states_i)
+                
+                sample_inputs_i = Ksamples_ut[i_s]
+                sample_inputs_i = unpad_control_slip(sample_modes_i, sample_inputs_i)
+                
+                fig, axes = plot_slip(time_span, sample_modes_i, sample_states_i, 
+                                      sample_inputs_i, init_state, target_state, 
+                                      nt, ref_reset_args, fig, axes)
+                
+            plt.show()
+            
+            # # --------------------------------------------------
+            # # Plot the sample corresponding to the highest cost
+            # # --------------------------------------------------
+            # highcost_index = [index for index, _ in sorted(enumerate(PathCosts_jax_i), key=lambda x: x[1])][-1]
+            
+            # print(f"Ploting the high cost sample. Index: {highcost_index}")
+            
+            # ax2_sample.plot(Ksamples_jax_i[highcost_index,:,0], Ksamples_jax_i[highcost_index,:,1],'b', alpha=0.2)
+            # ax2_sample.scatter(target_state[0], target_state[1], color='g', marker='x', s=50.0, linewidths=6, label='Target')
+            # ax2_sample.scatter(init_state[0], init_state[1], color='r', marker='x', s=50.0, linewidths=6, label='Start')
+            # ax2_sample.scatter(xt[0], xt[1], color='b', marker='x', s=30.0, linewidths=6, label='Current')
+            
+        # ----------------------------------- 
+        
+        # save the samples at t=0
+        save_samples = False
+        if save_samples and (i_t == 0):
+            Ksamples_jax_saving = Ksamples_jax_i
         
         # --------------------------------------------------------
         #               Update the control proposal
@@ -304,41 +362,8 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         print("*** Var weight_jax", jnp.var(weights_jax))
         print("*** lambda_jax", 1.0 / jnp.mean(weights_jax**2))
         
-        # -------------------------------
-        # Visualize sampled trajectories
-        # -------------------------------
-        show_samples = True
-        if show_samples:
-            _, axes_sample = plt.subplots(2, 1)
-            (ax1_sample, ax2_sample) = axes_sample.flatten()
-            
-            ax1_sample.grid(True)
-            ax2_sample.grid(True)
-            
-            plot_slip(time_span, modes, states, inputs, init_state, target_state, nt, ref_reset_args)
-            
-            # ----------------------
-            # Plot all the samples 
-            # ----------------------
-            for i_s in range(n_samples):
-                ax1_sample.plot(Ksamples_jax_i[i_s,:,0], Ksamples_jax_i[i_s,:,1],'b', alpha=0.2)
-            
-            ax1_sample.scatter(target_state[0], target_state[1], color='g', marker='x', s=50.0, linewidths=6, label='Target')
-            ax1_sample.scatter(init_state[0], init_state[1], color='r', marker='x', s=50.0, linewidths=6, label='Start')
-            ax1_sample.scatter(xt[0], xt[1], color='b', marker='x', s=30.0, linewidths=6, label='Current')
-            
-            # --------------------------------------------------
-            # Plot the sample corresponding to the highest cost
-            # --------------------------------------------------
-            highcost_index = [index for index, _ in sorted(enumerate(PathCosts_jax_i), key=lambda x: x[1])][-1]
-            
-            print(f"Ploting the high cost sample. Index: {highcost_index}")
-            
-            ax2_sample.plot(Ksamples_jax_i[highcost_index,:,0], Ksamples_jax_i[highcost_index,:,1],'b', alpha=0.2)
-            ax2_sample.scatter(target_state[0], target_state[1], color='g', marker='x', s=50.0, linewidths=6, label='Target')
-            ax2_sample.scatter(init_state[0], init_state[1], color='r', marker='x', s=50.0, linewidths=6, label='Start')
-            ax2_sample.scatter(xt[0], xt[1], color='b', marker='x', s=30.0, linewidths=6, label='Current')
-            
+        show_sample_weights = False
+        if show_sample_weights:
             ## -------- show path costs and weights in path integral control -------- 
             _, axes_weights = plt.subplots(2, 1, figsize=(8,6))
             (ax2, ax3) = axes_weights.flatten()
@@ -356,9 +381,6 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
             ax3.set_ylabel("Weights")
             
             plt.show()
-        
-        # ----------------------------------- 
-        
         # --------------------------------------------- 
         # Apply optimal control and go to next state  
         # ---------------------------------------------
@@ -598,8 +620,8 @@ def main(epsilon, n_samples, dt):
 import argparse
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="The epsilon parameter.")
-    parser.add_argument("--epsilon", type=float, default=0.01, help="The process noise intensity value, epsilon.")
-    parser.add_argument("--nsamples", type=int, default=5000, help="The number of samples used in path integral control.")
+    parser.add_argument("--epsilon", type=float, default=0.0, help="The process noise intensity value, epsilon.")
+    parser.add_argument("--nsamples", type=int, default=2, help="The number of samples used in path integral control.")
     parser.add_argument("--dt", type=int, default=0.005, help="The time discretization.")
     
     args = parser.parse_args()

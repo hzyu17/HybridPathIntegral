@@ -113,7 +113,7 @@ def sample_bouncing_jax(n_samples, x0, current_mode,
                         K_fb_0, k_ff_0, 
                         K_fb_1, k_ff_1, 
                         x_tar, Q_T, 
-                        t0, dt, tf, dt_shr, 
+                        t0, dt, dt_shr, 
                         eps, 
                         noise_mode0,
                         noise_mode1, 
@@ -230,7 +230,7 @@ def sample_bouncing_jax(n_samples, x0, current_mode,
     feedback_cost_scan_fun = partial(feedback_cost_bouncing_jax, 
                                      eps=eps, dt=dt, 
                                      dt_shrink=dt_shr, 
-                                     t0=t0, tf=tf, 
+                                     t0=t0, 
                                      v_ext_ref_mode_change=v_ext_trj_mode_change, 
                                      v_ext_trj_fwd=v_ext_trj_fwd, 
                                      v_ext_trj_bwd=v_ext_trj_bwd,
@@ -258,7 +258,7 @@ def sample_bouncing_jax(n_samples, x0, current_mode,
     # --------------------------
     # results and terminal loss 
     # --------------------------
-    Ksample_modes_jax, Ksamples_jax, PathCosts_jax, actual_ref_jax = v_sample_results
+    Ksample_modes_jax, Ksamples_jax, PathCosts_jax, Ksamples_ut, actual_ref_jax = v_sample_results
     
     # Move the samples forward by 1 place and add xt to the front, to keep the same with numpy results.
     Ksample_modes_jax = jnp.concatenate((v_current_mode.reshape((n_samples, -1)), Ksample_modes_jax[:,0:-1]), axis=1)

@@ -390,10 +390,12 @@ def event_detect_slip(x0, u, t0, tf, current_mode, reset_args, detection=True, b
                                 reset_args, detection, backwards)
     
 
-def plot_slip(time_span, modes, states, inputs, init_state, target_state, nt, stance_xp):
+def plot_slip(time_span, modes, states, inputs, init_state, target_state, nt, stance_xp, fig=None, axes=None):
     print("Plotting SLIP state and input trajectory")
     # =============== plotting ===============
-    fig1, axes = plt.subplots(2, 7, figsize=(15, 10))
+    if (fig is None) and (axes is None):
+        fig, axes = plt.subplots(2, 7, figsize=(15, 10))
+        
     (ax11, ax12, ax13, ax14, ax15, ax16, ax17, ax21, ax22, ax23, ax24, ax25, ax26, ax27) = axes.flatten()
     ax11.grid(True)
     ax12.grid(True)
@@ -531,9 +533,8 @@ def plot_slip(time_span, modes, states, inputs, init_state, target_state, nt, st
     ax26.legend()
     
     plt.tight_layout()
-
-    plt.show()
     
+    return fig, (ax11, ax12, ax13, ax14, ax15, ax16, ax17, ax21, ax22, ax23, ax24, ax25, ax26, ax27)
 
 def plot_slip_flight_animate(state_flight, r0, ax=None, spring_color='c-'):
     if ax is None:
@@ -615,6 +616,33 @@ def plot_slip_stance_animate(state_stance, xp, ax=None, spring_color='b-'):
     ax.add_patch(ball)
     
     plt.tight_layout()
+    
+
+def unpad_control_slip(modes, inputs_padded):
+    nt = modes.shape[0]
+    inputs = [np.zeros((nt, 1)), np.zeros((nt, 2))]
+    
+    for i in range(nt):
+        input_i = inputs_padded[i]
+        if modes[i] == 0:
+            input_i = input_i[0:1]
+            
+        inputs[modes[i]][i] = input_i
+    
+    return inputs
+
+def unpad_state_slip(modes, states_padded):
+    
+    nt = modes.shape[0]
+    states = [np.array([0.0]) for _ in range(nt)]
+    
+    for i in range(nt):
+        state_i = states_padded[i]
+        if modes[i] == 1:
+            state_i = state_i[0:4]
+        states[i] = state_i
+    
+    return states
 
     
 if __name__ == '__main__':

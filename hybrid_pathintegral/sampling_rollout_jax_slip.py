@@ -8,16 +8,17 @@ sys.path.append(root_dir)
 from dynamics.dynamics_slip import *
 from hybrid_pathintegral.sampling_rollout_jax import *
 
-
-def stochastic_integration_euler_SLIP(mode, x0, u, dt, eps, dW):
-    def condition_mode0(mode):
-        return (mode == 0)
-    
+# @jax.jit
+def stochastic_integration_euler_SLIP(mode, x0, u, dt, eps, dW):   
     def mode0_dynamics_true_func_slip(args):
         (x0, u, dW, eps) = args
         # flight mode
         # [x, x_dot, z, z_dot, theta] = x0
-        B = jnp.array([[0, 0],[0, 0],[0, 0],[0, 0],[1.0, 0.0]], dtype=jnp.float64)
+        B = jnp.array([[0.0, 0.0],
+                       [0.0, 0.0],
+                       [0.0, 0.0],
+                       [0.0, 0.0],
+                       [1.0, 0.0]], dtype=jnp.float64)
         
         return x0 + jnp.array([x0[1], 0, x0[3], -9.81, u[0]], dtype=jnp.float64) * dt + jnp.sqrt(eps) * B@dW
     
@@ -31,7 +32,7 @@ def stochastic_integration_euler_SLIP(mode, x0, u, dt, eps, dW):
         m = 0.2
         r0 = 1
         
-        theta,theta_dot,r,r_dot = x0[0], x0[1], x0[2], x0[3]
+        theta, theta_dot, r, r_dot = x0[0], x0[1], x0[2], x0[3]
         u1, u2 = u[0], u[1]
         
         # Defining the stance dynamics of the system
@@ -50,47 +51,18 @@ def stochastic_integration_euler_SLIP(mode, x0, u, dt, eps, dW):
         
         return xt_next
     
-    is_mode0 = (mode == 0)
+    cond_mode0 = (mode == 0)
     args_choose_dynamics = (x0, u, dW, eps)
-    xt_next = jax.lax.cond(is_mode0, mode0_dynamics_true_func_slip, mode0_dynamics_false_func_slip, args_choose_dynamics)
+    xt_next = jax.lax.cond(cond_mode0, mode0_dynamics_true_func_slip, mode0_dynamics_false_func_slip, args_choose_dynamics)
 
-
-    # if mode == 0:
-    #     B = jnp.array([[0],[0],[0],[0],[1.0]], dtype=jnp.float64)
-    #     xt_next = x0 + jnp.array([x0[1], 0, x0[3], -9.81, u[0]], dtype=jnp.float64) * dt + jnp.sqrt(eps) * B@dW
-        
-    # elif mode == 1:
-    #     # stance mode
-    #     # [theta, theta_dot, r, r_dot] = x0
-    #     g = 9.81
-    #     k = 15.0
-    #     m = 0.2
-    #     r0 = 1
-        
-    #     theta,theta_dot,r,r_dot = x0[0], x0[1], x0[2], x0[3]
-    #     u1, u2 = u[0], u[1]
-        
-    #     # Defining the stance dynamics of the system
-    #     B = jnp.array([[0.0, 0.0], 
-    #                    [0.0, 0.0], 
-    #                    [0.0, 1/m/r/r], 
-    #                    [k/m, 0.0],
-    #                    [0.0, 0.0]], dtype=jnp.float64)
-        
-    #     xt_next = x0 + jnp.array([theta_dot, 
-    #                               -2*theta_dot*r_dot/r-g*jnp.cos(theta)/r, 
-    #                               r_dot + u2/m/r/r, 
-    #                               k/m*(r0-r) - g*jnp.sin(theta) + theta_dot*theta_dot*r + k*u1/m,
-    #                               0.0], dtype=jnp.float64) * dt + jnp.sqrt(eps) * B@dW
-        
     return xt_next
 
 # ------------------------------------- terminal loss ------------------------------------- 
 from functools import partial
 
 def quadratic_terminal_cost(xT, args):
-    x_tar, QT =  args
-    return (xT-x_tar)@QT@(xT-x_tar) / 2.0
+    x_target, QT =  args
+    return (xT-x_target)@QT@(xT-x_target) / 2.0
 quadratic_terminal_cost_jit = jax.jit(quadratic_terminal_cost)
 
 # terminal cost function in jax
@@ -106,7 +78,7 @@ terminal_cost_jit = jax.jit(terminal_cost_jax)
 @jax.jit
 def event_condition_slip(xt, xt_next):
     # assume time invariant guard for now
-    return jnp.logical_and(guard_slip_12(0.0,xt)>0, guard_slip_12(0.0,xt_next)<=0) 
+    return jnp.logical_and(guard_slip_21(0.0,xt)<0, guard_slip_21(0.0,xt_next)>=0) 
 
 @jax.jit
 def event_true_func_slip(args):
@@ -126,22 +98,21 @@ def event_true_func_slip(args):
         
         xt_swch = stochastic_integration_euler_SLIP(current_mode, xt_current, u, dt_int, eps, dW_new)
         
-        new_condition = jnp.logical_not(jnp.logical_or(guard_slip_21(t, xt_swch)>0, cnt_shrink==10))
+        new_condition = jnp.logical_not(jnp.logical_or(guard_slip_21(t, xt_swch)<0, cnt_shrink==10))
         cnt_shrink += 1
         
         new_vars = (xt_current, xt_swch, u, t, dt_int, dt_shr, RandN, eps, cnt_shrink, reset_arg, new_condition)
         
         return new_vars
     
-    init_condition = True
-    init_vars = (xt_current, xt_next, u, t, dt_int, dt_shr, RandN, eps, 0, reset_arg, init_condition)
+    init_vars = (xt_current, xt_next, u, t, dt_int, dt_shr, RandN, eps, 0, reset_arg, True)
     final_vars = jax.lax.while_loop(while_cond, while_loop_body, init_val=init_vars)
     
-    (xt_current, xt_swch, u, t, dt_int, dt_shr, RandN, eps, cnt, reset_arg, can_continue) = final_vars
-    xt_next, next_mode, reset_arg = reset_map_slip_21_padding(t, xt_swch, current_mode, reset_arg)
+    (xt_current, xt_swch, _, t, dt_int, _, RandN, _, _, reset_arg, _) = final_vars
+    xt_next, next_mode, new_reset_arg = reset_map_slip_21_padding(t, xt_swch, current_mode, reset_arg)
     dW_new = jnp.sqrt(dt_int)*RandN
     
-    return xt_next, next_mode, dW_new, reset_arg
+    return xt_next, next_mode, dW_new, new_reset_arg
 
 
 @jax.jit
@@ -155,10 +126,10 @@ def event_false_func_slip(args):
 # ===============================================================================================================
 
 hybrid_integration_slip = partial(hybrid_integration, 
-                                      stochastic_integration_euler_func = stochastic_integration_euler_SLIP, 
-                                      event_condition_func = event_condition_slip, 
-                                      event_condition_true_fun = event_true_func_slip, 
-                                      event_condition_false_fun = event_false_func_slip)
+                                  stochastic_integration_euler_func = stochastic_integration_euler_SLIP, 
+                                  event_condition_func = event_condition_slip, 
+                                  event_condition_true_fun = event_true_func_slip, 
+                                  event_condition_false_fun = event_false_func_slip)
 
 cost_i_slip = partial(cost_i, hybrid_integration_func=hybrid_integration_slip)
 
@@ -175,26 +146,26 @@ MM: mismatch
 shr: shrinking ratio
 fb: feedback
 ff: feedforward
-x_tar: target state
+x_target: target state
 eps: epsilon
 """
-def sample_slip_jax(n_samples, x0, current_mode, 
-                        xref_0_trj,
-                        xref_1_trj, 
-                        ref_modes, 
-                        uref_mode0_trj, uref_mode1_trj, 
-                        K_fb_0, k_ff_0, 
-                        K_fb_1, k_ff_1, 
-                        x_tar, Q_T, 
-                        t0, dt, tf, dt_shr, 
-                        eps, 
-                        noise_mode0,
-                        noise_mode1, 
-                        v_ext_trj_mode_change, 
-                        v_ext_trj_fwd, v_ext_trj_bwd, 
-                        v_Kfb_ref_ext_fwd, v_kff_ref_ext_fwd,
-                        v_Kfb_ref_ext_bwd, v_kff_ref_ext_bwd,
-                        reset_args):
+def sample_slip_jax(n_samples, 
+                    x0, current_mode, 
+                    xref_0_trj, xref_1_trj, 
+                    ref_modes, 
+                    uref_mode0_trj, uref_mode1_trj, 
+                    K_fb_0, k_ff_0,
+                    K_fb_1, k_ff_1,
+                    x_target, Q_T,
+                    t0, dt, dt_shr,
+                    eps,
+                    noise_mode0,
+                    noise_mode1,
+                    v_ext_trj_mode_change, 
+                    v_ext_trj_fwd, v_ext_trj_bwd, 
+                    v_Kfb_ref_ext_fwd, v_kff_ref_ext_fwd,
+                    v_Kfb_ref_ext_bwd, v_kff_ref_ext_bwd,
+                    reset_args):
     
     # -----------------------------
     # move the variables onto GPU
@@ -212,7 +183,6 @@ def sample_slip_jax(n_samples, x0, current_mode,
     noise_mode0 = jnp.asarray(noise_mode0)
     noise_mode1 = jnp.asarray(noise_mode1)
 
-    
     # ===========================
     # start jax sampling process
     # ===========================
@@ -222,12 +192,22 @@ def sample_slip_jax(n_samples, x0, current_mode,
     # vectorizing carrys and inputs
     # -----------------------------------
     
-    # ----- carrys: (x0, current mode change, mismatch counter, timestep index, Path Cost) ----- 
+    # ---------------  carrys ---------------  
+    """
+    (v_x0, 
+    v_current_mode, 
+    v_St, 
+    v_cnt_ModeMismatch, 
+    v_index)
+    """
+    
     v_x0 = jnp.tile(x0_jax, (n_samples, 1))
     v_current_mode = jnp.tile(current_mode, (n_samples, ))
+    v_St = jnp.zeros((n_samples, 1), dtype=jnp.float64)
     v_cnt_MM = jnp.zeros((n_samples, ), dtype=jnp.int64)
     v_index = jnp.tile(0, (n_samples, ))
-    v_St = jnp.zeros((n_samples, 1), dtype=jnp.float64)
+    v_reset_args = jnp.tile(reset_args, (n_samples, 1))
+    
     # --------------- // carrys // --------------- 
     
     # --------------- inputs --------------------
@@ -248,7 +228,6 @@ def sample_slip_jax(n_samples, x0, current_mode,
     # ------------------------------------------------- 
     v_uref_mode0 = jnp.tile(uref_mode0_trj, (n_samples, 1, 1))
     v_uref_mode1 = jnp.tile(uref_mode1_trj, (n_samples, 1, 1))
-    v_reset_args = jnp.tile(reset_args, (n_samples, 1, 1))
 
     v_Kfb_0 = jnp.tile(K_fb_0, (n_samples, 1, 1, 1))
     v_kff_0 = jnp.tile(k_ff_0, (n_samples, 1, 1))
@@ -280,7 +259,7 @@ def sample_slip_jax(n_samples, x0, current_mode,
     feedback_cost_scan_fun = partial(feedback_cost_slip_jax, 
                                      eps=eps, dt=dt, 
                                      dt_shrink=dt_shr, 
-                                     t0=t0, tf=tf, 
+                                     t0=t0,
                                      v_ext_ref_mode_change=v_ext_trj_mode_change, 
                                      v_ext_trj_fwd=v_ext_trj_fwd, 
                                      v_ext_trj_bwd=v_ext_trj_bwd,
@@ -301,14 +280,14 @@ def sample_slip_jax(n_samples, x0, current_mode,
     v_sample_results = feedbackcost_vmap(v_initial_carry, v_inputs)
     
     
-    args_terminal_cost = (x_tar, Q_T)
+    args_terminal_cost = (x_target, Q_T)
     terminal_cost_xQrx_vmap = jax.vmap(partial(quadratic_terminal_cost_jit, args=args_terminal_cost), in_axes=0)
     
 
     # --------------------------
     # results and terminal loss 
     # --------------------------
-    Ksample_modes_jax, Ksamples_jax, PathCosts_jax, actual_ref_jax = v_sample_results
+    Ksample_modes_jax, Ksamples_jax, PathCosts_jax, Ksamples_ut, actual_ref_jax = v_sample_results
     
     # Move the samples forward by 1 place and add xt to the front, to keep the same with numpy results.
     Ksample_modes_jax = jnp.concatenate((v_current_mode.reshape((n_samples, -1)), Ksample_modes_jax[:,0:-1]), axis=1)
@@ -320,7 +299,7 @@ def sample_slip_jax(n_samples, x0, current_mode,
     v_S_xT = terminal_cost_xQrx_vmap(xT_samples)
     PathCosts_jax = PathCosts_jax + v_S_xT
     
-    return Ksample_modes_jax, Ksamples_jax, PathCosts_jax, actual_ref_jax
+    return Ksample_modes_jax, Ksamples_jax, PathCosts_jax, Ksamples_ut, actual_ref_jax
     
-    # ============================================== / jax parallel sampling ====================================
+    # =================================== / jax parallel sampling ====================================
     

@@ -97,7 +97,6 @@ def extract_extensions(reference_extension_helper, start_index=0, padding=False)
             # Add the feedforward gain for backward and backward extensions to the collection
             v_kff_ext_trj_fwd.append(MC_FEEDFWD_EXTTRJ_MAP[cur_mode_i][start_index:])
             v_kff_ext_trj_bwd.append(MC_FEEDFWD_EXTTRJ_MAP[next_mode_i][start_index:])
-            
         
         
     return (v_mode_change, v_ext_trj_bwd, v_ext_trj_fwd, 
