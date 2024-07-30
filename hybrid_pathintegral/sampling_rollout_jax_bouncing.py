@@ -9,7 +9,7 @@ from dynamics.dynamics_bouncing import *
 from hybrid_pathintegral.sampling_rollout_jax import *
 from functools import partial
     
-def stochastic_integration_euler_bouncing(x0, u, dt, eps, dW):
+def stochastic_integration_euler_bouncing(mode, x0, u, dt, eps, dW):
     B = jnp.array([[0],[1.0]], dtype=jnp.float64)
     xt_next = x0 + jnp.array([x0[1], u[0]-9.81], dtype=jnp.float64) * dt + jnp.sqrt(eps) * B@dW
     return xt_next
@@ -51,7 +51,7 @@ def bouncing_event_true_func(args):
         dt_int = dt_int * dt_shr
         dW_new = jnp.sqrt(dt_int)*RandN
         
-        xt_swch = stochastic_integration_euler_bouncing(xt_current, u, dt_int, eps, dW_new)
+        xt_swch = stochastic_integration_euler_bouncing(current_mode, xt_current, u, dt_int, eps, dW_new)
         
         new_condition = jnp.logical_not(jnp.logical_or(guard_bouncing_12(t, xt_swch)>0, cnt_shrink==10))
         cnt_shrink += 1
@@ -106,9 +106,12 @@ x_tar: target state
 eps: epsilon
 """
 def sample_bouncing_jax(n_samples, x0, current_mode, 
-                        xref_trj, ref_modes, 
+                        xref_0_trj,
+                        xref_1_trj, 
+                        ref_modes, 
                         uref_mode0_trj, uref_mode1_trj, 
-                        K_fb, k_ff, 
+                        K_fb_0, k_ff_0, 
+                        K_fb_1, k_ff_1, 
                         x_tar, Q_T, 
                         t0, dt, tf, dt_shr, 
                         eps, 
@@ -123,13 +126,16 @@ def sample_bouncing_jax(n_samples, x0, current_mode,
     # -----------------------------
     # move the variables onto GPU
     # ----------------------------- 
-    xref_trj = jnp.asarray(xref_trj)
+    xref_mode0_trj = jnp.asarray(xref_0_trj)
+    xref_mode1_trj = jnp.asarray(xref_1_trj)
     uref_mode0_trj = jnp.asarray(uref_mode0_trj)
     uref_mode1_trj = jnp.asarray(uref_mode1_trj)
     reset_args = jnp.asarray(reset_args)
     ref_modes = jnp.asarray(ref_modes)
-    K_fb = jnp.asarray(K_fb)
-    k_ff = jnp.asarray(k_ff)
+    K_fb_0 = jnp.asarray(K_fb_0)
+    k_ff_0 = jnp.asarray(k_ff_0)
+    K_fb_1 = jnp.asarray(K_fb_1)
+    k_ff_1 = jnp.asarray(k_ff_1)
     noise_mode0 = jnp.asarray(noise_mode0)
     noise_mode1 = jnp.asarray(noise_mode1)
 
@@ -161,7 +167,8 @@ def sample_bouncing_jax(n_samples, x0, current_mode,
     reference mode change sequence)
     """
     # --------------- / inputs --------------------
-    v_xref = jnp.tile(xref_trj, (n_samples, 1, 1))
+    v_xref_mode0 = jnp.tile(xref_mode0_trj, (n_samples, 1, 1))
+    v_xref_mode1 = jnp.tile(xref_mode1_trj, (n_samples, 1, 1))
     
     # ------------------------------------------------- 
     # Mode-dependent control, assuming 2-mode system
@@ -170,8 +177,10 @@ def sample_bouncing_jax(n_samples, x0, current_mode,
     v_uref_mode1 = jnp.tile(uref_mode1_trj, (n_samples, 1, 1))
     v_reset_args = jnp.tile(reset_args, (n_samples, 1, 1))
 
-    v_Kfb = jnp.tile(K_fb, (n_samples, 1, 1, 1))
-    v_kff = jnp.tile(k_ff, (n_samples, 1, 1))
+    v_Kfb_0 = jnp.tile(K_fb_0, (n_samples, 1, 1, 1))
+    v_kff_0 = jnp.tile(k_ff_0, (n_samples, 1, 1))
+    v_Kfb_1 = jnp.tile(K_fb_1, (n_samples, 1, 1, 1))
+    v_kff_1 = jnp.tile(k_ff_1, (n_samples, 1, 1))
     
     v_randN_mode0 = jnp.asarray(noise_mode0)
     v_randN_mode1 = jnp.asarray(noise_mode1)
@@ -179,10 +188,35 @@ def sample_bouncing_jax(n_samples, x0, current_mode,
     
     v_initial_carry = (v_x0, v_current_mode, v_St, v_cnt_MM, v_index)
     v_inputs = (v_uref_mode0, v_uref_mode1, 
-                v_Kfb, v_kff, 
+                v_Kfb_0, v_kff_0,
+                v_Kfb_1, v_kff_1, 
                 v_randN_mode0, v_randN_mode1, 
-                v_xref, v_ref_modes, 
+                v_xref_mode0, v_xref_mode1,
+                v_ref_modes, 
                 v_reset_args)
+    # --------------- / inputs --------------------
+    
+    
+    # ------------------------------------------------- 
+    # Mode-dependent control, assuming 2-mode system
+    # ------------------------------------------------- 
+    # v_uref_mode0 = jnp.tile(uref_mode0_trj, (n_samples, 1, 1))
+    # v_uref_mode1 = jnp.tile(uref_mode1_trj, (n_samples, 1, 1))
+    # v_reset_args = jnp.tile(reset_args, (n_samples, 1, 1))
+
+    # v_Kfb = jnp.tile(K_fb, (n_samples, 1, 1, 1))
+    # v_kff = jnp.tile(k_ff, (n_samples, 1, 1))
+    
+    # v_randN_mode0 = jnp.asarray(noise_mode0)
+    # v_randN_mode1 = jnp.asarray(noise_mode1)
+    # v_ref_modes = jnp.tile(ref_modes, (n_samples, 1))
+    
+    # v_initial_carry = (v_x0, v_current_mode, v_St, v_cnt_MM, v_index)
+    # v_inputs = (v_uref_mode0, v_uref_mode1, 
+    #             v_Kfb, v_kff, 
+    #             v_randN_mode0, v_randN_mode1, 
+    #             v_xref, v_ref_modes, 
+    #             v_reset_args)
     
     # -------------------- // inputs // ------------------------- 
     
@@ -224,9 +258,10 @@ def sample_bouncing_jax(n_samples, x0, current_mode,
     # --------------------------
     # results and terminal loss 
     # --------------------------
-    Ksamples_jax, PathCosts_jax, actual_ref_jax = v_sample_results
+    Ksample_modes_jax, Ksamples_jax, PathCosts_jax, actual_ref_jax = v_sample_results
     
     # Move the samples forward by 1 place and add xt to the front, to keep the same with numpy results.
+    Ksample_modes_jax = jnp.concatenate((v_current_mode.reshape((n_samples, -1)), Ksample_modes_jax[:,0:-1]), axis=1)
     Ksamples_jax = jnp.concatenate((v_x0.reshape((n_samples, 1, -1)), Ksamples_jax[:,0:-1,:]), axis=1)
     PathCosts_jax = PathCosts_jax[:,-2,1]
     
@@ -235,7 +270,7 @@ def sample_bouncing_jax(n_samples, x0, current_mode,
     v_S_xT = terminal_cost_xQrx_vmap(xT_samples)
     PathCosts_jax = PathCosts_jax + v_S_xT
     
-    return Ksamples_jax, PathCosts_jax, actual_ref_jax
+    return Ksample_modes_jax, Ksamples_jax, PathCosts_jax, actual_ref_jax
     
     # ============================================== / jax parallel sampling ====================================
     

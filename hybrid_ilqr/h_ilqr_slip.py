@@ -132,6 +132,5 @@ if __name__ == '__main__':
     show_results = True
     if show_results:
         plot_slip(time_span, modes, states, inputs, init_state, target_state, nt, ref_reset_args)
-
         animate_slip(modes, states, init_mode, init_state, target_mode, target_state, nt, ref_reset_args, target_reset_args)
     

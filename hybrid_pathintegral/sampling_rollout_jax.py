@@ -75,20 +75,22 @@ def EarlyArr_false_fun_jax(args):
 # ===========================================
 #    Choose nominal control based on mode 
 # ===========================================
-def mode0_condition_jax(current_mode):
+@jax.jit
+def mode0_condition_jit(current_mode):
     # assume time invariant guard for now
     return current_mode == 0
-mode0_condition_jit = jax.jit(mode0_condition_jax)
 
+@jax.jit
 def mode0_cond_true_fun_jax(args):
-    (u_0, u_1, randN_0, randN_1) = args
-    return u_0, randN_0
-mode0_true_fun_jit = jax.jit(mode0_cond_true_fun_jax)
+    (xref_0, xref_1, u_0, u_1, K_mode0, k_mode0, K_mode1, k_mode1, randN_0, randN_1) = args
+    return xref_0, u_0, K_mode0, k_mode0, randN_0
+# mode0_true_fun_jit = jax.jit(mode0_cond_true_fun_jax)
 
+@jax.jit
 def mode0_cond_false_fun_jax(args):
-    (u_0, u_1, randN_0, randN_1) = args
-    return u_1, randN_1
-mode0_false_fun_jit = jax.jit(mode0_cond_false_fun_jax)
+    (xref_0, xref_1, u_0, u_1, K_mode0, k_mode0, K_mode1, k_mode1, randN_0, randN_1) = args
+    return xref_1, u_1, K_mode1, k_mode1, randN_1
+# mode0_false_fun_jit = jax.jit(mode0_cond_false_fun_jax)
 
 
 def hybrid_integration(xt, current_mode, ut, randN, eps, dt, dt_shrink, t0, reset_arg, 
@@ -98,7 +100,7 @@ def hybrid_integration(xt, current_mode, ut, randN, eps, dt, dt_shrink, t0, rese
                        event_condition_false_fun):
     
     dW = jnp.sqrt(dt)*randN
-    xt_next = stochastic_integration_euler_func(xt, ut, dt, eps, dW)
+    xt_next = stochastic_integration_euler_func(current_mode, xt, ut, dt, eps, dW)
     
     # ------------
     # change mode
@@ -137,8 +139,20 @@ def feedback_cost_jax(carry, inputs, eps,
                       cost_i_func):
     xt, current_mode, St, cnt_MM, indx = carry
     
-    uref_mode0, uref_mode1, K, k, randN_mode0, randN_mode1, xref, current_mode_ref, reset_arg = inputs
+    (uref_mode0, uref_mode1, 
+    K_mode0, k_mode0, 
+    K_mode1, k_mode1, 
+    randN_mode0, randN_mode1, 
+    xref_mode0, xref_mode1, current_mode_ref, reset_arg) = inputs
     
+    # ---------------------------
+    # rollout and collect costs 
+    # ---------------------------
+    # Choose the control in the current mode. Assuming 2-mode system    
+    is_mode0 = (current_mode == 0)    
+    args_choose_control = (xref_mode0, xref_mode1, uref_mode0, uref_mode1, K_mode0, k_mode0, K_mode1, k_mode1, randN_mode0, randN_mode1)
+    xref, u_mode, K_mode, k_mode, randN_mode = jax.lax.cond(is_mode0, mode0_cond_true_fun_jax, mode0_cond_false_fun_jax, args_choose_control)
+        
     # -------------------------------
     # Get the trajectory extensions 
     # -------------------------------
@@ -159,21 +173,13 @@ def feedback_cost_jax(carry, inputs, eps,
                          ext_trj_fwd, ext_trj_bwd, 
                          Kfb_ref_ext_fwd, kff_ref_ext_fwd, 
                          Kfb_ref_ext_bwd, kff_ref_ext_bwd, 
-                         K, k,
+                         K_mode, k_mode,
                          xref, indx, cnt_MM)
     
-    xref, K, k, cnt_MM = jax.lax.cond(is_ModeMismatched, ModeMismatch_true_fun_jax, ModeMismatch_false_fun_jax, args_ModeMismatch)
-   
-    # ---------------------------
-    # rollout and collect costs 
-    # ---------------------------
-    # Choose the control in the current mode. Assuming 2-mode system    
-    is_mode0 = (current_mode == 0)    
-    args_choose_control = (uref_mode0, uref_mode1, randN_mode0, randN_mode1)
-    u_mode, randN_mode = jax.lax.cond(is_mode0, mode0_cond_true_fun_jax, mode0_cond_false_fun_jax, args_choose_control)
+    xref, K_mode, k_mode, cnt_MM = jax.lax.cond(is_ModeMismatched, ModeMismatch_true_fun_jax, ModeMismatch_false_fun_jax, args_ModeMismatch)
     
     xt_next, next_mode, St, _ = cost_i_func(xt, current_mode, St, xref, u_mode, 
-                                            K, k, randN_mode, eps, dt, dt_shrink, t0, reset_arg)
+                                            K_mode, k_mode, randN_mode, eps, dt, dt_shrink, t0, reset_arg)
     indx = indx + 1
     
-    return (xt_next, next_mode, St, cnt_MM, indx), (xt_next, St, xref) 
+    return (xt_next, next_mode, St, cnt_MM, indx), (next_mode, xt_next, St, xref) 

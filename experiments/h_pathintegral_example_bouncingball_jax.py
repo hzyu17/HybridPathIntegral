@@ -72,12 +72,47 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
      current_cost,states_iter,
      ref_modechanges,reference_extension_helper, ref_reset_args) = hybrid_ilqr_result
     
-    states = np.array(states)
-    inputs = np.array(inputs)
+    # mode-dependent reference states. Assuming 2 modes
+    # States with padded dimensions
+    states_0 = np.zeros((nt, 2))
+    states_1 = np.zeros((nt, 2))
+    
+    inputs_0 = np.zeros((nt, 1))
+    inputs_1 = np.zeros((nt, 1))
+    
+    K_feedback_0 = np.zeros((nt, 1, 2))
+    K_feedback_1 = np.zeros((nt, 1, 2))
+    
+    k_feedforward_0 = np.zeros((nt, 1))
+    k_feedforward_1 = np.zeros((nt, 1))
+    
+    for i in range(nt):
+        mode_i = modes[i]
+        if mode_i == 0:
+            states_0[i, :n_states[0]] = states[i]
+            inputs_0[i, :n_inputs[0]] = inputs[0][i]
+            K_feedback_0[i, :n_inputs[0], :n_states[0]] = K_feedback[i]
+            k_feedforward_0[i, :n_inputs[0]] = k_feedforward[i]
+        
+        if mode_i == 1:
+            states_1[i, :n_states[1]] = states[i]
+            inputs_1[i, :n_inputs[1]] = inputs[1][i]
+            K_feedback_1[i, :n_inputs[1], :n_states[1]] = K_feedback[i]
+            k_feedforward_1[i, :n_inputs[1]] = k_feedforward[i]
+        
+    ref_reset_args = np.array(ref_reset_args)
     
     ref_reset_args = np.array(ref_reset_args)
-    k_feedforward = np.array(k_feedforward)
-    K_feedback = np.array(K_feedback)
+    k_feedforward_0 = np.array(k_feedforward_0)
+    k_feedforward_1 = np.array(k_feedforward_1)
+    K_feedback_0 = np.array(K_feedback_0)
+    K_feedback_1 = np.array(K_feedback_1)
+    
+    # states = np.array(states)
+    # inputs = np.array(inputs)
+    
+    # k_feedforward = np.array(k_feedforward)
+    # K_feedback = np.array(K_feedback)
     
     print(f"=================== The experiment index: {i_exp} ===================" )
     
@@ -112,7 +147,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
     # cnt_mismatch_ilqr = 0
     
     # Assuming 2-mode system
-    RndN_actual = [np.random.randn(nt, n_inputs[0]), np.random.randn(nt, n_inputs[1])]
+    RndN_actual = [np.random.randn(nt, 1), np.random.randn(nt, 1)]
     reset_args_actual = ref_reset_args
     event_args_actual = [ref_reset_args[0]]
     cnt_event_actual = 0
@@ -123,6 +158,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
     (v_mode_change_ref, v_ref_ext_bwd, v_ref_ext_fwd, 
     v_Kfb_ref_ext_bwd, v_Kfb_ref_ext_fwd, 
     v_kff_ref_ext_bwd, v_kff_ref_ext_fwd, _) = extract_extensions(reference_extension_helper, start_index = 0)
+    
     
     show_trj_extensions = False
     if show_trj_extensions:
@@ -176,19 +212,40 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         xt = trj_pi_jax[i_t]
         
         # references
-        states_i = states[i_t:,:]
-        inputs_i = inputs[:, i_t:,:]
+        # references
+        states_0_i = states_0[i_t:, :]
+        states_1_i = states_1[i_t:, :]
+        inputs_0_i = inputs_0[i_t:, :]
+        inputs_1_i = inputs_1[i_t:, :]
+        
+        states_i = [states_0_i, states_1_i]
+        inputs_i = [inputs_0_i, inputs_1_i]
+        
         # ref_modechange_i = ref_modechanges[i_t:]
         modes_i = modes[i_t:]
-        K_feedback_i = K_feedback[i_t:,:]
-        k_feedforward_i = k_feedforward[i_t:,:]
+        
+        K_feedback_0_i = K_feedback_0[i_t:,:]
+        K_feedback_1_i = K_feedback_1[i_t:,:]
+        
+        k_feedforward_0_i = k_feedforward_0[i_t:,:]
+        k_feedforward_1_i = k_feedforward_1[i_t:,:]
+        
+        K_feedback_i = [K_feedback_0_i, K_feedback_1_i]
+        k_feedforward_i = [k_feedforward_0_i, k_feedforward_1_i]
+        
+        # states_i = states[i_t:,:]
+        # inputs_i = inputs[:, i_t:,:]
+        # ref_modechange_i = ref_modechanges[i_t:]
+        # modes_i = modes[i_t:]
+        # K_feedback_i = K_feedback[i_t:,:]
+        # k_feedforward_i = k_feedforward[i_t:,:]
         
         ref_current_mode = ref_modechanges[i_t][0]
         
         # Randomness is mode dependent, same as control. Assuming 2-mode system.
         n_modes = 2
         Ksamples_jax_i = np.zeros((n_samples, nt_i, n_modes))
-        GaussianNoise_i = [np.random.randn(n_samples, nt_i, n_inputs[0]), np.random.randn(n_samples, nt_i, n_inputs[1])]
+        GaussianNoise_i = [np.random.randn(n_samples, nt_i, 1), np.random.randn(n_samples, nt_i, 1)]
         reset_args_i = ref_reset_args[i_t:]
         
         # --------------------------- 
@@ -213,36 +270,35 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         # ---------------------------------------------------------------------------------------
         
         # timer_start_tic = time.perf_counter()
-        Ksamples_jax_i, PathCosts_jax_i, _ = sample_bouncing_jax(n_samples, xt, 
-                                                                 current_mode_actual, 
-                                                                 states_i, 
-                                                                 modes_i, 
-                                                                 inputs_i[0], 
-                                                                 inputs_i[1], 
-                                                                 K_feedback_i, k_feedforward_i, 
-                                                                 target_state, Q_T, 
-                                                                 start_time_i, dt, end_time, dt_shrinkingrate, 
-                                                                 epsilon, 
-                                                                 GaussianNoise_i[0], 
-                                                                 GaussianNoise_i[1], 
-                                                                 v_mode_change_ref_i, 
-                                                                 v_ref_ext_fwd_i, v_ref_ext_bwd_i, 
-                                                                 v_Kfb_ref_ext_fwd_i, v_kff_ref_ext_fwd_i, 
-                                                                 v_Kfb_ref_ext_bwd_i, v_kff_ref_ext_bwd_i, 
-                                                                 reset_args_i)
+        Kmodes_jax_i, Ksamples_jax_i, PathCosts_jax_i, _ = sample_bouncing_jax(n_samples, xt, 
+                                                                                current_mode_actual, 
+                                                                                states_0_i, states_1_i, 
+                                                                                modes_i, 
+                                                                                inputs_0_i, inputs_1_i, 
+                                                                                K_feedback_0_i, k_feedforward_0_i, 
+                                                                                K_feedback_1_i, k_feedforward_1_i, 
+                                                                                target_state, Q_T, 
+                                                                                start_time_i, dt, end_time, dt_shrinkingrate, 
+                                                                                epsilon, 
+                                                                                GaussianNoise_i[0], GaussianNoise_i[1], 
+                                                                                v_mode_change_ref_i, 
+                                                                                v_ref_ext_fwd_i, v_ref_ext_bwd_i, 
+                                                                                v_Kfb_ref_ext_fwd_i, v_kff_ref_ext_fwd_i, 
+                                                                                v_Kfb_ref_ext_bwd_i, v_kff_ref_ext_bwd_i, 
+                                                                                reset_args_i)
         
         # save the samples at t=0
-        if (i_t == 0):
-            Ksamples_jax_saving = Ksamples_jax_i
+        # if (i_t == 0):
+        #     Ksamples_jax_saving = Ksamples_jax_i
         
         # --------------------------------------------------------
         #               Update the control proposal
         # --------------------------------------------------------
         # Compute proposal control, possibly with early arrival
         ubar_i = inputs_i[current_mode_actual][0]
-        K_fb = K_feedback_i[0]
-        k_ff = k_feedforward_i[0]
-        xref_i = states_i[0]
+        K_fb = K_feedback_i[current_mode_actual][0]
+        k_ff = k_feedforward_i[current_mode_actual][0]
+        xref_i = states_i[current_mode_actual][0]
         
         if cond_mode_mismatch_bouncing(current_mode_actual, ref_current_mode):
             print("--------------- mode mismatch happened ---------------")

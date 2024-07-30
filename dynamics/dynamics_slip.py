@@ -200,15 +200,15 @@ def stochastic_integration_slip(x0, u, t_span, epsilon, dW):
 # Define condition functions
 # -----------------------------
 # --------------------------------- Condition: mode mismatch --------------------------------- 
-def cond_mode_mismatch_bouncing(current_mode, ref_current_mode): 
+def cond_mode_mismatch_slip(current_mode, ref_current_mode): 
     return (current_mode != ref_current_mode)
 
 # --------------------------------- Condition: early arrival ---------------------------------
-def cond_early_arrival_bouncing(current_mode, ref_current_mode): 
+def cond_early_arrival_slip(current_mode, ref_current_mode): 
     return (current_mode==1) and (ref_current_mode==0) 
 
 # Condition: guard function hit
-def cond_guard_function_hit_bouncing(xt, xt_next, guard_func): 
+def cond_guard_function_hit_slip(xt, xt_next, guard_func): 
     return ((guard_func(0.0, xt)>0) and (guard_func(0.0, xt_next)<=0))
 
 
@@ -246,7 +246,7 @@ def stochastic_feedback_rollout_slip(init_mode, x0, n_inputs, xt_ref, ref_modech
     # closed-loop controls 
     ut_cl_trj = [np.zeros((n_timestamps, n_inputs[0])), np.zeros((n_timestamps, n_inputs[1]))]
     
-    # only consider the 1->2 reset for now (bouncing)
+    # only consider the 1->2 reset for now 
     current_guard = guards_slip[init_mode]
     
     cnt_mismatch = 0
@@ -276,12 +276,12 @@ def stochastic_feedback_rollout_slip(init_mode, x0, n_inputs, xt_ref, ref_modech
         k_ff_i = kt[ii_t]
         
         xref_i = xt_ref[ii_t] 
-        if cond_mode_mismatch_bouncing(current_mode, ref_current_mode):
-            xref_i, K_fb_i, k_ff_i, cnt_mismatch = reaction_mode_mismatch(cond_early_arrival_bouncing, ii_t, current_mode, ref_current_mode, 
-                                                                            v_ref_ext_fwd[0], v_ref_ext_bwd[0], 
-                                                                            v_Kfb_ref_ext_fwd[0], v_kff_ref_ext_fwd[0],
-                                                                            v_Kfb_ref_ext_bwd[0], v_kff_ref_ext_bwd[0],
-                                                                            cnt_mismatch)
+        if cond_mode_mismatch_slip(current_mode, ref_current_mode):
+            xref_i, K_fb_i, k_ff_i, cnt_mismatch = reaction_mode_mismatch(cond_early_arrival_slip, ii_t, current_mode, ref_current_mode, 
+                                                                        v_ref_ext_fwd[0], v_ref_ext_bwd[0], 
+                                                                        v_Kfb_ref_ext_fwd[0], v_kff_ref_ext_fwd[0],
+                                                                        v_Kfb_ref_ext_bwd[0], v_kff_ref_ext_bwd[0],
+                                                                        cnt_mismatch)
             
         xt_ref_actual[ii_t] = xref_i
         
@@ -297,14 +297,14 @@ def stochastic_feedback_rollout_slip(init_mode, x0, n_inputs, xt_ref, ref_modech
         
         xt_next = stochastic_integration_slip(xt, u, t_span, epsilon, dW_i).flatten()
         
-        current_guard = guards_bouncing[current_mode]
+        current_guard = guards_slip[current_mode]
         next_mode = current_mode
         # Condition: Hit the guard function.  
-        if cond_guard_function_hit_bouncing(xt, xt_next, current_guard): 
+        if cond_guard_function_hit_slip(xt, xt_next, current_guard): 
             
             args = (xt, current_mode, u, t0_i, t0_i+dt_int, xt_next, 
                     dt_int, dt_shrinkingrate, GaussianNoise[current_mode][ii_t], epsilon, 
-                    stochastic_integration_bouncing, guards_bouncing, reset_maps_bouncing, reset_args[ii_t])
+                    stochastic_integration_slip, guards_slip, reset_maps_slip, reset_args[ii_t])
             
             xt_next, next_mode, dW_i, new_reset_args = event_reactive_fun(args)
             dt_int = dt

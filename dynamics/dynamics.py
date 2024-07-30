@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 
 
 # Helper function to handle reference trajectory extensions
-def extract_extensions(reference_extension_helper, start_index=0):
+def extract_extensions(reference_extension_helper, start_index=0, padding=False):
     # ---------------------------------------------------
     #           Extract the extended references 
     # ---------------------------------------------------
@@ -41,28 +41,64 @@ def extract_extensions(reference_extension_helper, start_index=0):
     for i_event in range(num_events):
         # find out the mode changes
         MC_i = reference_extension_helper[i_event][0]
+        MC_EXTTRJ_MAP = reference_extension_helper[i_event][1]
+        MC_FEEDBACK_EXTTRJ_MAP = reference_extension_helper[i_event][2]
+        MC_FEEDFWD_EXTTRJ_MAP = reference_extension_helper[i_event][3]
+        tevent_i = reference_extension_helper[i_event][4]
+        
         cur_mode_i = MC_i[0]
         next_mode_i = MC_i[1]
         
         v_mode_change.append((cur_mode_i, next_mode_i))
-        
-        # Add the forward and backward extensions to the collection
-        MC_EXTTRJ_MAP = reference_extension_helper[i_event][1]
-        v_ext_trj_fwd.append(MC_EXTTRJ_MAP[cur_mode_i][start_index:])
-        v_ext_trj_bwd.append(MC_EXTTRJ_MAP[next_mode_i][start_index:])
-        
-        # Add the feedback gain for forward and backward extensions to the collection
-        MC_FEEDBACK_EXTTRJ_MAP = reference_extension_helper[i_event][2]
-        v_Kfb_ext_trj_fwd.append(MC_FEEDBACK_EXTTRJ_MAP[cur_mode_i][start_index:])
-        v_Kfb_ext_trj_bwd.append(MC_FEEDBACK_EXTTRJ_MAP[next_mode_i][start_index:])
-        
-        # Add the feedforward gain for backward and backward extensions to the collection
-        MC_FEEDFWD_EXTTRJ_MAP = reference_extension_helper[i_event][3]
-        v_kff_ext_trj_fwd.append(MC_FEEDFWD_EXTTRJ_MAP[cur_mode_i][start_index:])
-        v_kff_ext_trj_bwd.append(MC_FEEDFWD_EXTTRJ_MAP[next_mode_i][start_index:])
-        
-        tevent_i = reference_extension_helper[i_event][4]
         v_tevents.append(tevent_i)
+        
+        if padding: # padding to the larger dimension of the two modes.
+            n_states = np.array([MC_EXTTRJ_MAP[cur_mode_i].shape[1], MC_EXTTRJ_MAP[next_mode_i].shape[1]])
+            n_inputs = np.array([MC_FEEDBACK_EXTTRJ_MAP[cur_mode_i].shape[1], MC_FEEDBACK_EXTTRJ_MAP[next_mode_i].shape[1]])
+            
+            max_nstate = np.max(n_states)
+            max_ninput = np.max(n_inputs)
+            
+            nt_length = MC_EXTTRJ_MAP[cur_mode_i].shape[0] - start_index - 1
+            
+            ext_trj_fwd = np.zeros((nt_length, max_nstate))
+            ext_trj_bwd = np.zeros((nt_length, max_nstate))
+            ext_trj_fwd[:, :n_states[0]] = MC_EXTTRJ_MAP[cur_mode_i][start_index:-1]
+            ext_trj_bwd[:, :n_states[1]] = MC_EXTTRJ_MAP[next_mode_i][start_index:-1]
+            
+            v_ext_trj_fwd.append(ext_trj_fwd)
+            v_ext_trj_bwd.append(ext_trj_bwd)
+            
+            Kfb_ext_trj_fwd = np.zeros((nt_length, max_ninput, max_nstate))
+            Kfb_ext_trj_bwd = np.zeros((nt_length, max_ninput, max_nstate))
+            Kfb_ext_trj_fwd[:, :n_inputs[0], :n_states[0]] = MC_FEEDBACK_EXTTRJ_MAP[cur_mode_i][start_index:]
+            Kfb_ext_trj_bwd[:, :n_inputs[1], :n_states[1]] = MC_FEEDBACK_EXTTRJ_MAP[next_mode_i][start_index:]
+            
+            v_Kfb_ext_trj_fwd.append(Kfb_ext_trj_fwd)
+            v_Kfb_ext_trj_bwd.append(Kfb_ext_trj_bwd)
+            
+            kff_ext_trj_fwd = np.zeros((nt_length, max_ninput))
+            kff_ext_trj_bwd = np.zeros((nt_length, max_ninput))
+            kff_ext_trj_fwd[:, :n_inputs[0]] = MC_FEEDFWD_EXTTRJ_MAP[cur_mode_i][start_index:]
+            kff_ext_trj_bwd[:, :n_inputs[1]] = MC_FEEDFWD_EXTTRJ_MAP[next_mode_i][start_index:]
+            
+            v_kff_ext_trj_fwd.append(kff_ext_trj_fwd)
+            v_kff_ext_trj_bwd.append(kff_ext_trj_bwd)
+            
+        else:
+            # Add the forward and backward extensions to the collection        
+            v_ext_trj_fwd.append(MC_EXTTRJ_MAP[cur_mode_i][start_index:-1])
+            v_ext_trj_bwd.append(MC_EXTTRJ_MAP[next_mode_i][start_index:-1])
+            
+            # Add the feedback gain for forward and backward extensions to the collection
+            v_Kfb_ext_trj_fwd.append(MC_FEEDBACK_EXTTRJ_MAP[cur_mode_i][start_index:])
+            v_Kfb_ext_trj_bwd.append(MC_FEEDBACK_EXTTRJ_MAP[next_mode_i][start_index:])
+            
+            # Add the feedforward gain for backward and backward extensions to the collection
+            v_kff_ext_trj_fwd.append(MC_FEEDFWD_EXTTRJ_MAP[cur_mode_i][start_index:])
+            v_kff_ext_trj_bwd.append(MC_FEEDFWD_EXTTRJ_MAP[next_mode_i][start_index:])
+            
+        
         
     return (v_mode_change, v_ext_trj_bwd, v_ext_trj_fwd, 
             v_Kfb_ext_trj_bwd, v_Kfb_ext_trj_fwd, v_kff_ext_trj_bwd, v_kff_ext_trj_fwd, v_tevents)
