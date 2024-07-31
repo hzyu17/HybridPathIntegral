@@ -278,13 +278,13 @@ class hybrid_ilqr:
         # -------------------------------
         cnt_event = 0
         hybrid_index_ref = 0
-        event_args = [self._init_reset_args[0]]
+        event_args = self._init_reset_args[0]
         
         for ii in range(self._n_timesteps-1):
             
             current_state = states[ii]
             current_mode = modes[ii]
-            reset_args[ii] = event_args[cnt_event]
+            reset_args[ii] = event_args
             
             # ------------------- 
             # Get the references 
@@ -371,7 +371,8 @@ class hybrid_ilqr:
             if (mode_change[0]!=mode_change[1]):
                 if self._verbose:
                     print(f"At Time {ii}, the system has a mode change from mode {mode_change[0]} to mode {mode_change[1]}")
-                event_args.append(reset_byproduct)
+                # event_args.append(reset_byproduct)
+                event_args = reset_byproduct
                 cnt_event += 1
                 
             # ---------------------
@@ -564,12 +565,12 @@ class hybrid_ilqr:
         r0 = 1
         if show_rollout:
             self._plot_states_func(self.time_span_, modes, states, inputs, 
-                                    self._init_state, self._target_state, self._n_timesteps, self._reset_args)
+                                    self._init_state, self._target_state, self._n_timesteps, reset_args=self._reset_args)
             
             if self._animate_func:
                 self._animate_func(self._modes, self._states, self._init_mode, 
                                 self._init_state, self._target_mode, self._target_state, 
-                                self._n_timesteps, self._reset_args, self._target_reset_args)
+                                self._n_timesteps, self._reset_args, self._target_reset_args,step=5)
             
         
         # ----------------------------------------------------

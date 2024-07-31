@@ -9,18 +9,11 @@ from dynamics.guard_reset_bouncing import *
 
 # numpy and scipy
 import scipy
-import sympy as sp
-from sympy.matrices import Matrix
 import numpy as np
-import jax
-import jax.numpy as jnp
-
-# plotting
-import matplotlib.pyplot as plt
 
 
 # Helper function to handle reference trajectory extensions
-def extract_extensions(reference_extension_helper, start_index=0):
+def extract_extensions(reference_extension_helper, start_index=0, padding=False):
     # ---------------------------------------------------
     #           Extract the extended references 
     # ---------------------------------------------------
@@ -41,28 +34,63 @@ def extract_extensions(reference_extension_helper, start_index=0):
     for i_event in range(num_events):
         # find out the mode changes
         MC_i = reference_extension_helper[i_event][0]
+        MC_EXTTRJ_MAP = reference_extension_helper[i_event][1]
+        MC_FEEDBACK_EXTTRJ_MAP = reference_extension_helper[i_event][2]
+        MC_FEEDFWD_EXTTRJ_MAP = reference_extension_helper[i_event][3]
+        tevent_i = reference_extension_helper[i_event][4]
+        
         cur_mode_i = MC_i[0]
         next_mode_i = MC_i[1]
         
         v_mode_change.append((cur_mode_i, next_mode_i))
-        
-        # Add the forward and backward extensions to the collection
-        MC_EXTTRJ_MAP = reference_extension_helper[i_event][1]
-        v_ext_trj_fwd.append(MC_EXTTRJ_MAP[cur_mode_i][start_index:])
-        v_ext_trj_bwd.append(MC_EXTTRJ_MAP[next_mode_i][start_index:])
-        
-        # Add the feedback gain for forward and backward extensions to the collection
-        MC_FEEDBACK_EXTTRJ_MAP = reference_extension_helper[i_event][2]
-        v_Kfb_ext_trj_fwd.append(MC_FEEDBACK_EXTTRJ_MAP[cur_mode_i][start_index:])
-        v_Kfb_ext_trj_bwd.append(MC_FEEDBACK_EXTTRJ_MAP[next_mode_i][start_index:])
-        
-        # Add the feedforward gain for backward and backward extensions to the collection
-        MC_FEEDFWD_EXTTRJ_MAP = reference_extension_helper[i_event][3]
-        v_kff_ext_trj_fwd.append(MC_FEEDFWD_EXTTRJ_MAP[cur_mode_i][start_index:])
-        v_kff_ext_trj_bwd.append(MC_FEEDFWD_EXTTRJ_MAP[next_mode_i][start_index:])
-        
-        tevent_i = reference_extension_helper[i_event][4]
         v_tevents.append(tevent_i)
+        
+        if padding: # padding to the larger dimension of the two modes.
+            n_states = np.array([MC_EXTTRJ_MAP[cur_mode_i].shape[1], MC_EXTTRJ_MAP[next_mode_i].shape[1]])
+            n_inputs = np.array([MC_FEEDBACK_EXTTRJ_MAP[cur_mode_i].shape[1], MC_FEEDBACK_EXTTRJ_MAP[next_mode_i].shape[1]])
+            
+            max_nstate = np.max(n_states)
+            max_ninput = np.max(n_inputs)
+            
+            nt_length = MC_EXTTRJ_MAP[cur_mode_i].shape[0] - start_index - 1
+            
+            ext_trj_fwd = np.zeros((nt_length, max_nstate))
+            ext_trj_bwd = np.zeros((nt_length, max_nstate))
+            ext_trj_fwd[:, :n_states[0]] = MC_EXTTRJ_MAP[cur_mode_i][start_index:-1]
+            ext_trj_bwd[:, :n_states[1]] = MC_EXTTRJ_MAP[next_mode_i][start_index:-1]
+            
+            v_ext_trj_fwd.append(ext_trj_fwd)
+            v_ext_trj_bwd.append(ext_trj_bwd)
+            
+            Kfb_ext_trj_fwd = np.zeros((nt_length, max_ninput, max_nstate))
+            Kfb_ext_trj_bwd = np.zeros((nt_length, max_ninput, max_nstate))
+            Kfb_ext_trj_fwd[:, :n_inputs[0], :n_states[0]] = MC_FEEDBACK_EXTTRJ_MAP[cur_mode_i][start_index:]
+            Kfb_ext_trj_bwd[:, :n_inputs[1], :n_states[1]] = MC_FEEDBACK_EXTTRJ_MAP[next_mode_i][start_index:]
+            
+            v_Kfb_ext_trj_fwd.append(Kfb_ext_trj_fwd)
+            v_Kfb_ext_trj_bwd.append(Kfb_ext_trj_bwd)
+            
+            kff_ext_trj_fwd = np.zeros((nt_length, max_ninput))
+            kff_ext_trj_bwd = np.zeros((nt_length, max_ninput))
+            kff_ext_trj_fwd[:, :n_inputs[0]] = MC_FEEDFWD_EXTTRJ_MAP[cur_mode_i][start_index:]
+            kff_ext_trj_bwd[:, :n_inputs[1]] = MC_FEEDFWD_EXTTRJ_MAP[next_mode_i][start_index:]
+            
+            v_kff_ext_trj_fwd.append(kff_ext_trj_fwd)
+            v_kff_ext_trj_bwd.append(kff_ext_trj_bwd)
+            
+        else:
+            # Add the forward and backward extensions to the collection        
+            v_ext_trj_fwd.append(MC_EXTTRJ_MAP[cur_mode_i][start_index:-1])
+            v_ext_trj_bwd.append(MC_EXTTRJ_MAP[next_mode_i][start_index:-1])
+            
+            # Add the feedback gain for forward and backward extensions to the collection
+            v_Kfb_ext_trj_fwd.append(MC_FEEDBACK_EXTTRJ_MAP[cur_mode_i][start_index:])
+            v_Kfb_ext_trj_bwd.append(MC_FEEDBACK_EXTTRJ_MAP[next_mode_i][start_index:])
+            
+            # Add the feedforward gain for backward and backward extensions to the collection
+            v_kff_ext_trj_fwd.append(MC_FEEDFWD_EXTTRJ_MAP[cur_mode_i][start_index:])
+            v_kff_ext_trj_bwd.append(MC_FEEDFWD_EXTTRJ_MAP[next_mode_i][start_index:])
+        
         
     return (v_mode_change, v_ext_trj_bwd, v_ext_trj_fwd, 
             v_Kfb_ext_trj_bwd, v_Kfb_ext_trj_fwd, v_kff_ext_trj_bwd, v_kff_ext_trj_fwd, v_tevents)
@@ -74,12 +102,13 @@ def extract_extensions(reference_extension_helper, start_index=0):
 def reaction_mode_mismatch(cond_early_arrival, current_index, 
                             current_mode, ref_current_mode, 
                             ext_trj_fwd, ext_trj_bwd, 
+                            ref_ext_modechange,
                             Kfb_ref_ext_fwd, kff_ref_ext_fwd,
                             Kfb_ref_ext_bwd, kff_ref_ext_bwd,
                             cnt_mismatch):
     # Take the first hybrid event for now. Needs to find the correct corresponding one among all hybrid events.
     
-    if (cond_early_arrival(current_mode, ref_current_mode)):
+    if (cond_early_arrival(current_mode, ref_current_mode, ref_ext_modechange)):
         extended_trj = ext_trj_bwd
         K_fb = Kfb_ref_ext_bwd
         k_ff = kff_ref_ext_bwd
@@ -123,7 +152,7 @@ def stochastic_integration(x0, u, t_span, epsilon, dW, dyn_f, dyn_gdWt):
     # ============= method 2: forward Euler =============
     t0, tf = t_span[0], t_span[-1]
     dt = tf - t0
-    xt_next = x0 + dyn_f(t0, x0, *args)*dt + dyn_gdWt(dW, epsilon)
+    xt_next = x0 + dyn_f(t0, x0, *args)*dt + dyn_gdWt(x0, dW, epsilon)
     
     return xt_next
 

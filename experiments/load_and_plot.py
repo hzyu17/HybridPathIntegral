@@ -8,7 +8,7 @@ if __name__ == '__main__':
     exp_data = ExpData(exp_params)
 
     # filename = root_dir+"/data/bouncing/ablation_study_nsamples/data_5000samples_eps_15.0_coupling.pickle"
-    filename = root_dir+"/experiments/data/bouncing/data_2024-07-28_19-35-18_h_pathintegral_example_bouncingball_jax_1experiments_100samples_eps_5_coupling_dt_0.01.pickle"
+    filename = root_dir+"/experiments/data/bouncing/data_2024-07-30_00-03-09_example_bouncingball_jax_threading_5000samples_eps_5.0_coupling.pickle"
     print("loading data: ", filename)
     exp_data.load(filename)
     
@@ -210,20 +210,20 @@ if __name__ == '__main__':
     ax11.set_ylabel("Costs", fontproperties=font_props)
     
     
-    # ----------------------------------------------------
-    # Plot the samples for the i-lqr tail performances
-    # ----------------------------------------------------
-    fig7, ax12 = plt.subplots(figsize=(8,6))
-    highcost_index = sorted_cost_ilqr_indices[-1]
-    highcost_Ksamples = exp_data.get_data(highcost_index).all_samples()
+    # # ----------------------------------------------------
+    # # Plot the samples for the i-lqr tail performances
+    # # ----------------------------------------------------
+    # fig7, ax12 = plt.subplots(figsize=(8,6))
+    # highcost_index = sorted_cost_ilqr_indices[-1]
+    # highcost_Ksamples = exp_data.get_data(highcost_index).all_samples()
     
-    fig3, ax6 = plt.subplots()
-    ax6.grid(True)
-    for i_s in range(n_samples):
-        ax6.plot(highcost_Ksamples[0, i_s,:,0], highcost_Ksamples[i_s,:,1],'b', alpha=0.2)
-        
-    ax6.scatter(target_state[0], target_state[1], color='g', marker='x', s=50.0, linewidths=6, label='Target')
-    ax6.scatter(init_state[0], init_state[1], color='r', marker='x', s=50.0, linewidths=6, label='Start')
+    # fig3, ax6 = plt.subplots()
+    # ax6.grid(True)
+    # for i_s in range(n_samples):
+    #     ax6.plot(highcost_Ksamples[0, i_s,:,0], highcost_Ksamples[i_s,:,1],'b', alpha=0.2)
+    
+    # ax6.scatter(target_state[0], target_state[1], color='g', marker='x', s=50.0, linewidths=6, label='Target')
+    # ax6.scatter(init_state[0], init_state[1], color='r', marker='x', s=50.0, linewidths=6, label='Start')
     
     plt.show()
     
