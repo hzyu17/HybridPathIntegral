@@ -42,7 +42,6 @@ def reset_map_slip_12(t, x_event, current_mode, args_reset):
     # x_event: [x, x_dot, z, z_dot, theta]
     
     r0 = 1
-    new_mode = current_mode
     x, xdot, z, zdot, theta = x_event
     
     x_reset = x_event
@@ -124,15 +123,11 @@ def reset_control_slip_12(t, u_minus):
 
 def reset_map_slip_21_padding(t, x_event, current_mode, args_reset):
     
-    print("Reset map padding")
+    print("Reset map from mode 2 to mode 1, with padding.")
     
     xp = args_reset[0]
     r0 = 1
     theta, theta_dot, r, r_dot = x_event[0], x_event[1], x_event[2], x_event[3]
-    
-    print("xp: ", xp)
-    
-    print("x_event: ", x_event)
     
     px_reset = xp + r0*jnp.cos(theta)
     vx_reset = r_dot*jnp.cos(theta) - r*theta_dot*jnp.sin(theta)
@@ -141,9 +136,7 @@ def reset_map_slip_21_padding(t, x_event, current_mode, args_reset):
     theta_reset = theta
 
     x_reset = jnp.array([px_reset, vx_reset, pz_reset, vz_reset, theta_reset])
-    
-    print("x_reset: ", x_reset)
-    
+
     return x_reset, 0, args_reset
 
 

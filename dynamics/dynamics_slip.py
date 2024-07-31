@@ -355,14 +355,14 @@ def stochastic_feedback_rollout_slip(init_mode, x0, n_inputs, xt_ref, ref_modech
 
 
 def event_detect_slip(x0, u, t0, tf, current_mode, reset_args, detection=True, backwards=False):
-    guard_slip_12.terminal=True
-    guard_slip_12.direction=1
+    # guard_slip_12.terminal=True
+    # guard_slip_12.direction=1
     
-    guard_slip_21.terminal=True
-    guard_slip_21.direction=1
+    # guard_slip_21.terminal=True
+    # guard_slip_21.direction=1
     
-    guards_slip = {0:guard_slip_12, 1: guard_slip_21}
-    reset_maps_slip = {0:reset_map_slip_12, 1:reset_map_slip_21}
+    # guards_slip = {0:guard_slip_12, 1: guard_slip_21}
+    # reset_maps_slip = {0:reset_map_slip_12, 1:reset_map_slip_21}
     
     reset_controls_slip = {0:reset_control_slip_12, 1:reset_control_slip_21}
     
@@ -623,9 +623,11 @@ def unpad_control_slip(modes, inputs_padded):
     inputs = [np.zeros((nt, 1)), np.zeros((nt, 2))]
     
     for i in range(nt):
-        input_i = inputs_padded[i]
+        
         if modes[i] == 0:
-            input_i = input_i[0:1]
+            input_i = inputs_padded[i, :1]
+        elif modes[i] == 1:
+            input_i = inputs_padded[i]
             
         inputs[modes[i]][i] = input_i
     
@@ -637,9 +639,10 @@ def unpad_state_slip(modes, states_padded):
     states = [np.array([0.0]) for _ in range(nt)]
     
     for i in range(nt):
-        state_i = states_padded[i]
-        if modes[i] == 1:
-            state_i = state_i[0:4]
+        if modes[i] == 0:
+            state_i = states_padded[i]
+        elif modes[i] == 1:
+            state_i = states_padded[i, 0:4]
         states[i] = state_i
     
     return states

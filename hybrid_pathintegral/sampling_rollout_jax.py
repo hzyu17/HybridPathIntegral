@@ -67,7 +67,8 @@ def ModeMismatch_false_fun_jax(args):
     
 def cond_EarlyArr_jax(current_mode, ref_current_mode, ref_mode_change):
     # hand picked, need to be automatic
-    return jnp.logical_and(current_mode==ref_mode_change[1], ref_current_mode==ref_mode_change[0])
+    mode_mismatch = (current_mode != ref_current_mode)
+    return jnp.logical_and(mode_mismatch, jnp.logical_and(current_mode==ref_mode_change[1], ref_current_mode==ref_mode_change[0]))
 
 def EarlyArr_true_fun_jax(args):
     (cnt_indx, ext_trj_fwd, ext_trj_bwd, Kfb_ref_ext_fwd, kff_ref_ext_fwd, Kfb_ref_ext_bwd, kff_ref_ext_bwd) = args
@@ -90,14 +91,14 @@ def mode0_condition_jit(current_mode):
 
 # @jax.jit
 def mode0_true_fun_jax(args):
-    (xref_0, xref_1, u_0, u_1, Kfb_mode0, kff_mode0, kfb_mode1, kff_mode1, randN_0, randN_1) = args
-    return xref_0, u_0, Kfb_mode0, kff_mode0, randN_0
+    (xref_mode0, _, uref_mode0, _, Kfb_mode0, kff_mode0, _, _, randN_mode0, _) = args
+    return xref_mode0, uref_mode0, Kfb_mode0, kff_mode0, randN_mode0
 
 
 # @jax.jit
 def mode0_false_fun_jax(args):
-    (xref_0, xref_1, u_0, u_1, Kfb_mode0, kff_mode0, kfb_mode1, kff_mode1, randN_0, randN_1) = args
-    return xref_1, u_1, kfb_mode1, kff_mode1, randN_1
+    (_, xref_mode1, _, uref_mode1, _, _, Kfb_mode1, kff_mode1, _, randN_mode1) = args
+    return xref_mode1, uref_mode1, Kfb_mode1, kff_mode1, randN_mode1
 
 
 # @jax.jit
@@ -127,10 +128,11 @@ One step cost
 # @jax.jit
 def cost_i(xt, current_mode, cur_St, xref, uref, Kfb, kff, randN, eps, dt, dt_shrink, t0, reset_arg, 
            hybrid_integration_func):
+    
     # -------- compute control input --------
     delta_xt = xt - xref
     ut = uref + jnp.dot(Kfb, delta_xt) + kff    
-    next_mode = current_mode
+    # next_mode = current_mode
     
     # -------- propagate dynamics with hybrid event --------
     xt_next, next_mode, dW, new_reset_arg = hybrid_integration_func(xt, current_mode, ut, randN, eps, dt, dt_shrink, t0, reset_arg)
@@ -149,31 +151,32 @@ def feedback_cost_jax(carry, inputs, eps,
                       v_Kfb_ref_ext_bwd, v_kff_ref_ext_bwd,
                       cost_i_func):
     
-    xt, current_mode, St, cnt_MM, indx = carry
+    xt, current_mode, St, cnt_MM, indx, reset_arg = carry
     
     (uref_mode0, uref_mode1, 
     Kfb_mode0, kff_mode0, 
     kfb_mode1, kff_mode1, 
     randN_mode0, randN_mode1, 
-    xref_mode0, xref_mode1, current_mode_ref, reset_arg) = inputs
+    xref_mode0, xref_mode1, current_mode_ref) = inputs
     
     # ---------------------------
     # rollout and collect costs 
     # ---------------------------
     # Choose the control in the current mode. Assuming 2-mode system    
-    cond_mode0 = (current_mode == 0)    
+    cond_mode0 = (current_mode == 0) 
     args_cond_mode0 = (xref_mode0, xref_mode1, 
                        uref_mode0, uref_mode1, 
                        Kfb_mode0, kff_mode0, 
                        kfb_mode1, kff_mode1, 
                        randN_mode0, randN_mode1)
-    xref_mode, u_mode, K_mode, k_mode, randN_mode = jax.lax.cond(cond_mode0, mode0_true_fun_jax, mode0_false_fun_jax, args_cond_mode0)
+    
+    (xref_mode, u_mode, K_mode, k_mode, randN_mode) = jax.lax.cond(cond_mode0, mode0_true_fun_jax, mode0_false_fun_jax, args_cond_mode0)
 
     # -------------------------------
     # Get the trajectory extensions 
     # -------------------------------
     # Consider only 1 mode change for now.
-    cnt_event = 0
+    # cnt_event = 0
     ext_ref_mode_change = v_ext_ref_mode_change[0]
     ext_trj_fwd = v_ext_trj_fwd[0]
     ext_trj_bwd = v_ext_trj_bwd[0]
@@ -191,11 +194,11 @@ def feedback_cost_jax(carry, inputs, eps,
                          Kfb_ref_ext_bwd, kff_ref_ext_bwd, 
                          K_mode, k_mode,
                          xref_mode, indx, cnt_MM)
-    
     xref_mode, K_mode, k_mode, cnt_MM_next = jax.lax.cond(is_ModeMismatched, ModeMismatch_true_fun_jax, ModeMismatch_false_fun_jax, args_ModeMismatch)
     
-    xt_next, next_mode, ut, St_next, _ = cost_i_func(xt, current_mode, St, xref_mode, u_mode, 
-                                                     K_mode, k_mode, randN_mode, eps, dt, dt_shrink, t0, reset_arg)
+    xt_next, next_mode, ut, St_next, new_reset_arg = cost_i_func(xt, current_mode, St, xref_mode, u_mode, 
+                                                                 K_mode, k_mode, randN_mode, 
+                                                                 eps, dt, dt_shrink, t0, reset_arg)
     indx_next = indx + 1
     
-    return (xt_next, next_mode, St_next, cnt_MM_next, indx_next), (current_mode, xt, St, ut, xref_mode) 
+    return (xt_next, next_mode, St_next, cnt_MM_next, indx_next, new_reset_arg), (current_mode, xt, St, ut, xref_mode, K_mode, k_mode, new_reset_arg) 

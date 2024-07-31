@@ -242,7 +242,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         n_modes = 2
         Ksamples_jax_i = np.zeros((n_samples, nt_i, n_modes))
         GaussianNoise_i = [np.random.randn(n_samples, nt_i, 2), np.random.randn(n_samples, nt_i, 2)]
-        reset_args_i = ref_reset_args[i_t:]
+        init_reset_args_i = np.array(ref_reset_args[i_t])
         
         # --------------------------- 
         # Coupling of the randomness
@@ -274,22 +274,24 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         #                               Sample future trajectories
         # ---------------------------------------------------------------------------------------                    
         
-        Kmodes_jax_i, Ksamples_jax_i, PathCosts_jax_i, Ksamples_ut, Ksamples_xref = sample_slip_jax(n_samples, xt, 
-                                                                                                    current_mode_actual, 
-                                                                                                    states_0_i, states_1_i, 
-                                                                                                    modes_i, 
-                                                                                                    inputs_0_i, inputs_1_i, 
-                                                                                                    K_feedback_0_i, k_feedforward_0_i, 
-                                                                                                    K_feedback_1_i, k_feedforward_1_i, 
-                                                                                                    target_state, Q_T, 
-                                                                                                    start_time_i, dt, dt_shrinkingrate, 
-                                                                                                    epsilon, 
-                                                                                                    GaussianNoise_i[0], GaussianNoise_i[1], 
-                                                                                                    v_mode_change_ref_i, 
-                                                                                                    v_ref_ext_fwd_i, v_ref_ext_bwd_i, 
-                                                                                                    v_Kfb_ref_ext_fwd_i, v_kff_ref_ext_fwd_i, 
-                                                                                                    v_Kfb_ref_ext_bwd_i, v_kff_ref_ext_bwd_i, 
-                                                                                                    reset_args_i)
+        (Kmodes_jax_i, Ksamples_jax_i, PathCosts_jax_i, 
+        Ksamples_ut, Ksamples_xref, Ksamples_Kfb_mode, 
+        Ksamples_kff_mode, Ksamples_reset_args) = sample_slip_jax(n_samples, xt, 
+                                                                    current_mode_actual, 
+                                                                    states_0_i, states_1_i, 
+                                                                    modes_i, 
+                                                                    inputs_0_i, inputs_1_i, 
+                                                                    K_feedback_0_i, k_feedforward_0_i, 
+                                                                    K_feedback_1_i, k_feedforward_1_i, 
+                                                                    target_state, Q_T, 
+                                                                    start_time_i, dt, dt_shrinkingrate, 
+                                                                    epsilon, 
+                                                                    GaussianNoise_i[0], GaussianNoise_i[1], 
+                                                                    v_mode_change_ref_i, 
+                                                                    v_ref_ext_fwd_i, v_ref_ext_bwd_i, 
+                                                                    v_Kfb_ref_ext_fwd_i, v_kff_ref_ext_fwd_i, 
+                                                                    v_Kfb_ref_ext_bwd_i, v_kff_ref_ext_bwd_i, 
+                                                                    init_reset_args_i)
         
         # -------------------------------
         # Visualize sampled trajectories
@@ -301,17 +303,43 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
             fig, axes = plt.subplots(2, 7, figsize=(15, 10))
             for i_s in range(1):
                 sample_modes_i = Kmodes_jax_i[i_s]
-                sample_xref_i = Ksamples_xref[i_s]
-                sample_ut_i = Ksamples_ut[i_s]
                 sample_states_i = Ksamples_jax_i[i_s]
-                sample_states_i = unpad_state_slip(sample_modes_i, sample_states_i)
-                
                 sample_inputs_i = Ksamples_ut[i_s]
+                sample_states_i = unpad_state_slip(sample_modes_i, sample_states_i)
                 sample_inputs_i = unpad_control_slip(sample_modes_i, sample_inputs_i)
                 
-                fig, axes = plot_slip(time_span, sample_modes_i, sample_states_i, 
+                sample_reset_args_i = Ksamples_reset_args[i_s]
+                sample_xref_i = Ksamples_xref[i_s]
+                sample_ut_i = Ksamples_ut[i_s]
+                sample_reset_arg_i = Ksamples_reset_args[i_s]
+                Ksamples_Kfb_mode_i = Ksamples_Kfb_mode[i_s]
+                Ksamples_kff_mode_i = Ksamples_kff_mode[i_s]
+                
+                # # --------------------- Debug: plot the control gains --------------------- 
+                # fig3, axes = plt.subplots(2, 1)
+                # (ax6, ax7) = axes.flatten()
+                
+                # ax6.grid(True)
+                # ax7.grid(True)
+                                
+                # ax6.plot(np.arange(nt), K_feedback_0_i[:, 0, 4], label='ref mode0 Kfb[4]')
+                # ax6.plot(np.arange(nt), K_feedback_1_i[:, 0, 0], label='ref mode1 Kfb[0]')
+                # ax6.plot(np.arange(nt), Ksamples_Kfb_mode_i[:, 0, 0], label='Ksamples Kfb[0]')
+                # ax6.plot(np.arange(nt), Ksamples_Kfb_mode_i[:, 0, 4], label='Ksamples Kfb[4]')
+                
+                # ax7.plot(np.arange(nt), k_feedforward_0_i[:, 0], label='ref mode0 kff[0]')
+                # ax7.plot(np.arange(nt), k_feedforward_1_i[:, 0], label='ref mode1 kff[0]')
+                # ax7.plot(np.arange(nt), Ksamples_kff_mode_i[:, 0], label='Ksamples kff[0]')
+                
+                # ax6.legend()
+                # ax7.legend()
+                
+                # fig3.tight_layout()
+                # plt.show()
+                time_span_nt = np.arange(nt)
+                fig, axes = plot_slip(time_span_nt, sample_modes_i, sample_states_i, 
                                       sample_inputs_i, init_state, target_state, 
-                                      nt, ref_reset_args, fig, axes)
+                                      nt, sample_reset_args_i, fig, axes)
                 
             plt.show()
             
@@ -382,7 +410,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
             
             plt.show()
         # --------------------------------------------- 
-        # Apply optimal control and go to next state  
+        #  Apply optimal control and go to next state  
         # ---------------------------------------------
         reset_args_actual[i_t] = event_args_actual[cnt_event_actual]
         actual_noise_i = RndN_actual[current_mode_actual][i_t]
