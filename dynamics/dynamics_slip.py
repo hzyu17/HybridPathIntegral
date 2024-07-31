@@ -3,28 +3,9 @@
 # mode 2 (stance): x = [theta, theta_dot, r, r_dot], u = [r_delta, \tau_hip]
 # reset maps: identity
 
+import matplotlib.pyplot as plt
 from dynamics.dynamics import *
 from dynamics.guard_reset_slip import *
-
-def dyn_slip(t, x, *args):
-    """
-    Args:
-        t (_type_): time variable
-        x (_type_): state
-        args[0]: control input
-    """
-   
-    if len(args) == 0:
-        u = np.array([0.0])
-    else:
-        u = args[0]
-    return np.array([x[1], u[0]-g])
-
-
-def gdWt_slip(dWt, eps):
-    B = np.array([[0],[1.0]], dtype=np.float64)
-    return np.sqrt(eps) * B@dWt
-    
 
 # =================================
 # Flight dynamics Definitions
@@ -73,6 +54,10 @@ def dyn_flight_slip(t, x, *args):
     
     return f_flight_cont_func(x, u).flatten()
 
+def gdWt_flight_slip(dWt, eps):
+    B = np.array([[0],[0],[0],[0],[1.0]], dtype=np.float64)
+    return np.sqrt(eps) * B@dWt
+
 # ---------------------------
 # Discrete-time definition
 # ---------------------------
@@ -114,8 +99,8 @@ def symbolic_flight_dynamics_slip():
 # ---------------------------
 def symbolic_stance_dynamics_slip_continuoustimes():
     g = 9.81
-    k = 15.0
-    m = 0.2
+    k = 25.0
+    m = 0.5
     r0 = 1
     theta,theta_dot,r,r_dot,u1,u2 = sp.symbols('theta theta_dot r r_dot u1 u2')
 
@@ -159,13 +144,24 @@ def dyn_stance_slip(t, x, *args):
     
     return f_stance_cont_func(x, u).flatten()
 
+
+def gdWt_stance_slip(xt, dWt, eps):
+    k = 25.0
+    m = 0.5
+    
+    r = xt[2]
+    B = np.array([[0.0, 0.0],[0.0, 0.0],[0.0, m/r/r],[0.0, 0.0], [k/m, 0.0]], dtype=np.float64)
+    
+    return np.sqrt(eps) * B@dWt
+
+
 # ---------------------------
 # Discrete-time definition
 # ---------------------------
 def symbolic_stance_dynamics_slip():
     g = 9.81
-    k = 15.0
-    m = 0.2
+    k = 25.0
+    m = 0.5
     r0 = 1
     theta,theta_dot,r,r_dot,u1,u2,dt = sp.symbols('theta theta_dot r r_dot u1 u2 dt')
 
@@ -192,8 +188,11 @@ def symbolic_stance_dynamics_slip():
     B_disc_func = sp.lambdify((states,inputs,dt),B_disc)
     return (f_disc_func,A_disc_func,B_disc_func)
 
-def stochastic_integration_slip(x0, u, t_span, epsilon, dW):
-    return stochastic_integration(x0, u, t_span, epsilon, dW, dyn_slip, gdWt_slip)
+def stochastic_integration_slip(mode, x0, u, t_span, epsilon, dW):
+    if (mode==0):
+        return stochastic_integration(x0, u, t_span, epsilon, dW, dyn_flight_slip, gdWt_flight_slip)
+    elif (mode==1):
+        return stochastic_integration(x0, u, t_span, epsilon, dW, dyn_stance_slip, gdWt_stance_slip)
 
 
 # ----------------------------- 
@@ -204,12 +203,12 @@ def cond_mode_mismatch_slip(current_mode, ref_current_mode):
     return (current_mode != ref_current_mode)
 
 # --------------------------------- Condition: early arrival ---------------------------------
-def cond_early_arrival_slip(current_mode, ref_current_mode): 
-    return (current_mode==1) and (ref_current_mode==0) 
+def cond_early_arrival_slip(current_mode, ref_current_mode, event_modechange): 
+    return (current_mode==event_modechange[1]) and (ref_current_mode==event_modechange[0]) 
 
 # Condition: guard function hit
 def cond_guard_function_hit_slip(xt, xt_next, guard_func): 
-    return ((guard_func(0.0, xt)>0) and (guard_func(0.0, xt_next)<=0))
+    return (guard_func(0.0, xt)>0) and (guard_func(0.0, xt_next)<=0)
 
 
 guard_slip_12.terminal=True
@@ -231,7 +230,7 @@ def stochastic_feedback_rollout_slip(init_mode, x0, n_inputs, xt_ref, ref_modech
     v_Kfb_ref_ext_bwd, v_Kfb_ref_ext_fwd, 
     v_kff_ref_ext_bwd, v_kff_ref_ext_fwd, _) = extract_extensions(reference_extension_helper, start_index = 0)
     
-    n_timestamps = xt_ref.shape[0]
+    n_timestamps = len(xt_ref)
     
     dt = (tf - t0) / n_timestamps
     dt_int = dt
@@ -250,7 +249,7 @@ def stochastic_feedback_rollout_slip(init_mode, x0, n_inputs, xt_ref, ref_modech
     current_guard = guards_slip[init_mode]
     
     cnt_mismatch = 0
-    xt_ref_actual = np.zeros_like(xt_ref)
+    xt_ref_actual = [np.array([0.0]) for _ in range(n_timestamps)]
     
     # path cost
     Sk = 0
@@ -277,11 +276,12 @@ def stochastic_feedback_rollout_slip(init_mode, x0, n_inputs, xt_ref, ref_modech
         
         xref_i = xt_ref[ii_t] 
         if cond_mode_mismatch_slip(current_mode, ref_current_mode):
-            xref_i, K_fb_i, k_ff_i, cnt_mismatch = reaction_mode_mismatch(cond_early_arrival_slip, ii_t, current_mode, ref_current_mode, 
-                                                                        v_ref_ext_fwd[0], v_ref_ext_bwd[0], 
-                                                                        v_Kfb_ref_ext_fwd[0], v_kff_ref_ext_fwd[0],
-                                                                        v_Kfb_ref_ext_bwd[0], v_kff_ref_ext_bwd[0],
-                                                                        cnt_mismatch)
+            xref_i, K_fb_i, k_ff_i, cnt_mismatch = reaction_mode_mismatch(cond_early_arrival_slip, ii_t, 
+                                                                          current_mode, ref_current_mode, 
+                                                                            v_ref_ext_fwd[0], v_ref_ext_bwd[0], 
+                                                                            v_Kfb_ref_ext_fwd[0], v_kff_ref_ext_fwd[0],
+                                                                            v_Kfb_ref_ext_bwd[0], v_kff_ref_ext_bwd[0],
+                                                                            cnt_mismatch)
             
         xt_ref_actual[ii_t] = xref_i
         
@@ -289,28 +289,35 @@ def stochastic_feedback_rollout_slip(init_mode, x0, n_inputs, xt_ref, ref_modech
         u = ut[current_mode][ii_t] + K_fb_i@delta_xt_i + k_ff_i
         ut_cl_trj[current_mode][ii_t] = u
         
-        dW_i = np.sqrt(dt_int)*GaussianNoise[current_mode][ii_t]
+        noise_i = GaussianNoise[current_mode][ii_t]
+        dW_i = np.sqrt(dt_int)*noise_i
         
         # ============================== One step integration ==============================        
         # ---- solver for the deterministic part
         t_span = (t0_i, t0_i + dt_int)
         
-        xt_next = stochastic_integration_slip(xt, u, t_span, epsilon, dW_i).flatten()
+        # xt_next = stochastic_integration_slip(current_mode, xt, u, t_span, epsilon, dW_i).flatten()
         
-        current_guard = guards_slip[current_mode]
-        next_mode = current_mode
-        # Condition: Hit the guard function.  
-        if cond_guard_function_hit_slip(xt, xt_next, current_guard): 
+        # current_guard = guards_slip[current_mode]
+        # next_mode = current_mode
+        # # Condition: Hit the guard function.  
+        # if cond_guard_function_hit_slip(xt, xt_next, current_guard): 
             
-            args = (xt, current_mode, u, t0_i, t0_i+dt_int, xt_next, 
-                    dt_int, dt_shrinkingrate, GaussianNoise[current_mode][ii_t], epsilon, 
-                    stochastic_integration_slip, guards_slip, reset_maps_slip, reset_args[ii_t])
+        #     args = (xt, current_mode, u, t0_i, t0_i+dt_int, xt_next, 
+        #             dt_int, dt_shrinkingrate, GaussianNoise[current_mode][ii_t], epsilon, 
+        #             stochastic_integration_slip, guards_slip, reset_maps_slip, reset_args[ii_t])
             
-            xt_next, next_mode, dW_i, new_reset_args = event_reactive_fun(args)
-            dt_int = dt
+        #     xt_next, next_mode, dW_i, new_reset_args = event_reactive_fun(args)
+        #     dt_int = dt
             
-            event_args.append(new_reset_args)
-            cnt_event += 1
+        #     event_args.append(new_reset_args)
+        #     cnt_event += 1
+        
+        
+        xt_next, next_mode, _, new_reset_arg = hybrid_integration_slip(xt, current_mode,
+                                                                        u, noise_i, 
+                                                                        epsilon, dt, dt_shrinkingrate, t0_i, 
+                                                                        reset_args[ii_t])
         
         # Collect cost: consider only the terminal state cost for now.
         Sk += u.T@u/2.0 * dt + np.sqrt(epsilon) * np.dot(u.T, dW_i)
@@ -390,8 +397,9 @@ def event_detect_slip(x0, u, t0, tf, current_mode, reset_args, detection=True, b
                                 reset_args, detection, backwards)
     
 
-def plot_slip(time_span, modes, states, inputs, init_state, target_state, nt, stance_xp, fig=None, axes=None):
-    print("Plotting SLIP state and input trajectory")
+def plot_slip(time_span, modes, states, inputs, 
+              init_state, target_state, nt, reset_args, 
+              fig=None, axes=None, color='k', alpha=1.0, step=2):
     # =============== plotting ===============
     if (fig is None) and (axes is None):
         fig, axes = plt.subplots(2, 7, figsize=(15, 10))
@@ -413,6 +421,79 @@ def plot_slip(time_span, modes, states, inputs, init_state, target_state, nt, st
     ax26.grid(True)
     ax27.grid(True)
 
+    # convert the stance mode states to the flight mode states
+    flight_mode_states = np.zeros((nt, 5))
+    for i in range(nt):
+        if modes[i] == 0:
+            flight_mode_states[i] = states[i].flatten()
+        elif modes[i] == 1:
+            flight_mode_states[i] = convert_state_21_slip(states[i], reset_args[i][0]).flatten()
+
+    
+    ax11.plot(time_span[0:-1:step], modes[0:-1:step], color=color)   
+    ax12.plot(time_span[0:-1:step], flight_mode_states[0:-1:step,0], color=color, alpha=alpha)
+    ax13.plot(time_span[0:-1:step], flight_mode_states[0:-1:step,1], color=color, alpha=alpha)
+    ax14.plot(time_span[0:-1:step], flight_mode_states[0:-1:step,2], color=color, alpha=alpha)
+    ax15.plot(time_span[0:-1:step], flight_mode_states[0:-1:step,3], color=color, alpha=alpha)
+    ax16.plot(time_span[0:-1:step], flight_mode_states[0:-1:step,4], color=color, alpha=alpha)
+    
+    
+    # --------------------------------------- 
+    # collect the mode 1 states and inputs
+    # ---------------------------------------
+    mode1_timestamps = []
+    mode1_states = []
+    mode1_inputs = []
+    mode1_modes = []
+    
+    # --------------------------------------- 
+    # collect the mode 0 states and inputs
+    # ---------------------------------------
+    mode0_timestamps = []
+    mode0_states = []
+    mode0_inputs = []
+    mode0_modes = []
+    
+    
+    for i in range(0,nt-1,step):
+        if modes[i] == 0:
+            mode0_timestamps.append(time_span[i])
+            mode0_states.append(states[i])
+            mode0_inputs.append(inputs[modes[i]][i])
+            mode0_modes.append(modes[i])
+            
+        if modes[i] == 1:
+            assert len(states[i]) == 4
+            mode1_timestamps.append(time_span[i])
+            mode1_states.append(states[i])
+            mode1_inputs.append(inputs[modes[i]][i])
+            mode1_modes.append(modes[i])
+        
+    
+    mode0_timestamps = np.array(mode0_timestamps)
+    mode0_states = np.array(mode0_states)
+    mode0_inputs = np.array(mode0_inputs)
+    mode0_modes = np.array(mode0_modes)
+    
+    mode1_timestamps = np.array(mode1_timestamps)
+    mode1_states = np.array(mode1_states)
+    mode1_inputs = np.array(mode1_inputs)
+    mode1_modes = np.array(mode1_modes)
+    
+    # plot mode 0 control input
+    ax17.plot(mode0_timestamps[0:-1:step], mode0_inputs[0:-1:step], color='b', label=r'$u$')
+    
+    # plot mode 1
+    ax21.plot(mode1_timestamps[0:-1:step], mode1_modes[0:-1:step], color=color, alpha=alpha)   
+    ax22.plot(mode1_timestamps[0:-1:step], mode1_states[0:-1:step, 0], color=color, alpha=alpha)
+    ax23.plot(mode1_timestamps[0:-1:step], mode1_states[0:-1:step, 1], color=color, alpha=alpha)
+    ax24.plot(mode1_timestamps[0:-1:step], mode1_states[0:-1:step, 2], color=color, alpha=alpha)
+    ax25.plot(mode1_timestamps[0:-1:step], mode1_states[0:-1:step, 3], color=color, alpha=alpha)
+    
+    ax26.plot(mode1_timestamps[0:-1:step], mode1_inputs[0:-1:step, 0], color='b', label=r'$u_1$')
+    ax26.plot(mode1_timestamps[0:-1:step], mode1_inputs[0:-1:step, 1], color='r', label=r'$u_2$')
+    
+    
     # ----------- Plot the start and goal states -----------
     if (modes[0] == 1):
         init_state = convert_state_21_slip(init_state, np.array([0.0]))
@@ -431,40 +512,7 @@ def plot_slip(time_span, modes, states, inputs, init_state, target_state, nt, st
     
     ax16.scatter(time_span[-1], target_state[4], color='g', marker='x', s=50.0, linewidths=6, label='Target')
     ax16.scatter(time_span[0], init_state[4], color='r', marker='x', s=50.0, linewidths=6, label='Start')
-
-    # ----------- Plot the reference -----------
-    for i in range(nt-1):
-        if modes[i] == 0:
-            ax11.scatter(time_span[i], modes[i], s=0.8, color='k')   
-            ax12.scatter(time_span[i], states[i][0], s=0.8, color='k')
-            ax13.scatter(time_span[i], states[i][1], s=0.8, color='k')
-            ax14.scatter(time_span[i], states[i][2], s=0.8, color='k')
-            ax15.scatter(time_span[i], states[i][3], s=0.8, color='k')
-            ax16.scatter(time_span[i], states[i][4], s=0.8, color='k')
-            ax17.scatter(time_span[i], inputs[modes[i]][i][0], s=0.8, color='k')
-            
-        if modes[i] == 1:
-            assert len(states[i]) == 4
-            # Plot the state in mode 1
-            ax21.scatter(time_span[i], modes[i], s=0.8, color='k')   
-            ax22.scatter(time_span[i], states[i][0], s=0.8, color='k')
-            ax23.scatter(time_span[i], states[i][1], s=0.8, color='k')
-            ax24.scatter(time_span[i], states[i][2], s=0.8, color='k')
-            ax25.scatter(time_span[i], states[i][3], s=0.8, color='k')
-            
-            ax26.scatter(time_span[i], inputs[modes[i]][i][0], s=0.8, color='b')
-            ax26.scatter(time_span[i], inputs[modes[i]][i][1], s=0.8, color='r')
-            
-            # Plot the converted state in mode 0
-            equivalent_state = convert_state_21_slip(states[i], stance_xp[i][0])
-            
-            ax11.scatter(time_span[i], modes[i], s=0.8, color='k')   
-            ax12.scatter(time_span[i], equivalent_state[0], s=0.8, color='k')
-            ax13.scatter(time_span[i], equivalent_state[1], s=0.8, color='k')
-            ax14.scatter(time_span[i], equivalent_state[2], s=0.8, color='k')
-            ax15.scatter(time_span[i], equivalent_state[3], s=0.8, color='k')
-            ax16.scatter(time_span[i], equivalent_state[4], s=0.8, color='k')
-            
+    
     
     ax11.set_xlabel(r"Time")
     ax11.set_ylabel(r"mode")
@@ -517,24 +565,15 @@ def plot_slip(time_span, modes, states, inputs, init_state, target_state, nt, st
     ax26.set_xlabel(r"Time")
     ax26.set_ylabel(r"Inputs")
     ax26.set_title(r"SLIP Inputs")
+    
+    if ax26.get_legend() is None:
+        ax26.legend()
+        
+    if ax17.get_legend() is None:
+        ax17.legend()
+    
+    return fig, np.array([[ax11, ax12, ax13, ax14, ax15, ax16, ax17], [ax21, ax22, ax23, ax24, ax25, ax26, ax27]], dtype=object)  
 
-    # ax11.legend()
-    # ax12.legend()
-    # ax13.legend()
-    # ax14.legend()
-    # ax15.legend()
-    # ax16.legend()
-    
-    # ax21.legend()
-    # ax22.legend()
-    # ax23.legend()
-    # ax24.legend()
-    # ax25.legend()
-    ax26.legend()
-    
-    plt.tight_layout()
-    
-    return fig, (ax11, ax12, ax13, ax14, ax15, ax16, ax17, ax21, ax22, ax23, ax24, ax25, ax26, ax27)
 
 def plot_slip_flight_animate(state_flight, r0, ax=None, spring_color='c-'):
     if ax is None:
@@ -660,11 +699,11 @@ if __name__ == '__main__':
     plt.show()
     
     
-def animate_slip(modes, states, init_mode, init_state, target_mode, target_state, nt, reset_args, target_reset_args):
+def animate_slip(modes, states, init_mode, init_state, target_mode, target_state, nt, reset_args, target_reset_args,step=1):
     r0 = 1
     fig, ax = plt.subplots()
     ax.grid(True)
-    for ii in range(nt):
+    for ii in range(0,nt,step):
         if modes[ii] == 0:
             plot_slip_flight_animate(states[ii].flatten(), r0, ax)
         elif modes[ii] == 1:

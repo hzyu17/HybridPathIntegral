@@ -246,7 +246,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         n_modes = 2
         Ksamples_jax_i = np.zeros((n_samples, nt_i, n_modes))
         GaussianNoise_i = [np.random.randn(n_samples, nt_i, 1), np.random.randn(n_samples, nt_i, 1)]
-        reset_args_i = ref_reset_args[i_t:]
+        init_reset_args_i = np.array(ref_reset_args[i_t])
         
         # --------------------------- 
         # Coupling of the randomness
@@ -270,22 +270,24 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         # ---------------------------------------------------------------------------------------
         
         # timer_start_tic = time.perf_counter()
-        Kmodes_jax_i, Ksamples_jax_i, PathCosts_jax_i, _ = sample_bouncing_jax(n_samples, xt, 
-                                                                                current_mode_actual, 
-                                                                                states_0_i, states_1_i, 
-                                                                                modes_i, 
-                                                                                inputs_0_i, inputs_1_i, 
-                                                                                K_feedback_0_i, k_feedforward_0_i, 
-                                                                                K_feedback_1_i, k_feedforward_1_i, 
-                                                                                target_state, Q_T, 
-                                                                                start_time_i, dt, dt_shrinkingrate, 
-                                                                                epsilon, 
-                                                                                GaussianNoise_i[0], GaussianNoise_i[1], 
-                                                                                v_mode_change_ref_i, 
-                                                                                v_ref_ext_fwd_i, v_ref_ext_bwd_i, 
-                                                                                v_Kfb_ref_ext_fwd_i, v_kff_ref_ext_fwd_i, 
-                                                                                v_Kfb_ref_ext_bwd_i, v_kff_ref_ext_bwd_i, 
-                                                                                reset_args_i)
+        (Kmodes_jax_i, Ksamples_jax_i, PathCosts_jax_i, 
+        Ksamples_ut, Ksamples_xref, Ksamples_Kfb_mode, 
+        Ksamples_kff_mode, Ksamples_reset_args) = sample_bouncing_jax(n_samples, xt, 
+                                                                    current_mode_actual, 
+                                                                    states_0_i, states_1_i, 
+                                                                    modes_i, 
+                                                                    inputs_0_i, inputs_1_i, 
+                                                                    K_feedback_0_i, k_feedforward_0_i, 
+                                                                    K_feedback_1_i, k_feedforward_1_i, 
+                                                                    target_state, Q_T, 
+                                                                    start_time_i, dt, dt_shrinkingrate, 
+                                                                    epsilon, 
+                                                                    GaussianNoise_i[0], GaussianNoise_i[1], 
+                                                                    v_mode_change_ref_i, 
+                                                                    v_ref_ext_fwd_i, v_ref_ext_bwd_i, 
+                                                                    v_Kfb_ref_ext_fwd_i, v_kff_ref_ext_fwd_i, 
+                                                                    v_Kfb_ref_ext_bwd_i, v_kff_ref_ext_bwd_i, 
+                                                                    init_reset_args_i)
         
         # save the samples at t=0
         # if (i_t == 0):
@@ -305,6 +307,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
             xref_i, K_fb, k_ff, cnt_mismatch = reaction_mode_mismatch(cond_early_arrival_bouncing, i_t, 
                                                                       current_mode_actual, ref_current_mode, 
                                                                       v_ref_ext_fwd[0], v_ref_ext_bwd[0], 
+                                                                      v_mode_change_ref[0],
                                                                       v_Kfb_ref_ext_fwd[0], v_kff_ref_ext_fwd[0], 
                                                                       v_Kfb_ref_ext_bwd[0], v_kff_ref_ext_bwd[0], cnt_mismatch)
         

@@ -9,14 +9,7 @@ from dynamics.guard_reset_bouncing import *
 
 # numpy and scipy
 import scipy
-import sympy as sp
-from sympy.matrices import Matrix
 import numpy as np
-import jax
-import jax.numpy as jnp
-
-# plotting
-import matplotlib.pyplot as plt
 
 
 # Helper function to handle reference trajectory extensions
@@ -109,12 +102,13 @@ def extract_extensions(reference_extension_helper, start_index=0, padding=False)
 def reaction_mode_mismatch(cond_early_arrival, current_index, 
                             current_mode, ref_current_mode, 
                             ext_trj_fwd, ext_trj_bwd, 
+                            ref_ext_modechange,
                             Kfb_ref_ext_fwd, kff_ref_ext_fwd,
                             Kfb_ref_ext_bwd, kff_ref_ext_bwd,
                             cnt_mismatch):
     # Take the first hybrid event for now. Needs to find the correct corresponding one among all hybrid events.
     
-    if (cond_early_arrival(current_mode, ref_current_mode)):
+    if (cond_early_arrival(current_mode, ref_current_mode, ref_ext_modechange)):
         extended_trj = ext_trj_bwd
         K_fb = Kfb_ref_ext_bwd
         k_ff = kff_ref_ext_bwd
@@ -158,7 +152,7 @@ def stochastic_integration(x0, u, t_span, epsilon, dW, dyn_f, dyn_gdWt):
     # ============= method 2: forward Euler =============
     t0, tf = t_span[0], t_span[-1]
     dt = tf - t0
-    xt_next = x0 + dyn_f(t0, x0, *args)*dt + dyn_gdWt(dW, epsilon)
+    xt_next = x0 + dyn_f(t0, x0, *args)*dt + dyn_gdWt(x0, dW, epsilon)
     
     return xt_next
 

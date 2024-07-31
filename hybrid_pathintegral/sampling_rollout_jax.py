@@ -13,6 +13,21 @@ os.environ['CUDA_VISIBLE_DEVICES'] = "0"
 print("Devices:", jax.devices())
 print("jax.default_backend()", jax.default_backend())
 
+
+# ------------------------------------- terminal loss ------------------------------------- 
+def quadratic_terminal_cost(xT, args):
+    x_tar, QT =  args
+    return (xT-x_tar)@QT@(xT-x_tar) / 2.0
+quadratic_terminal_cost_jit = jax.jit(quadratic_terminal_cost)
+
+# terminal cost function in jax
+def terminal_cost_jax(xT, args):
+    return jnp.array(quadratic_terminal_cost(xT, args))
+terminal_cost_jit = jax.jit(terminal_cost_jax)
+
+# ------------------------------------- / terminal loss ------------------------------------- 
+
+
 # ===============================================================================================================
 #                                       Mode mismatch condition handling
 # ===============================================================================================================
@@ -30,9 +45,7 @@ def ModeMismatch_true_fun_jax(args):
      Kfb_ref_ext_bwd, kff_ref_ext_bwd, 
      Kfb, kff, xref_i, 
      cnt_indx, cnt_MM)= args
-    
-    print("Mode mismatch detected")
-    
+        
     # TODO: Take the first hybrid event for now. 
     # Need to find the correct corresponding one among all hybrid events.
     
@@ -55,7 +68,6 @@ def ModeMismatch_true_fun_jax(args):
     return xref_i, K_fb_i, k_ff_i, cnt_MM+1
 
 def ModeMismatch_false_fun_jax(args):
-    print("No mismatch detected")
     (_, _, _, _, _, _, _, _, _, Kfb, kff, xref_i, _, cnt_MM)= args
     
     # Return the original ref and feedback gains
@@ -102,11 +114,11 @@ def mode0_false_fun_jax(args):
 
 
 # @jax.jit
-def hybrid_integration(xt, current_mode, ut, randN, eps, dt, dt_shrink, t0, reset_arg, 
-                       stochastic_integration_euler_func,
-                       event_condition_func,
-                       event_condition_true_fun,
-                       event_condition_false_fun):
+def hybrid_integration_euler(xt, current_mode, ut, randN, eps, dt, dt_shrink, t0, reset_arg, 
+                            stochastic_integration_euler_func,
+                            event_condition_func,
+                            event_condition_true_fun,
+                            event_condition_false_fun):
     
     dW = jnp.sqrt(dt)*randN
     xt_next = stochastic_integration_euler_func(current_mode, xt, ut, dt, eps, dW)
@@ -117,7 +129,7 @@ def hybrid_integration(xt, current_mode, ut, randN, eps, dt, dt_shrink, t0, rese
     # next_mode = current_mode
     args_guard = (xt, current_mode, ut, t0, xt_next, dt, dt_shrink, randN, eps, reset_arg)
 
-    guard_hit = event_condition_func(xt, xt_next)
+    guard_hit = event_condition_func(xt, xt_next, current_mode)
     xt_next, next_mode, dW, new_reset_arg = jax.lax.cond(guard_hit, event_condition_true_fun, event_condition_false_fun, args_guard)
 
     return xt_next, next_mode, dW, new_reset_arg
@@ -126,7 +138,10 @@ def hybrid_integration(xt, current_mode, ut, randN, eps, dt, dt_shrink, t0, rese
 One step cost
 """
 # @jax.jit
-def cost_i(xt, current_mode, cur_St, xref, uref, Kfb, kff, randN, eps, dt, dt_shrink, t0, reset_arg, 
+def cost_i(xt, current_mode, cur_St, 
+           xref, uref, Kfb, kff, 
+           randN, eps, dt, dt_shrink, 
+           t0, reset_arg, 
            hybrid_integration_func):
     
     # -------- compute control input --------
@@ -138,7 +153,7 @@ def cost_i(xt, current_mode, cur_St, xref, uref, Kfb, kff, randN, eps, dt, dt_sh
     xt_next, next_mode, dW, new_reset_arg = hybrid_integration_func(xt, current_mode, ut, randN, eps, dt, dt_shrink, t0, reset_arg)
 
     # Collect cost: consider only the terminal state cost for now.
-    cur_St += jnp.array([jnp.dot(ut.T, ut)/2.0 * dt + jnp.sqrt(eps) * jnp.dot(ut.T, dW)])
+    cur_St += jnp.array([jnp.dot(ut.T, ut)/2.0 * dt + jnp.sqrt(eps) * jnp.dot(ut.T, dW)])[0]
     
     return xt_next, next_mode, ut, cur_St, new_reset_arg
 

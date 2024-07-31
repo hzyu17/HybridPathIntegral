@@ -561,16 +561,16 @@ class hybrid_ilqr:
 
         print("===================== Finished initial rollout =====================")
         
-        show_rollout = False
+        show_rollout = True
         r0 = 1
         if show_rollout:
             self._plot_states_func(self.time_span_, modes, states, inputs, 
-                                    self._init_state, self._target_state, self._n_timesteps, self._reset_args)
+                                    self._init_state, self._target_state, self._n_timesteps, reset_args=self._reset_args)
             
             if self._animate_func:
                 self._animate_func(self._modes, self._states, self._init_mode, 
                                 self._init_state, self._target_mode, self._target_state, 
-                                self._n_timesteps, self._reset_args, self._target_reset_args)
+                                self._n_timesteps, self._reset_args, self._target_reset_args,step=5)
             
         
         # ----------------------------------------------------
