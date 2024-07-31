@@ -6,6 +6,7 @@
 import matplotlib.pyplot as plt
 from dynamics.dynamics import *
 from dynamics.guard_reset_slip import *
+from dynamics.dynamics_slip_discrete import hybrid_integration_slip
 
 # =================================
 # Flight dynamics Definitions
@@ -317,7 +318,8 @@ def stochastic_feedback_rollout_slip(init_mode, x0, n_inputs, xt_ref, ref_modech
         xt_next, next_mode, _, new_reset_arg = hybrid_integration_slip(xt, current_mode,
                                                                         u, noise_i, 
                                                                         epsilon, dt, dt_shrinkingrate, t0_i, 
-                                                                        reset_args[ii_t])
+                                                                        reset_args[ii_t], 
+                                                                        padding=False)
         
         # Collect cost: consider only the terminal state cost for now.
         Sk += u.T@u/2.0 * dt + np.sqrt(epsilon) * np.dot(u.T, dW_i)

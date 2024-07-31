@@ -16,7 +16,7 @@ def dyn_bouncing(t, x, *args):
     return np.array([x[1], u[0]-g])
 
 
-def gdWt_bouncing(dWt, eps):
+def gdWt_bouncing(x0, dWt, eps):
     B = np.array([[0],[1.0]], dtype=np.float64)
     return np.sqrt(eps) * B@dWt
     
@@ -115,7 +115,7 @@ def stochastic_feedback_rollout_bouncing(init_mode, x0, n_inputs, xt_ref, ref_mo
                                         epsilon, GaussianNoise, dt_shrinkingrate, 
                                         reference_extension_helper, init_reset_args):
 
-    (_, v_ref_ext_bwd, v_ref_ext_fwd, 
+    (v_event_modechange, v_ref_ext_bwd, v_ref_ext_fwd, 
     v_Kfb_ref_ext_bwd, v_Kfb_ref_ext_fwd, 
     v_kff_ref_ext_bwd, v_kff_ref_ext_fwd, _) = extract_extensions(reference_extension_helper, start_index = 0)
     
@@ -165,8 +165,10 @@ def stochastic_feedback_rollout_bouncing(init_mode, x0, n_inputs, xt_ref, ref_mo
         
         xref_i = xt_ref[ii_t] 
         if cond_mode_mismatch_bouncing(current_mode, ref_current_mode):
-            xref_i, K_fb_i, k_ff_i, cnt_mismatch = reaction_mode_mismatch(cond_early_arrival_bouncing, ii_t, current_mode, ref_current_mode, 
+            xref_i, K_fb_i, k_ff_i, cnt_mismatch = reaction_mode_mismatch(cond_early_arrival_bouncing, ii_t, 
+                                                                          current_mode, ref_current_mode, 
                                                                             v_ref_ext_fwd[0], v_ref_ext_bwd[0], 
+                                                                            v_event_modechange[0],
                                                                             v_Kfb_ref_ext_fwd[0], v_kff_ref_ext_fwd[0],
                                                                             v_Kfb_ref_ext_bwd[0], v_kff_ref_ext_bwd[0],
                                                                             cnt_mismatch)

@@ -8,18 +8,27 @@ sys.path.append(root_dir)
 import jax
 import jax.numpy as jnp
 from dynamics.dynamics_slip import *
+from dynamics.dynamics_discrete import *
 
 # @jax.jit
-def stochastic_integration_euler_SLIP(mode, x0, u, dt, eps, dW):   
+def stochastic_integration_euler_SLIP(mode, x0, u, dt, eps, dW, padding=True):   
     def mode0_dynamics_true_func_slip(args):
         (x0, u, dW, eps) = args
         # flight mode
         # [x, x_dot, z, z_dot, theta] = x0
-        B = jnp.array([[0.0, 0.0],
-                       [0.0, 0.0],
-                       [0.0, 0.0],
-                       [0.0, 0.0],
-                       [1.0, 0.0]], dtype=jnp.float64)
+        
+        if padding:
+            B = jnp.array([[0.0, 0.0],
+                            [0.0, 0.0],
+                            [0.0, 0.0],
+                            [0.0, 0.0],
+                            [1.0, 0.0]], dtype=jnp.float64)
+        else:
+            B = jnp.array([[0.0],
+                           [0.0],
+                           [0.0],
+                           [0.0],
+                           [1.0]], dtype=jnp.float64)
         
         return x0 + jnp.array([x0[1], 0, x0[3], -9.81, u[0]], dtype=jnp.float64) * dt + jnp.sqrt(eps) * B@dW
     
@@ -35,18 +44,31 @@ def stochastic_integration_euler_SLIP(mode, x0, u, dt, eps, dW):
         
         theta, theta_dot, r, r_dot = x0[0], x0[1], x0[2], x0[3]
         
-        # Defining the stance dynamics of the system
-        B = jnp.array([[0.0, 0.0], 
-                       [0.0, 0.0], 
-                       [0.0, 1/m/r/r], 
-                       [k/m, 0.0],
-                       [0.0, 0.0]], dtype=jnp.float64)
+        if padding:
+            # Defining the stance dynamics of the system
+            B = jnp.array([[0.0, 0.0], 
+                            [0.0, 0.0], 
+                            [0.0, 1/m/r/r], 
+                            [k/m, 0.0],
+                            [0.0, 0.0]], dtype=jnp.float64)
         
-        xt_next = x0 + jnp.array([theta_dot, 
-                                  -2*theta_dot*r_dot/r-g*jnp.cos(theta)/r, 
-                                  r_dot + u[1]/m/r/r, 
-                                  k/m*(r0-r) - g*jnp.sin(theta) + theta_dot*theta_dot*r + k*u[0]/m,
-                                  0.0], dtype=jnp.float64) * dt + jnp.sqrt(eps) * B@dW
+            xt_next = x0 + jnp.array([theta_dot, 
+                                    -2*theta_dot*r_dot/r-g*jnp.cos(theta)/r, 
+                                    r_dot + u[1]/m/r/r, 
+                                    k/m*(r0-r) - g*jnp.sin(theta) + theta_dot*theta_dot*r + k*u[0]/m,
+                                    0.0], dtype=jnp.float64) * dt + jnp.sqrt(eps) * B@dW
+            
+        else:
+            # Defining the stance dynamics of the system
+            B = jnp.array([[0.0, 0.0], 
+                            [0.0, 0.0], 
+                            [0.0, 1/m/r/r], 
+                            [k/m, 0.0]], dtype=jnp.float64)
+        
+            xt_next = x0 + jnp.array([theta_dot, 
+                                    -2*theta_dot*r_dot/r-g*jnp.cos(theta)/r, 
+                                    r_dot + u[1]/m/r/r, 
+                                    k/m*(r0-r) - g*jnp.sin(theta) + theta_dot*theta_dot*r + k*u[0]/m], dtype=jnp.float64) * dt + jnp.sqrt(eps) * B@dW
         
         
         return xt_next
@@ -110,3 +132,11 @@ def event_false_func_slip(args):
 # ===============================================================================================================
 #                                       // End of SLIP guard condition handling //
 # ===============================================================================================================
+
+from functools import partial
+
+hybrid_integration_slip = partial(hybrid_integration_euler, 
+                                  stochastic_integration_euler_func = stochastic_integration_euler_SLIP, 
+                                  event_condition_func = event_condition_slip, 
+                                  event_condition_true_fun = event_true_func_slip, 
+                                  event_condition_false_fun = event_false_func_slip)

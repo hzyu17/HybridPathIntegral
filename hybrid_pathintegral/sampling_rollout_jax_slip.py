@@ -7,13 +7,7 @@ sys.path.append(root_dir)
 
 from dynamics.dynamics_slip_discrete import *
 from hybrid_pathintegral.sampling_rollout_jax import *
-from functools import partial
 
-hybrid_integration_slip = partial(hybrid_integration_euler, 
-                                  stochastic_integration_euler_func = stochastic_integration_euler_SLIP, 
-                                  event_condition_func = event_condition_slip, 
-                                  event_condition_true_fun = event_true_func_slip, 
-                                  event_condition_false_fun = event_false_func_slip)
 
 cost_i_slip = partial(cost_i, hybrid_integration_func=hybrid_integration_slip)
 

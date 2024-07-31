@@ -195,21 +195,27 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
     
         plt.show()
         
+        
+    # # =================================================================
+    # #                   Hybrid ilqr for comparison
+    # # =================================================================            
+    # mode_trj_ilqr, trj_ilqr, u_trj_ilqr, cost_ilqr, _ = stochastic_feedback_rollout_slip(init_mode, init_state, n_inputs,
+    #                                                                                     states, ref_modechanges, 
+    #                                                                                     inputs, K_feedback, k_feedforward, 
+    #                                                                                     target_state, Q_T,
+    #                                                                                     start_time, end_time, epsilon, 
+    #                                                                                     RndN_actual, dt_shrinkingrate, 
+    #                                                                                     reference_extension_helper,
+    #                                                                                     init_reset_args)
+    
+    # show_hilqr_results = False
+    # if show_hilqr_results:
+    #     time_span = np.arange(start_time, end_time, dt).flatten()
+    #     plot_slip(time_span, mode_trj_ilqr, trj_ilqr, u_trj_ilqr, init_state, target_state, nt, trj_labels='iLQG-stochastic')
+    
+
     n_modes = 2
     Ksamples_jax_saving = np.zeros((n_samples, nt, n_modes))
-    
-    
-    # =================================================================
-    #                   Hybrid ilqr for comparison
-    # =================================================================            
-    mode_trj_ilqr, trj_ilqr, u_trj_ilqr, cost_ilqr, _ = stochastic_feedback_rollout_slip(init_mode, init_state, n_inputs,
-                                                                                        states, ref_modechanges, 
-                                                                                        inputs, K_feedback, k_feedforward, 
-                                                                                        target_state, Q_T,
-                                                                                        start_time, end_time, epsilon, 
-                                                                                        RndN_actual, dt_shrinkingrate, 
-                                                                                        reference_extension_helper,
-                                                                                        init_reset_args)
     
     # ======================================================
     #     Main loop for the hybrid path integral control
@@ -363,7 +369,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         # ---------------------------------
         #  Visualize sampled trajectories
         # ---------------------------------
-        show_samples = False
+        show_samples = True
         if show_samples:
             time_span = np.arange(start_time, end_time, dt).flatten()
             n_lines = 20
@@ -415,7 +421,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
             time_span_nt = np.arange(nt_i)
             fig, axes = plot_slip(time_span_nt, sample_modes_i, sample_xref_i, 
                                     inputs_i, init_state, target_state, 
-                                    nt_i, sample_reset_args_i, fig, axes, 'k')
+                                    nt_i, sample_reset_args_i, fig, axes, 'k', step=1)
             
             plt.tight_layout()
             plt.show()
@@ -477,13 +483,6 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
             print("----------- Mode changed for the actual controlled system ------------")
             event_args_actual.append(new_reset_arg)
             cnt_event_actual += 1
-            
-    
-    show_hilqr_results = False
-    if show_hilqr_results:
-        time_span = np.arange(start_time, end_time, dt).flatten()
-        plot_slip(time_span, mode_trj_ilqr, trj_ilqr, u_trj_ilqr, init_state, target_state, nt, trj_labels='iLQG-stochastic')
-
 
     # -------------
     # Compare cost
@@ -684,9 +683,9 @@ def main(epsilon, n_samples, dt):
 import argparse
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="The epsilon parameter.")
-    parser.add_argument("--epsilon", type=float, default=0.002, help="The process noise intensity value, epsilon.")
+    parser.add_argument("--epsilon", type=float, default=0.001, help="The process noise intensity value, epsilon.")
     parser.add_argument("--nsamples", type=int, default=5000, help="The number of samples used in path integral control.")
-    parser.add_argument("--dt", type=int, default=0.005, help="The time discretization.")
+    parser.add_argument("--dt", type=int, default=0.001, help="The time discretization.")
     
     args = parser.parse_args()
 

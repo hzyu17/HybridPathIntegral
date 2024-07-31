@@ -6,6 +6,7 @@ root_dir = os.path.abspath(os.path.join(current_dir, '..'))
 sys.path.append(root_dir)
 
 from dynamics.dynamics_bouncing import *
+from dynamics.dynamics_discrete import *
 
 def stochastic_integration_euler_bouncing(mode, x0, u, dt, eps, dW):
     B = jnp.array([[0],[1.0]], dtype=jnp.float64)
@@ -67,3 +68,10 @@ def bouncing_event_false_func(args):
 #                                      // End of Bouncing condition handling //
 # ===============================================================================================================
 
+from functools import partial
+
+hybrid_integration_bouncing = partial(hybrid_integration_euler, 
+                                      stochastic_integration_euler_func = stochastic_integration_euler_bouncing, 
+                                      event_condition_func = bouncing_event_condition, 
+                                      event_condition_true_fun = bouncing_event_true_func, 
+                                      event_condition_false_fun = bouncing_event_false_func)

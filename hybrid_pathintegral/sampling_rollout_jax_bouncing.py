@@ -2,12 +2,6 @@ from hybrid_pathintegral.sampling_rollout_jax import *
 from dynamics.dynamics_bouncing_discrete import *
 from functools import partial
 
-hybrid_integration_bouncing = partial(hybrid_integration_euler, 
-                                      stochastic_integration_euler_func = stochastic_integration_euler_bouncing, 
-                                      event_condition_func = bouncing_event_condition, 
-                                      event_condition_true_fun = bouncing_event_true_func, 
-                                      event_condition_false_fun = bouncing_event_false_func)
-
 cost_i_bouncing = partial(cost_i, hybrid_integration_func=hybrid_integration_bouncing)
 
 feedback_cost_bouncing_jax = partial(feedback_cost_jax, cost_i_func=cost_i_bouncing)

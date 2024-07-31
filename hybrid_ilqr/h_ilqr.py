@@ -561,7 +561,7 @@ class hybrid_ilqr:
 
         print("===================== Finished initial rollout =====================")
         
-        show_rollout = True
+        show_rollout = False
         r0 = 1
         if show_rollout:
             self._plot_states_func(self.time_span_, modes, states, inputs, 
