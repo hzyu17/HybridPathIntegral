@@ -41,6 +41,7 @@ class hybrid_ilqr:
         self._saltations = [np.array([None]) for i in range(self._n_timesteps)]
         self._modechanges = [np.array([0, 0]) for _ in range(self._n_timesteps)]
         self._modes = [0 for _ in range(self._n_timesteps)]
+        self._modes[0] = init_mode
         self._reset_args = init_reset_args
         
         self._target_reset_args = target_reset_args
@@ -247,13 +248,10 @@ class hybrid_ilqr:
         mode_changess = np.tile(np.array([0, 0]), (self._n_timesteps, 1))
         reset_args = self._init_reset_args
         
-        # Set the first state to be the initial
-        current_state = self._init_state
-        current_mode = self._init_mode
-        
+        # Set the first state to be the initial       
         modes[0] = self._init_mode
-        states[0] = current_state
-        mode_changess[0] = np.array([current_mode, current_mode])
+        states[0] = self._init_state
+        mode_changess[0] = np.array([self._init_mode, self._init_mode])
         
         # Extend reference trj, if a hybrid event is hit.
         hybrid_index = set()
@@ -281,8 +279,8 @@ class hybrid_ilqr:
         
         for ii in range(self._n_timesteps-1):
             
-            current_state = states[ii]
             current_mode = modes[ii]
+            current_state = states[ii]
             reset_args[ii] = event_args
             
             # ------------------- 
@@ -305,7 +303,7 @@ class hybrid_ilqr:
                 current_feedback = self.K_feedback_[ii]
                 
                 # ---------------
-                # Mode Mismatch
+                #  Mode Mismatch
                 # --------------- 
                 if (current_mode != current_mode_ref) and (check_modemismatch):
                     
@@ -323,18 +321,17 @@ class hybrid_ilqr:
                             print(f"Reference mode change from mode {ref_modechange_hybrid[0]} to mode {ref_modechange_hybrid[1]} at time {v_tevents_ref[hybrid_index_ref]}")
                         
                         trj_extension = v_ext_trj_bwd_ref[hybrid_index_ref]
-                        
                         ff_ext_trj = v_kff_ext_trj_bwd_ref[hybrid_index_ref]
                         fb_ext_trj = v_Kfb_ext_trj_bwd_ref[hybrid_index_ref]
                         
                     # ----------------------------------- Late Arrival ----------------------------------- 
-                    elif ((current_mode == ref_modechange_hybrid[0]) and (current_mode_ref==ref_modechange_hybrid[1])):
+                    # elif ((current_mode == ref_modechange_hybrid[0]) and (current_mode_ref==ref_modechange_hybrid[1])):
+                    else:
                         if self._verbose:
                             print(f"late arrival, Time: {ii}. Current mode: {current_mode}, Reference mode: {current_mode_ref}")
                             print(f"Reference mode change from mode {ref_modechange_hybrid[0]} to mode {ref_modechange_hybrid[1]} at time {v_tevents_ref[hybrid_index_ref]}")
                         
                         trj_extension = v_ext_trj_fwd_ref[hybrid_index_ref]
-                        
                         ff_ext_trj = v_kff_ext_trj_fwd_ref[hybrid_index_ref]
                         fb_ext_trj = v_Kfb_ext_trj_fwd_ref[hybrid_index_ref]
                     
@@ -355,7 +352,8 @@ class hybrid_ilqr:
             t_ii = self.time_span_[ii]
             
             (next_state, saltation, mode_change, 
-             t_event, x_event, x_reset, reset_byproduct) = self.detection_func_(current_mode, current_state, current_input, t_ii, self.dt_, 
+             t_event, x_event, x_reset, reset_byproduct) = self.detection_func_(current_mode, current_state, current_input, 
+                                                                                t_ii, self.dt_, 
                                                                                 self._dtshrinkrate, reset_args[ii], self.detect_)
 
             # ------------------------------
@@ -559,7 +557,7 @@ class hybrid_ilqr:
         states_iter = []
         
         # ------------------------------------
-        # First rollout using initial guess
+        #  First rollout using initial guess
         # ------------------------------------
         [modes,states,inputs,saltations,modechanges] = self.rollout()
         
@@ -594,7 +592,7 @@ class hybrid_ilqr:
         for ii in range(0,self.n_iterations_):
             print('========== Starting Iteration: ',ii,', Current cost: ',current_cost, ' ==========')
             print("-------- Backward Pass --------")
-                
+            
             # --------------------------------------------------------
             # Compute the backwards pass and update the control gains
             # --------------------------------------------------------
@@ -613,14 +611,14 @@ class hybrid_ilqr:
             learning_rate = 1
             armijo_flag = 0
             
-            # ---------------------------------------------
-            # Forward pass under the updated control gains
-            # ---------------------------------------------
+            # ----------------------------------------------
+            #  Forward pass under the updated control gains
+            # ----------------------------------------------
             (new_modes,new_states,new_inputs,
              new_saltations,mode_changes,new_hybrid_event_info,new_stance_xpos)=self.forward_pass(learning_rate)
             
             # ---------------------------------------------------------
-            # Compute new costs and check the optimality conditions
+            #   Compute new costs and check the optimality conditions
             # ---------------------------------------------------------
             new_cost = self.compute_cost(new_modes, new_states, new_inputs, self.dt_)
             
@@ -774,7 +772,7 @@ def solve_ilqr(params, detect=True, verbose=True):
     parameters = np.array([mass,gravity])
 
     # Specify max number of iterations
-    n_iterations = 10
+    n_iterations = 15
     
     init_mode = params.current_mode()
     target_mode = params._target_mode

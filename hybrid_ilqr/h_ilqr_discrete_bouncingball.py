@@ -19,9 +19,9 @@ from experiments.exp_params import *
 
 if __name__ == '__main__':
     # ---------------- bouncing example -----------------
-    dt = 0.01
+    dt = 0.005
     epsilon = 2.0
-    dt_shrink = 0.9
+    dt_shrink = 0.95
     
     start_time = 0
     end_time = 2.0

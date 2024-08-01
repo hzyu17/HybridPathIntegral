@@ -19,9 +19,9 @@ from experiments.exp_params import *
 
 if __name__ == '__main__':
     # ---------------- bouncing example -----------------
-    dt = 0.01
+    dt = 0.005
     epsilon = 2.0
-    dt_shrink = 0.7
+    dt_shrink = 0.95
     
     start_time = 0
     end_time = 2.0
@@ -73,7 +73,7 @@ if __name__ == '__main__':
     target_reset_args = [np.array([0.0]) for _ in range(nt)]
     
     # ====================================
-    # solve for hybrid ilqr proposal
+    #   Solve for hybrid ilqr proposal
     # ====================================
     exp_params = ExpParams()
     
@@ -82,7 +82,7 @@ if __name__ == '__main__':
     flow_dynamics = [symbolic_dynamics_bouncing, symbolic_dynamics_bouncing]
     
     exp_params.update_params(n_modes, init_mode, target_mode, n_states, init_state, target_state, 
-                             start_time, end_time, dt, initial_guess, 
+                             start_time, end_time, dt, dt_shrink, initial_guess, 
                              epsilon, n_exp, n_samples, 
                              Q_k, R_k, Q_T, flow_dynamics, 
                              event_detect_bouncing, 
@@ -97,10 +97,10 @@ if __name__ == '__main__':
      k_feedforward,K_feedback,
      current_cost,states_iter,
      ref_modechanges,reference_extension_helper, ref_reset_args) = hybrid_ilqr_result
-        
+    
     exp_data.add_nominal_data(hybrid_ilqr_result)
 
 
     show_results = True
     if show_results:
-        fig1, axes = plot_bouncingball(time_span, modes, states, inputs, init_state, target_state, nt, color='k')
+        plot_bouncingball(time_span, modes, states, inputs, init_state, target_state, nt, color='k')

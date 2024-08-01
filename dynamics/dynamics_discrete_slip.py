@@ -5,8 +5,6 @@ current_dir = os.path.dirname(file_path)
 root_dir = os.path.abspath(os.path.join(current_dir, '..'))
 sys.path.append(root_dir)
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 from dynamics.dynamics_slip import *
 from dynamics.dynamics_discrete import *

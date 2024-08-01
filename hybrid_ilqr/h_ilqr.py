@@ -354,7 +354,8 @@ class hybrid_ilqr:
             t_ii = self.time_span_[ii]
             
             (next_state, saltation, mode_change, 
-             t_event, x_event, x_reset, reset_byproduct) = self.detection_func_(current_state, current_input, t_ii, t_ii+self.dt_, 
+             t_event, x_event, x_reset, reset_byproduct) = self.detection_func_(current_state, current_input, 
+                                                                                t_ii, t_ii+self.dt_, 
                                                                                 current_mode, reset_args[ii], self.detect_)
             
             # ------------------------------

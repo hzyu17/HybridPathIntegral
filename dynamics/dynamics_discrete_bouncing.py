@@ -26,14 +26,14 @@ def guard_condition_bouncing(xt, xt_next, current_mode):
 def guard_true_func_bouncing(args):
     (xt_current, current_mode, u_current, t, xt_next, dt_int, dt_shrinkrate, RandN, eps, reset_arg) = args
     
-    def while_loop_body(xt, u, t, dt_int, dt_shrinkrate, RandN, eps, cnt_shrink):
+    def while_loop_body(xt, u, t, dt, dt_shrinkrate, RandN, eps, cnt_shrink):
         # Too far from the guard, shrink the step size
-        dt_shrink = dt_int * dt_shrinkrate
-        dW_new = np.sqrt(dt_shrink) * RandN
+        dt_shrink = dt * dt_shrinkrate
+        dW_shrink = np.sqrt(dt_shrink) * RandN
         
-        xt_shrinked = stochastic_integration_euler_bouncing(current_mode, xt, u, dt_shrink, eps, dW_new)
+        xt_shrinked = stochastic_integration_euler_bouncing(current_mode, xt, u, dt, eps, dW_shrink)
         
-        new_condition = ((guard_bouncing_12(0.0,xt_shrinked)<=0) or (cnt_shrink < 10))
+        new_condition = ((guard_bouncing_12(t, xt_shrinked)<=0) or (cnt_shrink < 10))
         cnt_shrink += 1
         
         return xt_shrinked, dt_shrink, cnt_shrink, new_condition
@@ -112,7 +112,7 @@ hybrid_stochastic_integration_bouncing = partial(hybrid_stochastic_integration_e
 
 
 hybrid_stochastic_feedback_rollout_discrete_bouncing = partial(hybrid_stochastic_feedback_rollout_discrete, 
-                                                           cond_mode_mismatch_func=cond_mode_mismatch_bouncing,
+                                                            cond_mode_mismatch_func=cond_mode_mismatch_bouncing,
                                                             reaction_mode_mismatch_func=reaction_mode_mismatch_bouncing,
                                                             hybrid_stochastic_integration_func=hybrid_stochastic_integration_bouncing)    
     
@@ -120,8 +120,9 @@ hybrid_stochastic_feedback_rollout_discrete_bouncing = partial(hybrid_stochastic
 
 def event_detect_bouncing_discrete(current_mode, x0, u, 
                                    t0, dt, dt_shrinkrate, 
-                                   reset_args, detection=True, backwards=False):
-        
+                                   reset_args, 
+                                   detection=True, backwards=False):
+    
     smooth_dynamics_bouncing = {0:dyn_bouncing, 1:dyn_bouncing}
     
     Rxs_bouncing = {0:Rx_bouncing_12, 1:Rx_bouncing_21}

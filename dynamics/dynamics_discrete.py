@@ -4,7 +4,8 @@ import numpy as np
 from dynamics.dynamics import extract_extensions
 from dynamics.saltation_matrix import saltation_matrix
 
-def event_detect_onestep_discrete(xt, ut, t0, dt, dt_shrink, current_mode, 
+def event_detect_onestep_discrete(xt, ut, 
+                                  t0, dt, dt_shrink, current_mode, 
                                     smooth_dynamics, 
                                     guards,
                                     gxs, gts,
@@ -45,9 +46,10 @@ def event_detect_onestep_discrete(xt, ut, t0, dt, dt_shrink, current_mode,
     
     # detection
     if detection:
-        args_guard = (xt, current_mode, ut, t0, xt_next, dt, dt_shrink, current_dyn, current_guard, current_resetmap, reset_args)
+        args_guard = (xt, current_mode, ut, t0, xt_next, dt, dt_shrink, 
+                      current_dyn, current_guard, current_resetmap, reset_args)
         guard_hit = guard_condition_func(xt, xt_next, current_mode)
-    
+        
         if guard_hit:
             t_event, x_event, x_reset, next_mode, reset_byproduct = guard_condition_true_fun(args_guard)
             
@@ -132,33 +134,29 @@ def hybrid_stochastic_feedback_rollout_discrete(init_mode, x0, n_inputs, xt_ref,
     
     n_timestamps = len(xt_ref)
     
-    dt_int = dt
-    
-    # returning trajectory    
+    # Returning trajectory    
     xt_trj = [np.array([0.0]) for _ in range(n_timestamps)]
     xt_trj[0] = x0  
     
     mode_trj = np.zeros((n_timestamps), dtype=np.int64) 
     mode_trj[0] = init_mode
     
-    # closed-loop controls 
+    # Closed-loop controls 
     ut_cl_trj = [np.zeros((n_timestamps, n_inputs[0])), np.zeros((n_timestamps, n_inputs[1]))]
     
     cnt_mismatch = 0
     xt_ref_actual = [np.array([0.0]) for _ in range(n_timestamps)]
     
-    # path cost
+    # Path cost
     Sk = 0
     
-    # hybrid event related 
+    # Hybrid event related 
     cnt_event = 0
     reset_args = init_reset_args
     event_args = [init_reset_args[0]]
     
     # -------------- roullout function --------------
     for ii_t in range(n_timestamps-1):   
-
-        t0_i = t0 + ii_t*dt   
         
         current_mode = mode_trj[ii_t]
         xt = xt_trj[ii_t]
@@ -181,7 +179,6 @@ def hybrid_stochastic_feedback_rollout_discrete(init_mode, x0, n_inputs, xt_ref,
                                                                                 cnt_mismatch)
         
         xt_ref_actual[ii_t] = xref_i
-        
         delta_xt_i = xt_trj[ii_t] - xref_i
         current_u = ut[current_mode][ii_t] + K_fb_i@delta_xt_i + k_ff_i
         ut_cl_trj[current_mode][ii_t] = current_u
