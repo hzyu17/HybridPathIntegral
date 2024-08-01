@@ -638,7 +638,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="The epsilon parameter.")
     parser.add_argument("--epsilon", type=float, default=2.0, help="The process noise intensity value, epsilon.")
     parser.add_argument("--nsamples", type=int, default=1000, help="The number of samples used in path integral control.")
-    parser.add_argument("--dt", type=int, default=0.002, help="The time discretization.")
+    parser.add_argument("--dt", type=int, default=0.0025, help="The time discretization.")
     
     args = parser.parse_args()
 

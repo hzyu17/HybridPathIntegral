@@ -581,7 +581,7 @@ class hybrid_ilqr:
         # ----------------------------------------------------
         current_cost = self.compute_cost(modes,states,inputs,self.dt_)
         
-        learning_speed = 0.9 # This can be modified, 0.95 is very slow
+        learning_speed = 0.99 # This can be modified, 0.95 is very slow
         low_learning_rate = 0.01 # if learning rate drops to this value stop the optimization
         low_expected_reduction = 1e-4 # Determines optimality
         armijo_threshold = 0.1 # Determines if current line search solve is good (this is typically labeled as "c")
