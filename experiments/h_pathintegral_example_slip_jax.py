@@ -8,7 +8,6 @@ script_filename = os.path.splitext(os.path.basename(file_path))[0]
 root_dir = os.path.abspath(os.path.join(exp_dir, '..'))
 sys.path.append(root_dir)
 
-import time
 import jax.numpy as jnp
 
 # Import iLQR class and reference extension handler
@@ -21,7 +20,7 @@ import matplotlib.pyplot as plt
 # Import experiment parameter class
 from experiments.exp_params import *
 # Import slip model dynamics
-from dynamics.dynamics_slip import *
+from dynamics.dynamics_discrete_slip import *
 
 # Set environment variable to control the GPU memory fraction used by JAX
 os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "0.9"
@@ -72,11 +71,34 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
     
     time_span = jnp.arange(start_time, end_time, dt).flatten()
     
-    show_ilqr_result = False
+    show_ilqr_result = True
     if show_ilqr_result:
         print("Plotting h-iLQR reference state and input trajectories.")
         plot_slip(time_span, modes, states, inputs, init_state, target_state, nt, ref_reset_args)
     
+    
+    dt_shrinkingrate = 0.95
+    RndN_actual = [np.random.randn(nt, n_inputs[0]), np.random.randn(nt, n_inputs[1])]
+    
+    # =================================================================
+    #                     Hybrid ilqr for comparison
+    # ================================================================= 
+    mode_trj_ilqr, trj_ilqr, u_trj_ilqr, cost_ilqr, _, reset_args_ilqr = hybrid_stochastic_feedback_rollout_discrete_slip(init_mode, init_state, 
+                                                                                                                            n_inputs, 
+                                                                                                                            states, modes, 
+                                                                                                                            inputs, K_feedback, k_feedforward, 
+                                                                                                                            target_state, Q_T,
+                                                                                                                            start_time, end_time, 
+                                                                                                                            epsilon, RndN_actual, dt_shrinkingrate, 
+                                                                                                                            reference_extension_helper,
+                                                                                                                            init_reset_args)
+    
+    show_hilqr_results = True
+    if show_hilqr_results:
+        time_span = np.arange(start_time, end_time, dt).flatten()
+        plot_slip(time_span, mode_trj_ilqr, trj_ilqr, u_trj_ilqr, init_state, target_state, nt, reset_args_ilqr, step=1)
+        plt.show()
+        
     # mode-dependent reference states. Assuming 2 modes
     # States with padded dimensions
     states_0 = np.zeros((nt, 5))
@@ -137,8 +159,6 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
     current_mode_actual = init_mode
     next_mode_actual = current_mode_actual
     
-    dt_shrinkingrate = 0.7
-    
     modes_pi_jax[0] = init_mode
     trj_pi_jax[0] = x0_jax
     trj_ilqr[0] = init_state
@@ -148,7 +168,6 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
     # cnt_mismatch_ilqr = 0
     
     # Assuming 2-mode system
-    RndN_actual = [np.random.randn(nt, n_inputs[0]), np.random.randn(nt, n_inputs[1])]
     reset_args_actual = ref_reset_args
     event_args_actual = [ref_reset_args[0]]
     cnt_event_actual = 0
@@ -194,28 +213,11 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         fig_ext.tight_layout()
     
         plt.show()
-        
-        
-    # # =================================================================
-    # #                   Hybrid ilqr for comparison
-    # # =================================================================            
-    # mode_trj_ilqr, trj_ilqr, u_trj_ilqr, cost_ilqr, _ = stochastic_feedback_rollout_slip(init_mode, init_state, n_inputs,
-    #                                                                                     states, ref_modechanges, 
-    #                                                                                     inputs, K_feedback, k_feedforward, 
-    #                                                                                     target_state, Q_T,
-    #                                                                                     start_time, end_time, epsilon, 
-    #                                                                                     RndN_actual, dt_shrinkingrate, 
-    #                                                                                     reference_extension_helper,
-    #                                                                                     init_reset_args)
-    
-    # show_hilqr_results = False
-    # if show_hilqr_results:
-    #     time_span = np.arange(start_time, end_time, dt).flatten()
-    #     plot_slip(time_span, mode_trj_ilqr, trj_ilqr, u_trj_ilqr, init_state, target_state, nt, trj_labels='iLQG-stochastic')
-    
 
     n_modes = 2
     Ksamples_jax_saving = np.zeros((n_samples, nt, n_modes))
+    
+    
     
     # ======================================================
     #     Main loop for the hybrid path integral control
@@ -467,10 +469,10 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
             u0_star_jax = np.append(u0_star_jax, 0.0)
             actual_noise_i = np.append(actual_noise_i, 0.0)
         
-        xt_next, next_mode_actual, _, new_reset_arg = hybrid_integration_slip(xt, current_mode_actual,
-                                                                                u0_star_jax, actual_noise_i, 
-                                                                                epsilon, dt, dt_shrink, start_time_i, 
-                                                                                reset_args_actual[i_t])
+        xt_next, next_mode_actual, _, new_reset_arg = hybrid_stochastic_integration_slip_padding(xt, current_mode_actual,
+                                                                                                u0_star_jax, actual_noise_i, 
+                                                                                                epsilon, dt, dt_shrink, start_time_i, 
+                                                                                                reset_args_actual[i_t])
 
         next_mode_actual = int(next_mode_actual)
         # current_modechange = np.array([current_mode_actual, next_mode_actual])
@@ -595,8 +597,10 @@ def main(epsilon, n_samples, dt):
     initial_guess = [0.0*np.ones((np.shape(time_span)[0],n_inputs[0])), 0.0*np.ones((np.shape(time_span)[0],n_inputs[1]))]
     smooth_dynamics = [symbolic_flight_dynamics_slip, symbolic_stance_dynamics_slip]
     
-    exp_params.update_params(n_modes, init_mode, target_mode, n_states, init_state, target_state, 
-                             start_time, end_time, dt, initial_guess, 
+    exp_params.update_params(n_modes, init_mode, target_mode, n_states, 
+                             init_state, target_state, 
+                             start_time, end_time, dt, 
+                             initial_guess, 
                              epsilon, n_exp, n_samples, 
                              Q_k, R_k, Q_T, smooth_dynamics, 
                              event_detect_slip, plot_slip, convert_state_21_slip, 
@@ -683,8 +687,8 @@ def main(epsilon, n_samples, dt):
 import argparse
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="The epsilon parameter.")
-    parser.add_argument("--epsilon", type=float, default=0.001, help="The process noise intensity value, epsilon.")
-    parser.add_argument("--nsamples", type=int, default=5000, help="The number of samples used in path integral control.")
+    parser.add_argument("--epsilon", type=float, default=0.05, help="The process noise intensity value, epsilon.")
+    parser.add_argument("--nsamples", type=int, default=500, help="The number of samples used in path integral control.")
     parser.add_argument("--dt", type=int, default=0.001, help="The time discretization.")
     
     args = parser.parse_args()

@@ -24,6 +24,7 @@ from experiments.exp_params import *
 # Import bouncing ball dynamics
 from hybrid_pathintegral.sampling_rollout_jax_bouncing import sample_bouncing_jax
 from dynamics.dynamics_bouncing import *
+from dynamics.dynamics_discrete_bouncing import *
 
 # Set environment variable to control the GPU memory fraction used by JAX
 os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "0.9"
@@ -71,6 +72,29 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
      k_feedforward,K_feedback,
      current_cost,states_iter,
      ref_modechanges,reference_extension_helper, ref_reset_args) = hybrid_ilqr_result
+    
+    dt_shrinkingrate = 0.9
+    RndN_actual = [np.random.randn(nt, 1), np.random.randn(nt, 1)]
+    
+    # =================================================================
+    #                     Hybrid ilqr for comparison
+    # ================================================================= 
+    mode_trj_ilqr, trj_ilqr, u_trj_ilqr, cost_ilqr, _, reset_args_ilqr = hybrid_stochastic_feedback_rollout_discrete_bouncing(init_mode, init_state, 
+                                                                                                                                n_inputs, 
+                                                                                                                                states, modes, 
+                                                                                                                                inputs, K_feedback, k_feedforward, 
+                                                                                                                                target_state, Q_T,
+                                                                                                                                start_time, end_time, 
+                                                                                                                                epsilon, RndN_actual, dt_shrinkingrate, 
+                                                                                                                                reference_extension_helper,
+                                                                                                                                init_reset_args)
+    
+    show_hilqr_results = False
+    if show_hilqr_results:
+        time_span = np.arange(start_time, end_time, dt).flatten()
+        plot_bouncingball(time_span, mode_trj_ilqr, trj_ilqr, u_trj_ilqr, init_state, target_state, nt, trj_labels='iLQG-stochastic')
+        plt.show()
+        
     
     # mode-dependent reference states. Assuming 2 modes
     # States with padded dimensions
@@ -130,8 +154,6 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
     next_mode_actual = current_mode_actual
     # current_modechange = np.array([current_mode_actual, next_mode_actual])
     
-    dt_shrinkingrate = 0.9
-    
     modes_pi_jax[0] = init_mode
     trj_pi_jax[0] = x0_jax
     trj_ilqr[0] = init_state
@@ -140,7 +162,6 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
     cnt_mismatch = 0
     
     # Assuming 2-mode system
-    RndN_actual = [np.random.randn(nt, 1), np.random.randn(nt, 1)]
     reset_args_actual = ref_reset_args
     event_args_actual = [ref_reset_args[0]]
     cnt_event_actual = 0
@@ -182,26 +203,26 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         fig_ext.tight_layout()
     
         plt.show()
+                
         
-        
-    # =================================================================
-    #                   Hybrid ilqr for comparison
-    # =================================================================            
-    mode_trj_ilqr, trj_ilqr, u_trj_ilqr, cost_ilqr, _ = stochastic_feedback_rollout_bouncing(init_mode, init_state, n_inputs,
-                                                                                            states, ref_modechanges, 
-                                                                                            inputs, K_feedback, k_feedforward, 
-                                                                                            target_state, Q_T,
-                                                                                            start_time, end_time, epsilon, 
-                                                                                            RndN_actual, dt_shrinkingrate, 
-                                                                                            reference_extension_helper,
-                                                                                            init_reset_args)
+    # # =================================================================
+    # #                   Hybrid ilqr for comparison
+    # # =================================================================            
+    # mode_trj_ilqr, trj_ilqr, u_trj_ilqr, cost_ilqr, _ = stochastic_feedback_rollout_bouncing(init_mode, init_state, n_inputs,
+    #                                                                                         states, ref_modechanges, 
+    #                                                                                         inputs, K_feedback, k_feedforward, 
+    #                                                                                         target_state, Q_T,
+    #                                                                                         start_time, end_time, epsilon, 
+    #                                                                                         RndN_actual, dt_shrinkingrate, 
+    #                                                                                         reference_extension_helper,
+    #                                                                                         init_reset_args)
     
-    show_hilqr_results = True
-    if show_hilqr_results:
-        print("Plotting h-iLQR controller under uncertainties for comparison.")
-        time_span = np.arange(start_time, end_time, dt).flatten()
-        plot_bouncingball(time_span, mode_trj_ilqr, trj_ilqr, u_trj_ilqr, init_state, target_state, nt, trj_labels='iLQG-stochastic')
-        plt.show()
+    # show_hilqr_results = True
+    # if show_hilqr_results:
+    #     print("Plotting h-iLQR controller under uncertainties for comparison.")
+    #     time_span = np.arange(start_time, end_time, dt).flatten()
+    #     plot_bouncingball(time_span, mode_trj_ilqr, trj_ilqr, u_trj_ilqr, init_state, target_state, nt, trj_labels='iLQG-stochastic')
+    #     plt.show()
 
         
     n_modes = 2
@@ -339,7 +360,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         # -------------------------------
         # Visualize sampled trajectories
         # -------------------------------
-        show_samples = True
+        show_samples = False
         if show_samples:
             _, axes_sample = plt.subplots(2, 1)
             (ax1_sample, ax2_sample) = axes_sample.flatten()
@@ -395,10 +416,10 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         reset_args_actual[i_t] = event_args_actual[cnt_event_actual]
         actual_noise_i = RndN_actual[current_mode_actual][i_t]
         
-        xt_next, next_mode_actual, _, new_reset_arg = hybrid_integration_bouncing(xt, current_mode_actual,
-                                                                                    u0_star_jax, actual_noise_i, 
-                                                                                    epsilon, dt, dt_shrink, 
-                                                                                    start_time_i, reset_args_actual[i_t])
+        xt_next, next_mode_actual, _, new_reset_arg = hybrid_stochastic_integration_bouncing(xt, current_mode_actual,
+                                                                                                u0_star_jax, actual_noise_i, 
+                                                                                                epsilon, dt, dt_shrink, 
+                                                                                                start_time_i, reset_args_actual[i_t])
 
         next_mode_actual = int(next_mode_actual)
         # current_modechange = np.array([current_mode_actual, next_mode_actual])
@@ -444,7 +465,7 @@ def main(epsilon, n_samples, dt):
     
    # ---------------- bouncing example -----------------
     # dt = 0.005
-    dt_shrink = 0.7
+    dt_shrink = 0.95
     start_time = 0
     end_time = 2.0
     time_span = np.arange(start_time, end_time, dt).flatten()
@@ -591,7 +612,7 @@ def main(epsilon, n_samples, dt):
 import argparse
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="The epsilon parameter.")
-    parser.add_argument("--epsilon", type=float, default=0.2, help="The process noise intensity value, epsilon.")
+    parser.add_argument("--epsilon", type=float, default=2.0, help="The process noise intensity value, epsilon.")
     parser.add_argument("--nsamples", type=int, default=1000, help="The number of samples used in path integral control.")
     parser.add_argument("--dt", type=int, default=0.005, help="The time discretization.")
     

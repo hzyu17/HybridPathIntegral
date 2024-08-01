@@ -1,5 +1,4 @@
 from example_bouncingball import *
-from matplotlib.patches import Circle
 
 
 if __name__ == '__main__':
@@ -8,7 +7,7 @@ if __name__ == '__main__':
     exp_data = ExpData(exp_params)
 
     # filename = root_dir+"/data/bouncing/ablation_study_nsamples/data_5000samples_eps_15.0_coupling.pickle"
-    filename = root_dir+"/experiments/data/bouncing/data_2024-07-30_00-03-09_example_bouncingball_jax_threading_5000samples_eps_5.0_coupling.pickle"
+    filename = root_dir+"/experiments/data/bouncing/data_2024-07-31_18-51-26_example_bouncingball_jax_threading_50exp_5000samples_eps_0.5_coupling.pickle"
     print("loading data: ", filename)
     exp_data.load(filename)
     

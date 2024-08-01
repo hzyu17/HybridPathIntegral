@@ -159,6 +159,13 @@ def reset_map_slip_21(t, x_event, current_mode, args_reset):
     return x_reset, 0, args_reset
 
 
+guard_slip_12.terminal=True
+guard_slip_12.direction=1
+
+guard_slip_21.terminal=True
+guard_slip_21.direction=1
+
+
 # --------------------------------------------------------------
 # Conversion between the two state space (from stance to flight)
 # --------------------------------------------------------------

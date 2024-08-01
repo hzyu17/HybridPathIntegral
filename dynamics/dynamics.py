@@ -99,13 +99,13 @@ def extract_extensions(reference_extension_helper, start_index=0, padding=False)
 # ------------------------------------- 
 # Function that handles mode mismatch 
 # -------------------------------------    
-def reaction_mode_mismatch(cond_early_arrival, current_index, 
+def reaction_mode_mismatch(current_index, 
                             current_mode, ref_current_mode, 
                             ext_trj_fwd, ext_trj_bwd, 
                             ref_ext_modechange,
                             Kfb_ref_ext_fwd, kff_ref_ext_fwd,
                             Kfb_ref_ext_bwd, kff_ref_ext_bwd,
-                            cnt_mismatch):
+                            cnt_mismatch, cond_early_arrival=None):
     # Take the first hybrid event for now. Needs to find the correct corresponding one among all hybrid events.
     
     if (cond_early_arrival(current_mode, ref_current_mode, ref_ext_modechange)):
@@ -182,12 +182,12 @@ def event_reactive_fun(args):
         # ---- solver for the deterministic part
         t_span = (t, t+dt_int)
         
-        xt_swch = smooth_integration_fun(xt_current, u, t_span, epsilon, dW_new)
+        xt_swch = smooth_integration_fun(current_mode, xt_current, u, t_span, epsilon, dW_new)
 
         reset_byproduct = reset_args
         
         # /---- solver for the deterministic part
-        if (current_guard(t, xt_swch)>0) or (cnt==10): # Until the guard condition is no longer met.
+        if (not event_condition(xt_current, xt_swch, current_guard)) or (cnt==10): # Until the guard condition is no longer met.
             # The reset map is called
             xt_next, next_mode, reset_byproduct = current_resetmap(t, xt_swch, current_mode, reset_args)
             dW = dW_new
@@ -255,6 +255,7 @@ def event_detect_onestep(x0, u, t0, tf, current_mode,
         t_eval = np.linspace(t0, tf, nt)
         dyn_fun=lambda t, y: current_dyn(t, y, *args)
     
+    x_next = None
     x_event = None
     t_event = None
     x_reset = None
@@ -291,33 +292,50 @@ def event_detect_onestep(x0, u, t0, tf, current_mode,
             
             t0 = t_event
             
-            # ---------- Regardless of contact, integrate until t=tf ----------
-            t_span = (t0, tf)
-            t_eval = np.linspace(t0, tf, nt)
+            # # ---------- Regardless of contact, integrate until t=tf ----------
+            # t_span = (t0, tf)
+            # t_eval = np.linspace(t0, tf, nt)
             
-            args = (u_reset, )
-            dyn_fun_next=lambda t, y: next_dyn(t, y, *args)
+            # args_reset = (u_reset, )
+            # dyn_fun_next=lambda t, y: next_dyn(t, y, *args_reset)
             
-            solution = scipy.integrate.solve_ivp(fun=dyn_fun_next, 
-                                                t_span=t_span, y0=x0, method='RK45', 
-                                                t_eval=t_eval, dense_output=True)
+            # solution = scipy.integrate.solve_ivp(fun=dyn_fun_next, 
+            #                                     t_span=t_span, y0=x0, method='RK45', 
+            #                                     t_eval=t_eval, dense_output=True)
+            
+            # # Solve for the continuous trajectory before the contact 
+            # t = np.linspace(t0, tf, nt).flatten()
+            
+            # # The solved trajecoty, in shape (nx+nx*nx, nt)
+            # f_disc = solution.sol(t) 
+            
+            # x_next = f_disc[:, -1]
+            
+            x_next = x_reset.flatten()
         
         # Had no contact
         else:
             x0 = None
+            
+            t = np.linspace(t0, tf, nt).flatten()
+            
+            # The solved trajecoty, in shape (nx+nx*nx, nt)
+            f_disc = solution.sol(t) 
+            
+            x_next = f_disc[:, -1]
             
     else: # Do not detect contact 
         solution = scipy.integrate.solve_ivp(fun=dyn_fun, 
                                             t_span=t_span, y0=x0, method='RK45', 
                                             t_eval=t_eval, dense_output=True)
         
-    # Solve for the continuous trajectory before the contact 
-    t = np.linspace(t0, tf, nt).flatten()
-    
-    # The solved trajecoty, in shape (nx+nx*nx, nt)
-    f_disc = solution.sol(t) 
-    
-    x_next = f_disc[:, -1]
+        # Solve for the continuous trajectory before the contact 
+        t = np.linspace(t0, tf, nt).flatten()
+        
+        # The solved trajecoty, in shape (nx+nx*nx, nt)
+        f_disc = solution.sol(t) 
+        
+        x_next = f_disc[:, -1]
     
     mode_mapping = np.array([current_mode, next_mode])
     

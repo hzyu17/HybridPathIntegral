@@ -64,9 +64,7 @@ class hybrid_ilqr:
         self.f_, self.A_, self.B_ = [None for _ in range(self.nmodes_)],[None for _ in range(self.nmodes_)],[None for _ in range(self.nmodes_)]
         for ii in range(self.nmodes_):
             self.f_[ii], self.A_[ii], self.B_[ii] = smooth_dynamics[ii]()
-        
-        self.detection_func_ = contact_detect
-        
+                
         # Weighting
         self.Q_k_ = Q_k
         self.R_k_ = R_k
@@ -703,7 +701,10 @@ class hybrid_ilqr:
                 states_iter.append(new_states)
                     
                 break
-            
+          
+        
+        print(" -------- Stopping optimization, reached max iteration --------")
+          
         # Return the current trajectory
         modes = self._modes
         states = self._states
