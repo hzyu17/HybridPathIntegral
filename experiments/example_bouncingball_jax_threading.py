@@ -108,7 +108,7 @@ def main(epsilon, n_samples, dt):
     Q_T = 200*np.eye(n_states[0])
     Q_T[0,0] = 2000.0
 
-    n_exp = 100
+    n_exp = 10
     
     init_reset_args = [np.array([0.0]) for _ in range(nt)]
     target_reset_args = [np.array([0.0]) for _ in range(nt)]
@@ -190,8 +190,9 @@ def main(epsilon, n_samples, dt):
     filename = f"data_{formatted_datetime}_{script_filename}_{n_samples}samples_eps_{epsilon}_coupling.pickle"
     # filename = f"data_{n_samples}samples_eps_{epsilon}_coupling.pickle"
     # save_root = '/hddscratch/hyu419/hybrid_pathintegral/exp_200'
+    save_root = '/hddscratch/hyu419/hybrid_pathintegral/new_exp'
     
-    save_root = '/home/hzyu/git/HybridPathIntegral/experiments'
+    # save_root = '/home/hzyu/git/HybridPathIntegral/experiments'
     file_path = f"{save_root}/data/bouncing/{filename}"
     print("Saving data to: ", file_path)
     exp_data.dump(file_path)
