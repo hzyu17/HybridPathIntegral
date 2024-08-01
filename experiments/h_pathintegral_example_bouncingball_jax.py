@@ -487,7 +487,7 @@ def main(epsilon, n_samples, dt):
     
    # ---------------- bouncing example -----------------
     # dt = 0.005
-    dt_shrink = 0.95
+    dt_shrink = 0.99
     start_time = 0
     end_time = 2.0
     time_span = np.arange(start_time, end_time, dt).flatten()

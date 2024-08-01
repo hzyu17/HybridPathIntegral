@@ -10,7 +10,9 @@ sys.path.append(root_dir)
 
 from dynamics.dynamics_bouncing import *
 # Import iLQR class
-from hybrid_ilqr.h_ilqr import solve_ilqr
+from hybrid_ilqr.h_ilqr_discrete import solve_ilqr
+from dynamics.dynamics_bouncing import *
+from dynamics.dynamics_discrete_bouncing import *
 # Importing path integral control
 from hybrid_pathintegral.hybrid_pathintegral import *
 # Import plotting
@@ -63,7 +65,7 @@ def main(epsilon, n_samples, dt):
     
     # ---------------- bouncing example -----------------
     # dt = 0.01
-    dt_shrink = 0.7
+    dt_shrink = 0.99
     
     start_time = 0
     end_time = 2.0
@@ -123,14 +125,17 @@ def main(epsilon, n_samples, dt):
     flow_dynamics = [symbolic_dynamics_bouncing, symbolic_dynamics_bouncing]
     
     exp_params.update_params(n_modes, init_mode, target_mode, n_states, init_state, target_state, 
-                             start_time, end_time, dt, initial_guess, 
+                             start_time, end_time, dt, dt_shrink,
+                             initial_guess, 
                              epsilon, n_exp, n_samples, 
                              Q_k, R_k, Q_T, flow_dynamics, 
-                             event_detect_bouncing, plot_bouncingball, convert_state_21_bouncing, 
+                             event_detect_bouncing_discrete, 
+                             plot_bouncingball, 
+                             convert_state_21_bouncing, 
                              init_reset_args, target_reset_args)
     exp_data = ExpData(exp_params)
     
-    hybrid_ilqr_result = solve_ilqr(exp_params, detect=True)
+    hybrid_ilqr_result = solve_ilqr(exp_params, detect=True, verbose=False)
     
     (modes,states,inputs,
      k_feedforward,K_feedback,
@@ -293,9 +298,9 @@ import argparse
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="The epsilon parameter.")
     
-    parser.add_argument("--epsilon", type=float, default=5.0, help="The process noise intensity value, epsilon.")
+    parser.add_argument("--epsilon", type=float, default=2.0, help="The process noise intensity value, epsilon.")
     parser.add_argument("--nsamples", type=int, default=5000, help="The number of samples used in path integral control.")
-    parser.add_argument("--dt", type=int, default=0.005, help="The time discretization.")
+    parser.add_argument("--dt", type=int, default=0.002, help="The time discretization.")
     
     args = parser.parse_args()
 
