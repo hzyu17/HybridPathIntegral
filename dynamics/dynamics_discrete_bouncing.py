@@ -61,6 +61,42 @@ def guard_false_func_bouncing(args):
     return xt_next, current_mode, dW, reset_arg
 
 
+def guard_true_func_bouncing_deterministic(args):
+    (xt_current, current_mode, u_current, t, xt_next, dt_int, dt_shrinkrate, smooth_dyn, guard, resetmap, reset_arg) = args
+    
+    def while_loop_body(xt, u, t, dt_int, dt_shrinkrate, cnt_shrink):
+        # Too far from the guard, shrink the step size
+        dt_shrink = dt_int * dt_shrinkrate
+        
+        xt_shrinked = xt + smooth_dyn(t, xt, u) * dt_shrink
+        
+        new_condition = True
+        if (guard.direction == 1):
+            new_condition = ((guard(0.0,xt_shrinked)>0) or (cnt_shrink < 10))
+        elif (guard.direction == -1):
+            new_condition = ((guard(0.0,xt_shrinked)<=0) or (cnt_shrink < 10))
+            
+        cnt_shrink += 1
+        
+        return xt_shrinked, dt_shrink, cnt_shrink, new_condition
+    
+    cnt_shrink = 0
+    can_continue = True
+    xt_shrinked = xt_next
+    
+    # Implementing the loop with Python's while
+    while can_continue:
+        xt_shrinked, dt_int, cnt_shrink, can_continue = while_loop_body(
+            xt_current, u_current, t, dt_int, dt_shrinkrate, cnt_shrink
+        )
+    
+    # Execute the reset map after the loop
+    t_event =  t + dt_int
+    x_reset, next_mode, new_reset_arg = resetmap(t, xt_shrinked, current_mode, reset_arg)
+    
+    return t_event, xt_shrinked, x_reset, next_mode, new_reset_arg
+
+
 # ===============================================================================================================
 #                                       // End of SLIP guard condition handling //
 # ===============================================================================================================
@@ -81,31 +117,34 @@ hybrid_stochastic_feedback_rollout_discrete_bouncing = partial(hybrid_stochastic
                                                             hybrid_stochastic_integration_func=hybrid_stochastic_integration_bouncing)    
     
     
-    # show_mismatch = False
-    # if show_mismatch:
-    #     # ======== Show mode mismatch ======== 
-    #     fig2, axes = plt.subplots(1,2, figsize=(9, 6))
-    #     ax5, ax6 = axes.flatten()
-    #     ax5.grid(True)
-    #     ax6.grid(True)
+
+def event_detect_bouncing_discrete(current_mode, x0, u, 
+                                   t0, dt, dt_shrinkrate, 
+                                   reset_args, detection=True, backwards=False):
         
-    #     ax5.plot(xt_trj[:,0], xt_trj[:,1],color='b',linewidth=1.5,label='Rollout')
-    #     ax5.plot(xt_ref[:,0], xt_ref[:,1],color='k',linewidth=2.5,label='Reference')
-    #     ax5.plot(xt_ref_actual[:,0], xt_ref_actual[:,1],color='r',linewidth=1.5,linestyle='--', label='Modified Reference')
-        
-    #     ax5.set_xlabel(r"z", fontsize=14)
-    #     ax5.set_ylabel(r"$\dot z$", fontsize=14)
-    #     ax5.legend(loc='upper right')
-    #     plt.tight_layout()
-        
-    #     ax6.plot(xt_trj[:,0], xt_trj[:,1],color='b',linewidth=1.5,label='Rollout')
-    #     ax6.plot(xt_ref[:,0], xt_ref[:,1],color='k',linewidth=2.5,label='Reference')
-    #     ax6.plot(xt_ref_actual[:,0], xt_ref_actual[:,1],color='r',linewidth=1.5,linestyle='--',label='Modified Reference')
-    #     ax6.set_xlabel(r"z", fontsize=14)
-    #     ax6.set_ylabel(r"$\dot z$", fontsize=14)
-    #     ax6.legend(loc='upper right')
-    #     plt.tight_layout()
-        
-    #     plt.show()
+    smooth_dynamics_bouncing = {0:dyn_bouncing, 1:dyn_bouncing}
+    
+    Rxs_bouncing = {0:Rx_bouncing_12, 1:Rx_bouncing_21}
+    Rts_bouncing = {0:Rt_bouncing_12, 1:Rt_bouncing_21}
+    
+    gxs_bouncing = {0:gx_bouncing_12, 1:gx_bouncing_21}
+    gts_bouncing = {0:gt_bouncing_12, 1:gt_bouncing_21}
+    
+    guards_bouncing_bouncing = {0:guard_bouncing_12, 1: guard_bouncing_21}
+    reset_maps_bouncing_bouncing = {0:reset_map_bouncing_12, 1:reset_map_bouncing_21}
+                                        
+    return event_detect_onestep_discrete(x0, u, t0, 
+                                        dt, dt_shrinkrate, 
+                                        current_mode, 
+                                        smooth_dynamics_bouncing, 
+                                        guards_bouncing_bouncing,
+                                        gxs_bouncing,
+                                        gts_bouncing,
+                                        reset_maps_bouncing_bouncing,
+                                        Rxs_bouncing, Rts_bouncing,
+                                        reset_args, 
+                                        guard_condition_bouncing,
+                                        guard_true_func_bouncing_deterministic,
+                                        detection, backwards)
     
     

@@ -11,7 +11,7 @@ root_dir = os.path.abspath(os.path.join(current_dir, '..'))
 
 sys.path.append(root_dir)
 
-from hybrid_ilqr.saltation_matrix import *
+from dynamics.saltation_matrix import *
 import numpy as np
 import jax.numpy as jnp
 

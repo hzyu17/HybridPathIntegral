@@ -9,6 +9,7 @@ class ExpParams():
         self._start_time = []
         self._end_time = []
         self._dt = []
+        self._dt_shrink = []
         self._initial_guess = []
         self._epsilon = []
         self._n_exp = []
@@ -21,7 +22,7 @@ class ExpParams():
         self._nmodes = None
         
     def update_params(self, nmodes, init_mode, target_mode, n_states, init_state, target_state, 
-                      start_time, end_time, dt, initial_guess, epsilon, 
+                      start_time, end_time, dt, dt_shrink, initial_guess, epsilon, 
                       n_exp, n_samples, Q_k, R_k, Q_T, 
                       symbolic_dyn, detection_func, plotting_func, state_convert_func, 
                       init_reset_args, target_reset_args, animate_function=None):
@@ -34,6 +35,7 @@ class ExpParams():
         self._start_time = start_time
         self._end_time = end_time
         self._dt = dt
+        self._dt_shrink = dt_shrink
         self._initial_guess = initial_guess
         self._epsilon = epsilon
         self._n_exp = n_exp

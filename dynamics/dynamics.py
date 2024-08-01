@@ -291,26 +291,7 @@ def event_detect_onestep(x0, u, t0, tf, current_mode,
             saltation = saltation_matrix(F_1, F_2, R_t, R_x, g_t, g_x)
             
             t0 = t_event
-            
-            # # ---------- Regardless of contact, integrate until t=tf ----------
-            # t_span = (t0, tf)
-            # t_eval = np.linspace(t0, tf, nt)
-            
-            # args_reset = (u_reset, )
-            # dyn_fun_next=lambda t, y: next_dyn(t, y, *args_reset)
-            
-            # solution = scipy.integrate.solve_ivp(fun=dyn_fun_next, 
-            #                                     t_span=t_span, y0=x0, method='RK45', 
-            #                                     t_eval=t_eval, dense_output=True)
-            
-            # # Solve for the continuous trajectory before the contact 
-            # t = np.linspace(t0, tf, nt).flatten()
-            
-            # # The solved trajecoty, in shape (nx+nx*nx, nt)
-            # f_disc = solution.sol(t) 
-            
-            # x_next = f_disc[:, -1]
-            
+                        
             x_next = x_reset.flatten()
         
         # Had no contact

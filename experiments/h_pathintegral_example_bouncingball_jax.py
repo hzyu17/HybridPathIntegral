@@ -12,7 +12,8 @@ import time
 import jax.numpy as jnp
 
 # Import iLQR class and reference extension handler
-from hybrid_ilqr.h_ilqr import solve_ilqr, extract_extensions
+# from hybrid_ilqr.h_ilqr import solve_ilqr, extract_extensions
+from hybrid_ilqr.h_ilqr_discrete import solve_ilqr, extract_extensions
 # Importing path integral control
 from hybrid_pathintegral.hybrid_pathintegral import *
 from hybrid_pathintegral.sampling_rollout_jax_bouncing import *
@@ -111,7 +112,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
                                                                                                                                 states, modes, 
                                                                                                                                 inputs, K_feedback, k_feedforward, 
                                                                                                                                 target_state, Q_T,
-                                                                                                                                start_time, end_time, 
+                                                                                                                                start_time, dt, 
                                                                                                                                 epsilon, RndN_actual, dt_shrinkingrate, 
                                                                                                                                 reference_extension_helper,
                                                                                                                                 init_reset_args)
@@ -364,7 +365,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         # -------------------------------
         # Visualize sampled trajectories
         # -------------------------------
-        show_samples = False
+        show_samples = True
         if show_samples:
             _, axes_sample = plt.subplots(2, 1)
             (ax1_sample, ax2_sample) = axes_sample.flatten()
@@ -375,9 +376,11 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
             # ----------------------
             # Plot all the samples 
             # ----------------------
-            for i_s in range(n_samples):
+            xt_trj_ilqr = np.asarray(xt_trj_ilqr)
+            ax1_sample.plot(xt_trj_ilqr[:,0], xt_trj_ilqr[:,1],'r', alpha=0.2)
+            for i_s in range(20):
                 ax1_sample.plot(Ksamples_jax_i[i_s,:,0], Ksamples_jax_i[i_s,:,1],'b', alpha=0.2)
-            
+                        
             ax1_sample.scatter(target_state[0], target_state[1], color='g', marker='x', s=50.0, linewidths=6, label='Target')
             ax1_sample.scatter(init_state[0], init_state[1], color='r', marker='x', s=50.0, linewidths=6, label='Start')
             ax1_sample.scatter(xt[0], xt[1], color='b', marker='x', s=30.0, linewidths=6, label='Current')
@@ -472,7 +475,7 @@ def main(epsilon, n_samples, dt):
     
    # ---------------- bouncing example -----------------
     # dt = 0.005
-    dt_shrink = 0.95
+    dt_shrink = 0.9
     start_time = 0
     end_time = 2.0
     time_span = np.arange(start_time, end_time, dt).flatten()
@@ -531,13 +534,15 @@ def main(epsilon, n_samples, dt):
     flow_dynamics = [symbolic_dynamics_bouncing, symbolic_dynamics_bouncing]
     
     exp_params.update_params(n_modes, init_mode, target_mode, n_states, init_state, target_state, 
-                             start_time, end_time, dt, initial_guess, 
+                             start_time, end_time, dt, dt_shrink, initial_guess, 
                              epsilon, n_exp, n_samples, 
                              Q_k, R_k, Q_T, flow_dynamics, 
-                             event_detect_bouncing, plot_bouncingball, convert_state_21_bouncing, 
+                             event_detect_bouncing_discrete, 
+                             plot_bouncingball, 
+                             convert_state_21_bouncing, 
                              init_reset_args, target_reset_args)
     exp_data = ExpData(exp_params)
-    
+        
     print("===================== Solving for h-iLQG proposal controller =====================")
     hybrid_ilqr_result = solve_ilqr(exp_params, detect=True, verbose=False)
     
@@ -620,7 +625,7 @@ import argparse
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="The epsilon parameter.")
     parser.add_argument("--epsilon", type=float, default=2.0, help="The process noise intensity value, epsilon.")
-    parser.add_argument("--nsamples", type=int, default=1000, help="The number of samples used in path integral control.")
+    parser.add_argument("--nsamples", type=int, default=5000, help="The number of samples used in path integral control.")
     parser.add_argument("--dt", type=int, default=0.005, help="The time discretization.")
     
     args = parser.parse_args()

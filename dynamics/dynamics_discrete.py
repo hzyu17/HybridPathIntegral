@@ -2,6 +2,73 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from dynamics.dynamics import extract_extensions
+from dynamics.saltation_matrix import saltation_matrix
+
+def event_detect_onestep_discrete(xt, ut, t0, dt, dt_shrink, current_mode, 
+                                    smooth_dynamics, 
+                                    guards,
+                                    gxs, gts,
+                                    reset_maps,
+                                    Rxs, Rts,
+                                    reset_args, 
+                                    guard_condition_func=None,
+                                    guard_condition_true_fun=None,
+                                    detection=True, backwards=False):
+    
+    current_dyn = smooth_dynamics[current_mode]
+    
+    current_guard = guards[current_mode]
+    current_resetmap = reset_maps[current_mode]
+    
+    current_Rx = Rxs[current_mode]
+    current_Rt = Rts[current_mode]
+    
+    current_gx = gxs[current_mode]
+    current_gt = gts[current_mode]
+    
+    current_guard = guards[current_mode]
+    current_resetmap = reset_maps[current_mode]
+    
+    xt_next = None
+    x_event = None
+    t_event = None
+    x_reset = None
+    saltation = None
+    next_mode = current_mode
+    reset_byproduct = (None, )
+    
+    # smooth dynamics
+    if backwards:
+        xt_next = xt - current_dyn(t0, xt, ut)*dt
+    else:
+        xt_next = xt + current_dyn(t0, xt, ut)*dt
+    
+    # detection
+    if detection:
+        args_guard = (xt, current_mode, ut, t0, xt_next, dt, dt_shrink, current_dyn, current_guard, current_resetmap, reset_args)
+        guard_hit = guard_condition_func(xt, xt_next, current_mode)
+    
+        if guard_hit:
+            t_event, x_event, x_reset, next_mode, reset_byproduct = guard_condition_true_fun(args_guard)
+            
+            # ---------- Compute saltation matrix ---------- 
+            R_x = current_Rx(t_event, x_event, current_mode, reset_args)[0]
+            R_t = current_Rt(t_event, x_event, current_mode, reset_args)[0]
+            
+            g_x = current_gx(t_event, x_event)
+            g_t = current_gt(t_event, x_event)
+            
+            next_dyn = smooth_dynamics[next_mode]
+            
+            F_1 = current_dyn(t_event, x_event)
+            F_2 = next_dyn(t_event, x_reset) # Important, the F2 is evaluated at the reseted state!
+            saltation = saltation_matrix(F_1, F_2, R_t, R_x, g_t, g_x)        
+            xt_next = x_reset
+        
+    mode_mapping = np.array([current_mode, next_mode])
+    
+    return xt_next, saltation, mode_mapping, t_event, x_event, x_reset, reset_byproduct
+
 
 # @jax.jit
 def hybrid_stochastic_integration_euler_JAX(xt, current_mode, ut, 
@@ -25,7 +92,6 @@ def hybrid_stochastic_integration_euler_JAX(xt, current_mode, ut,
     xt_next, next_mode, dW, new_reset_arg = jax.lax.cond(guard_hit, guard_condition_true_fun, guard_condition_false_fun, args_guard)
 
     return xt_next, next_mode, dW, new_reset_arg
-
 
 
 def hybrid_stochastic_integration_euler(xt, current_mode, ut, 
@@ -53,7 +119,7 @@ def hybrid_stochastic_integration_euler(xt, current_mode, ut,
 
 
 def hybrid_stochastic_feedback_rollout_discrete(init_mode, x0, n_inputs, xt_ref, ref_modes, 
-                                                ut, Kt, kt, target_state, Q_T, t0, tf, 
+                                                ut, Kt, kt, target_state, Q_T, t0, dt, 
                                                 epsilon, GaussianNoise, dt_shrinkingrate, 
                                                 reference_extension_helper, init_reset_args,
                                                 cond_mode_mismatch_func=None,
@@ -66,7 +132,6 @@ def hybrid_stochastic_feedback_rollout_discrete(init_mode, x0, n_inputs, xt_ref,
     
     n_timestamps = len(xt_ref)
     
-    dt = (tf - t0) / n_timestamps
     dt_int = dt
     
     # returning trajectory    
@@ -122,7 +187,7 @@ def hybrid_stochastic_feedback_rollout_discrete(init_mode, x0, n_inputs, xt_ref,
         ut_cl_trj[current_mode][ii_t] = current_u
         
         noise_i = GaussianNoise[current_mode][ii_t]
-        dW_i = np.sqrt(dt_int)*noise_i
+        dW_i = np.sqrt(dt)*noise_i
         
         # ============================== One step integration ==============================        
         xt_next, next_mode, _, new_reset_arg = hybrid_stochastic_integration_func(xt, current_mode, current_u, 

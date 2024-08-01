@@ -40,7 +40,7 @@ def guard_true_func_bouncing_JAX(args):
         
         xt_swch = stochastic_integration_euler_bouncing(current_mode, xt_current, u, dt_int, eps, dW_new)
         
-        new_condition = jnp.logical_not(jnp.logical_or(guard_bouncing_12(t, xt_swch)>0, cnt_shrink==10))
+        new_condition = jnp.logical_or(guard_bouncing_12(t, xt_swch)<=0, cnt_shrink<10)
         cnt_shrink += 1
         
         new_vars = (xt_current, xt_swch, u, t, dt_int, dt_shr, RandN, eps, cnt_shrink, reset_arg, new_condition)

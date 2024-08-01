@@ -8,7 +8,7 @@ root_dir = os.path.abspath(os.path.join(current_dir, '..'))
 
 sys.path.append(root_dir)
 
-from hybrid_ilqr.saltation_matrix import *
+from dynamics.saltation_matrix import *
 import numpy as np
 
 import sympy as sp
@@ -114,3 +114,9 @@ gx_bouncing_12 = jax.jit(jacfwd(lambda t, x: guard_bouncing_12(t, x), 1))
 
 gt_bouncing_21 = jax.jit(jacfwd(lambda t, x: guard_bouncing_21(t, x), 0))
 gx_bouncing_21 = jax.jit(jacfwd(lambda t, x: guard_bouncing_21(t, x), 1))
+
+guard_bouncing_12.terminal=True
+guard_bouncing_12.direction=-1
+
+guard_bouncing_21.terminal=True
+guard_bouncing_21.direction=1
