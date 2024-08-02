@@ -3,6 +3,53 @@ from numba import njit, float64, int32, prange
 import jax.numpy as jnp
 import jax
 
+
+# ====================================== Path Integral Control ====================================== 
+def compute_cost(modes,states,inputs,randN,target_state,trj_ref, Qk, Rk, QT, epsilon, dt):
+    
+    n_timestamps = len(states)
+    
+    # Initialize cost
+    total_cost = 0.0
+
+    for ii in range(n_timestamps-1):
+        mode_i = modes[ii]
+        current_u = inputs[mode_i][ii]
+        randN_i = randN[mode_i][ii]
+        Rk_i = Rk[mode_i]
+        
+        total_cost += current_u.T@Rk_i@current_u/2.0*dt + np.sqrt(epsilon*dt) * np.dot(current_u.T, randN_i)
+        # total_cost = total_cost+current_cost
+        
+    # Compute terminal cost
+    terminal_difference = (target_state-states[-1]).flatten()
+    terminal_cost = terminal_difference.T@QT@terminal_difference/2.0
+
+    total_cost = total_cost+terminal_cost
+
+    return total_cost
+
+
+def compute_cost_nonoise(modes,states,inputs,target_state,trj_ref, Qk, Rk, QT, dt):
+    
+    n_timestamps = len(states)
+    
+    # Initialize cost
+    total_cost = 0.0
+
+    for ii in range(n_timestamps-1):
+        mode_i = modes[ii]
+        current_u = inputs[mode_i][ii]
+        total_cost += current_u.T@Rk[mode_i]@current_u/2.0*dt 
+        
+    # Compute terminal cost
+    terminal_difference = (target_state-states[-1]).flatten()
+    terminal_cost = terminal_difference.T@QT@terminal_difference/2.0
+
+    total_cost = total_cost+terminal_cost
+
+    return total_cost
+
 def update_u0_pathintegral(u0, PathCosts, GaussianNoise, epsilon, dt):
     nu = len(u0)
     n_samples = len(PathCosts)

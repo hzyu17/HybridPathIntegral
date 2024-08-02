@@ -22,9 +22,9 @@ if __name__ == '__main__':
     # ------------- 
     # SLIP example 
     # -------------
-    dt = 0.002
+    dt = 0.00015
     epsilon = 2.0
-    dt_shrink = 0.9
+    dt_shrink = 0.99
     r0 = 1
     
     n_modes = 2
@@ -79,7 +79,7 @@ if __name__ == '__main__':
     
     # Terminal cost 
     target_mode = 0
-    Q_T = 80.0*np.eye(n_states[0])
+    Q_T = 100.0*np.eye(n_states[0])
     
     # Running costs
     Q_k = [np.zeros((n_states[0],n_states[0])), np.zeros((n_states[1],n_states[1]))] # zero weight to penalties along a strajectory since we are finding a trajectory
@@ -108,12 +108,12 @@ if __name__ == '__main__':
     exp_params.update_params(n_modes, init_mode, target_mode, n_states, init_state, target_state, 
                              start_time, end_time, dt, dt_shrink, initial_guess, 
                              epsilon, n_exp, n_samples, Q_k, R_k, Q_T, symbolic_dynamics, 
-                             event_detect_slip, plot_slip, convert_state_21_slip, 
+                             event_detect_slip_discrete, plot_slip, convert_state_21_slip, 
                              init_reset_args, target_reset_args, 
                              animate_slip)
     
     exp_data = ExpData(exp_params)
-    hybrid_ilqr_result = solve_ilqr(exp_params, detect=True)
+    hybrid_ilqr_result = solve_ilqr(exp_params, detect=True, verbose=False)
     
     (modes,states,inputs,
      k_feedforward,K_feedback,
@@ -130,5 +130,5 @@ if __name__ == '__main__':
     show_results = True
     if show_results:
         plot_slip(time_span, modes, states, inputs, init_state, target_state, nt, ref_reset_args)
-        animate_slip(modes, states, init_mode, init_state, target_mode, target_state, nt, ref_reset_args, target_reset_args,step=5)
-    
+        # animate_slip(modes, states, init_mode, init_state, target_mode, target_state, nt, ref_reset_args, target_reset_args,step=5)
+        plt.show()

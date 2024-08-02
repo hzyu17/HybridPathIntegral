@@ -10,10 +10,10 @@ def dyn_bouncing(t, x, *args):
     """
    
     if len(args) == 0:
-        u = np.array([0.0])
+        u = np.array([0.0], dtype=np.float64)
     else:
         u = args[0]
-    return np.array([x[1], u[0]-g])
+    return np.array([x[1], u[0]-9.81], dtype=np.float64)
 
 
 def gdWt_bouncing(x0, dWt, eps):
@@ -344,14 +344,13 @@ def plot_bouncingball_nexp(n_exp, exp_data, time_span, init_state,
 
     return fig1, axes_12, fig2, ax3
 
-
 def plot_bouncingball(time_span, modes, states, inputs, init_state, 
                       target_state, nt, 
+                      reset_args=None,
                       color='k', 
                       args=None, 
                       plot_start_goal=True,
-                      trj_labels='iLQG-reference',
-                      reset_args=None):
+                      trj_labels='iLQG-reference'):
     print("----------------- Plotting bouncing ball results -----------------")
     # =============== plotting ===============
     if args is not None:
@@ -403,32 +402,3 @@ def plot_bouncingball(time_span, modes, states, inputs, init_state,
 
     return fig1, axes_12, fig2, ax3
 
-
-if __name__ == '__main__':
-   
-    x0 = np.array([5.0, 0.0])
-    u = np.array([0.0])
-    
-    t0 = 0.0
-    dt = 5.0
-    
-    x_next, saltation = detect_bouncing(x0, u, t0, dt)
-    
-    print(x_next.shape)
-    print(saltation)
-    
-    # stochastic rollouts
-    nt = 1000
-    nu = 1
-    ut = np.zeros((nt, nu), dtype=np.float64)
-    epsilon = 0.1
-    t0 = 0.0
-    tf = 3.0
-    t_eval = np.linspace(t0, tf, nt)
-    x0 = np.array([5.0, 1.0])
-    xt_trj = rollout_bouncing_stochastic(x0, ut, t0, tf, epsilon)
-    
-    fig, ax = plt.subplots()
-    ax.grid(True)
-    ax.scatter(t_eval, xt_trj[:, 0], color='k', s=0.8)
-    plt.show()
