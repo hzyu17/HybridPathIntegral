@@ -72,7 +72,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
     
     time_span = jnp.arange(start_time, end_time, dt).flatten()
     
-    show_ilqr_reference = True
+    show_ilqr_reference = False
     if show_ilqr_reference:
         print("Plotting h-iLQR reference state and input trajectories.")
         plot_slip(time_span, modes, states, inputs, init_state, target_state, nt, ref_reset_args)
@@ -99,7 +99,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
                                                                                                                             reference_extension_helper,
                                                                                                                             init_reset_args)
 
-    show_hilqr_noise_results = True
+    show_hilqr_noise_results = False
     if show_hilqr_noise_results:
         time_span = np.arange(start_time, end_time, dt).flatten()
         plot_slip(time_span, mode_trj_ilqr, xt_trj_ilqr, ut_trj_ilqr, init_state, target_state, nt, reset_args_ilqr, step=1)
@@ -373,7 +373,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         # ---------------------------------
         #  Visualize sampled trajectories
         # ---------------------------------
-        show_samples = True
+        show_samples = False
         if show_samples:
             time_span = np.arange(start_time, end_time, dt).flatten()
             n_samples_plotted = 10
@@ -698,7 +698,7 @@ import argparse
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="The epsilon parameter.")
     parser.add_argument("--epsilon", type=float, default=0.01, help="The process noise intensity value, epsilon.")
-    parser.add_argument("--nsamples", type=int, default=500, help="The number of samples used in path integral control.")
+    parser.add_argument("--nsamples", type=int, default=5000, help="The number of samples used in path integral control.")
     parser.add_argument("--dt", type=int, default=0.0002, help="The time discretization.")
     
     args = parser.parse_args()
