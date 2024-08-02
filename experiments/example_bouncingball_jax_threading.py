@@ -22,8 +22,8 @@ from experiments.exp_params import *
 from experiments.h_pathintegral_example_bouncingball_jax import run_experiment
 
 # Set environment variable to control the GPU memory fraction used by JAX
-os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "0.9"
-
+# os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "0.9"
+os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
 
 import gc
 gc.collect()
