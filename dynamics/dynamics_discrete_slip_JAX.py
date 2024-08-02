@@ -86,7 +86,7 @@ def guard_true_func_slip_padding(args):
         
         xt_shrinked = stochastic_integration_euler_SLIP_padding(current_mode, xt, u, dt_shrink, eps, dW_new)
         
-        new_condition = jnp.logical_not(jnp.logical_or(guard_slip_21(t, xt_shrinked)<0, cnt_shrink==10))
+        new_condition = jnp.logical_and(guard_slip_21(t, xt_shrinked) >= 0, cnt_shrink<10)
         cnt_shrink += 1
         
         new_vars = (xt, xt_shrinked, u, t, dt_shrink, dt_shrinkrate, RandN, eps, cnt_shrink, new_condition)

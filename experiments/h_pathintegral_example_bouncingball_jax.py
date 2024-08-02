@@ -34,52 +34,6 @@ os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "0.9"
 import gc
 gc.collect()
 
-# ====================================== Path Integral Control ====================================== 
-def compute_cost(modes,states,inputs,randN,target_state,trj_ref, Qk, Rk, QT, epsilon, dt):
-    
-    n_timestamps = len(states)
-    
-    # Initialize cost
-    total_cost = 0.0
-
-    for ii in range(n_timestamps-1):
-        mode_i = modes[ii]
-        current_u = inputs[mode_i][ii]
-        randN_i = randN[mode_i][ii]
-        Rk_i = Rk[mode_i]
-        
-        total_cost += current_u.T@Rk_i@current_u/2.0*dt + np.sqrt(epsilon*dt) * np.dot(current_u.T, randN_i)
-        # total_cost = total_cost+current_cost
-        
-    # Compute terminal cost
-    terminal_difference = (target_state-states[-1]).flatten()
-    terminal_cost = terminal_difference.T@QT@terminal_difference/2.0
-
-    total_cost = total_cost+terminal_cost
-
-    return total_cost
-
-
-def compute_cost_nonoise(modes,states,inputs,target_state,trj_ref, Qk, Rk, QT, dt):
-    
-    n_timestamps = len(states)
-    
-    # Initialize cost
-    total_cost = 0.0
-
-    for ii in range(n_timestamps-1):
-        mode_i = modes[ii]
-        current_u = inputs[mode_i][ii]
-        
-        total_cost += current_u.T@Rk@current_u/2.0*dt 
-        
-    # Compute terminal cost
-    terminal_difference = (target_state-states[-1]).flatten()
-    terminal_cost = terminal_difference.T@QT@terminal_difference/2.0
-
-    total_cost = total_cost+terminal_cost
-
-    return total_cost
 
 def process_compute_costs(sample_i, inputs, dWs, target_state, ref_states, index, Q_k, R_k, Q_T, epsilon, dt):
     costs_i = compute_cost(sample_i, inputs, dWs, target_state, ref_states, Q_k, R_k, Q_T, epsilon, dt)
@@ -107,16 +61,19 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
     u_trj_ilqr = [np.zeros((nt, n_inputs[0])), np.zeros((nt, n_inputs[1]))]
     xt_trj_ilqr[0] = init_state
     
-    mode_trj_ilqr, xt_trj_ilqr, u_trj_ilqr, cost_ilqr, _, _ = hybrid_stochastic_feedback_rollout_discrete_bouncing(init_mode, 
-                                                                                                                   init_state, 
-                                                                                                                    n_inputs, 
-                                                                                                                    states, modes, 
-                                                                                                                    inputs, K_feedback, k_feedforward, 
-                                                                                                                    target_state, Q_T,
-                                                                                                                    start_time, dt, 
-                                                                                                                    epsilon, RndN_actual, dt_shrinkingrate, 
-                                                                                                                    reference_extension_helper,
-                                                                                                                    init_reset_args)
+    (mode_trj_ilqr, 
+     xt_trj_ilqr, 
+     u_trj_ilqr, 
+     cost_ilqr, _, _) = hybrid_stochastic_feedback_rollout_discrete_bouncing(init_mode, 
+                                                                            init_state, 
+                                                                            n_inputs, 
+                                                                            states, modes, 
+                                                                            inputs, K_feedback, k_feedforward, 
+                                                                            target_state, Q_T,
+                                                                            start_time, dt, 
+                                                                            epsilon, RndN_actual, dt_shrinkingrate, 
+                                                                            reference_extension_helper,
+                                                                            init_reset_args)
     
     show_hilqr_results = False
     if show_hilqr_results:
@@ -289,8 +246,8 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         # --------------------------- 
         # Coupling of the randomness
         # ---------------------------
-        GaussianNoise_i[0][int(n_samples/2):, 0] = -GaussianNoise_i[0][:int(n_samples/2), 0]
-        GaussianNoise_i[1][int(n_samples/2):, 0] = -GaussianNoise_i[1][:int(n_samples/2), 0]
+        # GaussianNoise_i[0][int(n_samples/2):, 0] = -GaussianNoise_i[0][:int(n_samples/2), 0]
+        # GaussianNoise_i[1][int(n_samples/2):, 0] = -GaussianNoise_i[1][:int(n_samples/2), 0]
         
         # ----------------------------------------------------------
         # Extract the extended references for the future horizon
@@ -365,7 +322,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         # -------------------------------
         # Visualize sampled trajectories
         # -------------------------------
-        show_samples = True
+        show_samples = False
         if show_samples:
             _, axes_sample = plt.subplots(2, 1)
             (ax1_sample, ax2_sample) = axes_sample.flatten()
@@ -379,20 +336,33 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
             xt_trj_ilqr = np.asarray(xt_trj_ilqr)
             states_ref = np.asarray(states)
                         
-            ax1_sample.plot(xt_trj_ilqr[:,0], xt_trj_ilqr[:,1],'r', alpha=0.9)
-            ax1_sample.plot(states_ref[:,0], states_ref[:,1],'k', alpha=0.9)
+            
             for i_s in range(20):
                 ax1_sample.plot(Ksamples_jax_i[i_s,:,0], Ksamples_jax_i[i_s,:,1],'b', alpha=0.2)
+                ax2_sample.plot(Ksamples_jax_i[i_s,:,0], 'b', alpha=0.2)
+                # ax2_sample.plot(Ksamples_ut[i_s,:,0], 'b', alpha=0.2)
+                
+            ax1_sample.plot(xt_trj_ilqr[:,0], xt_trj_ilqr[:,1],'r', alpha=0.9, label='h-iLQR stochastic control')
+            ax1_sample.plot(states_ref[:,0], states_ref[:,1],'k', alpha=0.9, label='Reference')
+            ax1_sample.plot(Ksamples_jax_i[i_s,:,0], Ksamples_jax_i[i_s,:,1],'b', alpha=0.2, label='Samples')
+            # ax2_sample.plot(Ksamples_ut[i_s,:,0], 'b', alpha=0.2, label='sampled stochastic control')
+            ax2_sample.plot(Ksamples_jax_i[i_s,:,0], 'b', alpha=0.2, label='sampled stochastic control')
             
             fig4, ax10 = plt.subplots()
             inputs_ref = np.asarray(inputs)
             u_trj_ilqr = np.asarray(u_trj_ilqr)
             
-            ax2_sample.plot(inputs_ref[0, :, 0], 'k')
-            ax2_sample.plot(u_trj_ilqr[0, :, 0], 'r')
+            # ax2_sample.plot(inputs_ref[0, :, 0], 'k', label='Ref control')
+            # ax2_sample.plot(u_trj_ilqr[0, :, 0], 'r', label='h-iLQR stochastic control')
+            
+            ax2_sample.plot(states_ref[:, 0], 'k', label='Ref control')
+            ax2_sample.plot(xt_trj_ilqr[:, 0], 'r', label='h-iLQR stochastic control')
+            
+            ax1_sample.legend()
+            ax2_sample.legend()
             
             plt.show()
-                      
+            
             ax1_sample.scatter(target_state[0], target_state[1], color='g', marker='x', s=50.0, linewidths=6, label='Target')
             ax1_sample.scatter(init_state[0], init_state[1], color='r', marker='x', s=50.0, linewidths=6, label='Start')
             ax1_sample.scatter(xt[0], xt[1], color='b', marker='x', s=30.0, linewidths=6, label='Current')
@@ -485,16 +455,18 @@ def main(epsilon, n_samples, dt):
     # === ilqr parameters ===
     # Initialize timings
     
-   # ---------------- bouncing example -----------------
+    n_exp = 1
+    
+    # ---------------- bouncing example -----------------
     # dt = 0.005
-    dt_shrink = 0.99
+    dt_shrink = 0.9
     start_time = 0
     end_time = 2.0
     time_span = np.arange(start_time, end_time, dt).flatten()
     nt = len(time_span)
 
-    init_state = np.array([5, 1.5])    # Define the initial state to be the origin with no velocity
-    target_state = np.array([2.5, 0])  # Swing pendulum upright
+    init_state = np.array([5, 1.5], dtype=np.float64)    # Define the initial state to be the origin with no velocity
+    target_state = np.array([2.5, 0], dtype=np.float64)  # Swing pendulum upright
     
     init_mode = 0
 
@@ -523,15 +495,13 @@ def main(epsilon, n_samples, dt):
     # ---------------------------- 
     # Define weighting matrices
     # ----------------------------
-    Q_k = [np.zeros((n_states[0],n_states[0])), np.zeros((n_states[1],n_states[1]))] # zero weight to penalties along a strajectory since we are finding a trajectory
-    R_k = [np.eye(n_inputs[0]), np.eye(n_inputs[1])]
+    Q_k = [np.zeros((n_states[0],n_states[0]), dtype=np.float64), np.zeros((n_states[1],n_states[1]), dtype=np.float64)] # zero weight to penalties along a strajectory since we are finding a trajectory
+    R_k = [np.eye(n_inputs[0], dtype=np.float64), np.eye(n_inputs[1], dtype=np.float64)]
 
     # ---------------------------- Set the terminal cost ----------------------------
     target_mode = 0
-    Q_T = 200*np.eye(n_states[0])
+    Q_T = 200*np.eye(n_states[0], dtype=np.float64)
     Q_T[0,0] = 2000.0
-
-    n_exp = 1
     
     init_reset_args = [np.array([0.0]) for _ in range(nt)]
     target_reset_args = [np.array([0.0]) for _ in range(nt)]
@@ -636,7 +606,7 @@ def main(epsilon, n_samples, dt):
 import argparse
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="The epsilon parameter.")
-    parser.add_argument("--epsilon", type=float, default=2.0, help="The process noise intensity value, epsilon.")
+    parser.add_argument("--epsilon", type=float, default=5.0, help="The process noise intensity value, epsilon.")
     parser.add_argument("--nsamples", type=int, default=1000, help="The number of samples used in path integral control.")
     parser.add_argument("--dt", type=int, default=0.0025, help="The time discretization.")
     

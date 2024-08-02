@@ -159,13 +159,6 @@ def reset_map_slip_21(t, x_event, current_mode, args_reset):
     return x_reset, 0, args_reset
 
 
-guard_slip_12.terminal=True
-guard_slip_12.direction=1
-
-guard_slip_21.terminal=True
-guard_slip_21.direction=1
-
-
 # --------------------------------------------------------------
 # Conversion between the two state space (from stance to flight)
 # --------------------------------------------------------------
@@ -217,4 +210,11 @@ gx_slip_12 = jax.jit(grad(lambda t, x: guard_slip_12(t, x), 1))
 gx_slip_21 = jax.jit(grad(lambda t, x: guard_slip_21(t, x), 1))
     
 gt_slip_21 = jax.jit(grad(lambda t, x: guard_slip_21(t, x), 0))
+
+
+guard_slip_12.terminal=True
+guard_slip_12.direction=-1
+
+guard_slip_21.terminal=True
+guard_slip_21.direction=1
   

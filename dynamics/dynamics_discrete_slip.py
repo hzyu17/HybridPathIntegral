@@ -77,7 +77,7 @@ def guard_true_func_slip(args):
         
         xt_shrinked = stochastic_integration_euler_SLIP(current_mode, xt, u, dt_shrink, eps, dW_new)
         
-        new_condition = not (guard_slip_21(t, xt_shrinked) < 0 or cnt_shrink == 10)
+        new_condition = (guard_slip_21(t, xt_shrinked) >= 0) and (cnt_shrink < 10)
         cnt_shrink += 1
         
         return xt_shrinked, dt_shrink, cnt_shrink, new_condition
@@ -125,31 +125,32 @@ hybrid_stochastic_feedback_rollout_discrete_slip = partial(hybrid_stochastic_fee
                                                             hybrid_stochastic_integration_func=hybrid_stochastic_integration_slip)    
     
     
-    # show_mismatch = False
-    # if show_mismatch:
-    #     # ======== Show mode mismatch ======== 
-    #     fig2, axes = plt.subplots(1,2, figsize=(9, 6))
-    #     ax5, ax6 = axes.flatten()
-    #     ax5.grid(True)
-    #     ax6.grid(True)
-        
-    #     ax5.plot(xt_trj[:,0], xt_trj[:,1],color='b',linewidth=1.5,label='Rollout')
-    #     ax5.plot(xt_ref[:,0], xt_ref[:,1],color='k',linewidth=2.5,label='Reference')
-    #     ax5.plot(xt_ref_actual[:,0], xt_ref_actual[:,1],color='r',linewidth=1.5,linestyle='--', label='Modified Reference')
-        
-    #     ax5.set_xlabel(r"z", fontsize=14)
-    #     ax5.set_ylabel(r"$\dot z$", fontsize=14)
-    #     ax5.legend(loc='upper right')
-    #     plt.tight_layout()
-        
-    #     ax6.plot(xt_trj[:,0], xt_trj[:,1],color='b',linewidth=1.5,label='Rollout')
-    #     ax6.plot(xt_ref[:,0], xt_ref[:,1],color='k',linewidth=2.5,label='Reference')
-    #     ax6.plot(xt_ref_actual[:,0], xt_ref_actual[:,1],color='r',linewidth=1.5,linestyle='--',label='Modified Reference')
-    #     ax6.set_xlabel(r"z", fontsize=14)
-    #     ax6.set_ylabel(r"$\dot z$", fontsize=14)
-    #     ax6.legend(loc='upper right')
-    #     plt.tight_layout()
-        
-    #     plt.show()
-    
-    
+def event_detect_slip_discrete(current_mode, x0, u, 
+                                t0, dt, dt_shrinkrate, 
+                                reset_args, 
+                                detection=True, backwards=False):
+
+    smooth_dynamics_slip = {0:dyn_flight_slip, 1:dyn_stance_slip}
+
+    Rxs_slip = {0:Rx_slip_12, 1:Rx_slip_21}
+    Rts_slip = {0:Rt_slip_12, 1:Rt_slip_21}
+
+    gxs_slip = {0:gx_slip_12, 1:gx_slip_21}
+    gts_slip = {0:gt_slip_12, 1:gt_slip_21}
+
+    guards_slip_slip = {0:guard_slip_12, 1: guard_slip_21}
+    reset_maps_slip_slip = {0:reset_map_slip_12, 1:reset_map_slip_21}
+                                        
+    return event_detect_onestep_discrete(x0, u, t0, 
+                                        dt, dt_shrinkrate, 
+                                        current_mode, 
+                                        smooth_dynamics_slip, 
+                                        guards_slip_slip,
+                                        gxs_slip,
+                                        gts_slip,
+                                        reset_maps_slip_slip,
+                                        Rxs_slip, Rts_slip,
+                                        reset_args, 
+                                        guard_condition_slip,
+                                        detection, backwards)
+

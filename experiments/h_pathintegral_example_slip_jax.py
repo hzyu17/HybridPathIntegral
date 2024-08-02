@@ -11,7 +11,8 @@ sys.path.append(root_dir)
 import jax.numpy as jnp
 
 # Import iLQR class and reference extension handler
-from hybrid_ilqr.h_ilqr import solve_ilqr, extract_extensions
+# from hybrid_ilqr.h_ilqr import solve_ilqr, extract_extensions
+from hybrid_ilqr.h_ilqr_discrete import solve_ilqr, extract_extensions
 # Importing path integral control
 from hybrid_pathintegral.hybrid_pathintegral import *
 from hybrid_pathintegral.sampling_rollout_jax_slip import *
@@ -71,32 +72,37 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
     
     time_span = jnp.arange(start_time, end_time, dt).flatten()
     
-    show_ilqr_result = True
-    if show_ilqr_result:
+    show_ilqr_reference = True
+    if show_ilqr_reference:
         print("Plotting h-iLQR reference state and input trajectories.")
         plot_slip(time_span, modes, states, inputs, init_state, target_state, nt, ref_reset_args)
+        plt.show()
     
-    
-    dt_shrinkingrate = 0.95
     RndN_actual = [np.random.randn(nt, n_inputs[0]), np.random.randn(nt, n_inputs[1])]
     
     # =================================================================
     #                     Hybrid ilqr for comparison
     # ================================================================= 
-    mode_trj_ilqr, trj_ilqr, u_trj_ilqr, cost_ilqr, _, reset_args_ilqr = hybrid_stochastic_feedback_rollout_discrete_slip(init_mode, init_state, 
+    # -------------- result collectors, hybrid ilqr proposal --------------
+    xt_trj_ilqr = [np.array([0.0]) for _ in range(nt)]
+    ut_trj_ilqr = [np.zeros((nt, n_inputs[0])), np.zeros((nt, n_inputs[1]))]
+    
+    xt_trj_ilqr[0] = init_state
+    mode_trj_ilqr, xt_trj_ilqr, ut_trj_ilqr, cost_ilqr, _, reset_args_ilqr = hybrid_stochastic_feedback_rollout_discrete_slip(init_mode, init_state, 
                                                                                                                             n_inputs, 
-                                                                                                                            states, modes, 
-                                                                                                                            inputs, K_feedback, k_feedforward, 
+                                                                                                                            states, modes, inputs, 
+                                                                                                                            K_feedback, k_feedforward, 
                                                                                                                             target_state, Q_T,
-                                                                                                                            start_time, end_time, 
-                                                                                                                            epsilon, RndN_actual, dt_shrinkingrate, 
+                                                                                                                            start_time, dt, 
+                                                                                                                            epsilon, RndN_actual, 
+                                                                                                                            dt_shrink, 
                                                                                                                             reference_extension_helper,
                                                                                                                             init_reset_args)
-    
-    show_hilqr_results = True
-    if show_hilqr_results:
+
+    show_hilqr_noise_results = True
+    if show_hilqr_noise_results:
         time_span = np.arange(start_time, end_time, dt).flatten()
-        plot_slip(time_span, mode_trj_ilqr, trj_ilqr, u_trj_ilqr, init_state, target_state, nt, reset_args_ilqr, step=1)
+        plot_slip(time_span, mode_trj_ilqr, xt_trj_ilqr, ut_trj_ilqr, init_state, target_state, nt, reset_args_ilqr, step=1)
         plt.show()
         
     # mode-dependent reference states. Assuming 2 modes
@@ -145,9 +151,6 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
     u_star_pi_jax = [np.zeros((nt, n_inputs[0])), np.zeros((nt, n_inputs[1]))]
     allPathCosts_jax = np.zeros((nt-1, n_samples))
     
-    # -------------- result collectors, hybrid ilqr proposal --------------
-    trj_ilqr = [np.array([0.0]) for _ in range(nt)]
-    u_trj_ilqr = [np.zeros((nt, n_inputs[0])), np.zeros((nt, n_inputs[1]))]
     
     # -------------- initialize the control loop -------------- 
     init_state_pad = np.zeros(5)
@@ -161,7 +164,6 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
     
     modes_pi_jax[0] = init_mode
     trj_pi_jax[0] = x0_jax
-    trj_ilqr[0] = init_state
     
     # current_ref_modechange_ilqr = (1, 1)
     cnt_mismatch = 0
@@ -306,7 +308,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
                                                                     K_feedback_0_i, k_feedforward_0_i, 
                                                                     K_feedback_1_i, k_feedforward_1_i, 
                                                                     target_state, Q_T, 
-                                                                    start_time_i, dt, dt_shrinkingrate, 
+                                                                    start_time_i, dt, dt_shrink, 
                                                                     epsilon, 
                                                                     GaussianNoise_i[0], GaussianNoise_i[1], 
                                                                     v_mode_change_ref_i, 
@@ -314,7 +316,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
                                                                     v_Kfb_ref_ext_fwd_i, v_kff_ref_ext_fwd_i, 
                                                                     v_Kfb_ref_ext_bwd_i, v_kff_ref_ext_bwd_i, 
                                                                     init_reset_args_i)
-            
+        
         # ----------------------------------- 
         
         # save the samples at t=0
@@ -374,12 +376,12 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         show_samples = True
         if show_samples:
             time_span = np.arange(start_time, end_time, dt).flatten()
-            n_lines = 20
-            print(f"Plotting {n_lines} h-PathIntegral trajectory samples.")
+            n_samples_plotted = 10
+            print(f"Plotting {n_samples_plotted} h-PathIntegral trajectory samples.")
             
             fig, axes = plt.subplots(2, 7, figsize=(15, 10))
             
-            for i_s in range(n_lines):
+            for i_s in range(n_samples_plotted):
                 sample_modes_i = Kmodes_jax_i[i_s]
                 sample_states_i = Ksamples_jax_i[i_s]
                 sample_inputs_i = Ksamples_ut[i_s]
@@ -419,14 +421,21 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
                 fig, axes = plot_slip(time_span_nt, sample_modes_i, sample_states_i, 
                                       sample_inputs_i, init_state, target_state, 
                                       nt_i, sample_reset_args_i, fig, axes, 'b', alpha=0.2, step=1)
-                
-            time_span_nt = np.arange(nt_i)
-            fig, axes = plot_slip(time_span_nt, sample_modes_i, sample_xref_i, 
-                                    inputs_i, init_state, target_state, 
-                                    nt_i, sample_reset_args_i, fig, axes, 'k', step=1)
             
-            plt.tight_layout()
-            plt.show()
+                # hilqr 
+                fig, axes = plot_slip(time_span_nt, mode_trj_ilqr, xt_trj_ilqr, 
+                                        ut_trj_ilqr, init_state, target_state, 
+                                        nt_i, reset_args_ilqr, fig, axes, 'r', step=1)
+                
+                time_span_nt = np.arange(nt_i)
+                fig, axes = plot_slip(time_span_nt, modes, states, 
+                                        inputs, init_state, target_state, 
+                                        nt_i, sample_reset_args_i, fig, axes, 'k', step=1)
+                
+                plt.tight_layout()
+                plt.show()
+                
+                aa = 0
             
             # # --------------------------------------------------
             # # Plot the sample corresponding to the highest cost
@@ -491,7 +500,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
     # -------------
     dWs_zeros = [np.zeros((nt, n_inputs[0])), np.zeros((nt, n_inputs[1]))]
     cost_pi = compute_cost(modes_pi_jax, trj_pi_jax, u_star_pi_jax, dWs_zeros, target_state, states, Q_k, R_k, Q_T, epsilon,dt)
-    cost_ilqr = compute_cost(mode_trj_ilqr, trj_ilqr, u_trj_ilqr, dWs_zeros, target_state, states, Q_k, R_k, Q_T, epsilon,dt)
+    cost_ilqr = compute_cost(mode_trj_ilqr, xt_trj_ilqr, ut_trj_ilqr, dWs_zeros, target_state, states, Q_k, R_k, Q_T, epsilon,dt)
     
     print("cost_pi:", cost_pi)
     print("cost_ilqr:", cost_ilqr)
@@ -500,7 +509,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
     # Record data
     # -------------
     data_i = DataOneSample(modes_pi_jax, trj_pi_jax, u_star_pi_jax, 
-                           mode_trj_ilqr, trj_ilqr, u_trj_ilqr, 
+                           mode_trj_ilqr, xt_trj_ilqr, ut_trj_ilqr, 
                            allPathCosts_jax, cost_pi, cost_ilqr, Ksamples_jax_saving)
     
     gc.collect()
@@ -599,11 +608,12 @@ def main(epsilon, n_samples, dt):
     
     exp_params.update_params(n_modes, init_mode, target_mode, n_states, 
                              init_state, target_state, 
-                             start_time, end_time, dt, 
+                             start_time, end_time, dt, dt_shrink,
                              initial_guess, 
                              epsilon, n_exp, n_samples, 
                              Q_k, R_k, Q_T, smooth_dynamics, 
-                             event_detect_slip, plot_slip, convert_state_21_slip, 
+                             event_detect_slip_discrete, 
+                             plot_slip, convert_state_21_slip, 
                              init_reset_args, target_reset_args)
     exp_data = ExpData(exp_params)
     
@@ -687,9 +697,9 @@ def main(epsilon, n_samples, dt):
 import argparse
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="The epsilon parameter.")
-    parser.add_argument("--epsilon", type=float, default=0.05, help="The process noise intensity value, epsilon.")
+    parser.add_argument("--epsilon", type=float, default=0.01, help="The process noise intensity value, epsilon.")
     parser.add_argument("--nsamples", type=int, default=500, help="The number of samples used in path integral control.")
-    parser.add_argument("--dt", type=int, default=0.001, help="The time discretization.")
+    parser.add_argument("--dt", type=int, default=0.0002, help="The time discretization.")
     
     args = parser.parse_args()
 

@@ -4,73 +4,6 @@ import numpy as np
 from dynamics.dynamics import extract_extensions
 from dynamics.saltation_matrix import saltation_matrix
 
-def event_detect_onestep_discrete(xt, ut, 
-                                  t0, dt, dt_shrink, current_mode, 
-                                    smooth_dynamics, 
-                                    guards,
-                                    gxs, gts,
-                                    reset_maps,
-                                    Rxs, Rts,
-                                    reset_args, 
-                                    guard_condition_func=None,
-                                    guard_condition_true_fun=None,
-                                    detection=True, backwards=False):
-    
-    current_dyn = smooth_dynamics[current_mode]
-    
-    current_guard = guards[current_mode]
-    current_resetmap = reset_maps[current_mode]
-    
-    current_Rx = Rxs[current_mode]
-    current_Rt = Rts[current_mode]
-    
-    current_gx = gxs[current_mode]
-    current_gt = gts[current_mode]
-    
-    current_guard = guards[current_mode]
-    current_resetmap = reset_maps[current_mode]
-    
-    xt_next = None
-    x_event = None
-    t_event = None
-    x_reset = None
-    saltation = None
-    next_mode = current_mode
-    reset_byproduct = (None, )
-    
-    # smooth dynamics
-    if backwards:
-        xt_next = xt - current_dyn(t0, xt, ut)*dt
-    else:
-        xt_next = xt + current_dyn(t0, xt, ut)*dt
-    
-    # detection
-    if detection:
-        args_guard = (xt, current_mode, ut, t0, xt_next, dt, dt_shrink, 
-                      current_dyn, current_guard, current_resetmap, reset_args)
-        guard_hit = guard_condition_func(xt, xt_next, current_mode)
-        
-        if guard_hit:
-            t_event, x_event, x_reset, next_mode, reset_byproduct = guard_condition_true_fun(args_guard)
-            
-            # ---------- Compute saltation matrix ---------- 
-            R_x = current_Rx(t_event, x_event, current_mode, reset_args)[0]
-            R_t = current_Rt(t_event, x_event, current_mode, reset_args)[0]
-            
-            g_x = current_gx(t_event, x_event)
-            g_t = current_gt(t_event, x_event)
-            
-            next_dyn = smooth_dynamics[next_mode]
-            
-            F_1 = current_dyn(t_event, x_event)
-            F_2 = next_dyn(t_event, x_reset) # Important, the F2 is evaluated at the reseted state!
-            saltation = saltation_matrix(F_1, F_2, R_t, R_x, g_t, g_x)        
-            xt_next = x_reset
-        
-    mode_mapping = np.array([current_mode, next_mode])
-    
-    return xt_next, saltation, mode_mapping, t_event, x_event, x_reset, reset_byproduct
-
 
 # @jax.jit
 def hybrid_stochastic_integration_euler_JAX(xt, current_mode, ut, 
@@ -120,9 +53,114 @@ def hybrid_stochastic_integration_euler(xt, current_mode, ut,
 
 
 
+def guard_true_func_deterministic(args):
+    (xt_current, current_mode, u_current, t, xt_next, dt_int, dt_shrinkrate, smooth_dyn, guard, resetmap, reset_arg) = args
+    
+    def while_loop_body(xt, u, t, dt_int, dt_shrink, cnt_shrink):
+        # Too far from the guard, shrink the step size
+        dt_shrinked = dt_int * dt_shrink
+        
+        xt_shrinked = xt + smooth_dyn(t, xt, u) * dt_shrinked
+        
+        new_condition = True
+        if (guard.direction == 1):
+            new_condition = ((guard(0.0,xt_shrinked)>0) and (cnt_shrink < 20))
+        elif (guard.direction == -1):
+            new_condition = ((guard(0.0,xt_shrinked)<=0) and (cnt_shrink < 20))
+            
+        cnt_shrink += 1
+        
+        return xt_shrinked, dt_shrinked, cnt_shrink, new_condition
+    
+    cnt_shrink = 0
+    can_continue = True
+    xt_shrinked = xt_next
+    
+    # Implementing the loop with Python's while
+    while can_continue:
+        xt_shrinked, dt_int, cnt_shrink, can_continue = while_loop_body(
+            xt_current, u_current, t, dt_int, dt_shrinkrate, cnt_shrink
+        )
+    
+    # Execute the reset map after the loop
+    t_event =  t + dt_int
+    x_reset, next_mode, new_reset_arg = resetmap(t, xt_shrinked, current_mode, reset_arg)
+    
+    return t_event, xt_shrinked, x_reset, next_mode, new_reset_arg
+
+
+
+def event_detect_onestep_discrete(xt, ut, 
+                                  t0, dt, dt_shrink, current_mode, 
+                                    smooth_dynamics, 
+                                    guards,
+                                    gxs, gts,
+                                    reset_maps,
+                                    Rxs, Rts,
+                                    reset_args, 
+                                    guard_condition_func=None,
+                                    detection=True, backwards=False):
+    
+    current_dyn = smooth_dynamics[current_mode]
+    
+    current_guard = guards[current_mode]
+    current_resetmap = reset_maps[current_mode]
+    
+    current_Rx = Rxs[current_mode]
+    current_Rt = Rts[current_mode]
+    
+    current_gx = gxs[current_mode]
+    current_gt = gts[current_mode]
+    
+    current_guard = guards[current_mode]
+    current_resetmap = reset_maps[current_mode]
+    
+    xt_next = None
+    x_event = None
+    t_event = None
+    x_reset = None
+    saltation = None
+    next_mode = current_mode
+    reset_byproduct = (None, )
+        
+    # smooth dynamics
+    if backwards:
+        xt_next = xt - current_dyn(t0, xt, ut)*dt
+    else:
+        xt_next = xt + current_dyn(t0, xt, ut)*dt
+    
+    # detection
+    if detection:
+        
+        guard_hit = guard_condition_func(xt, xt_next, current_mode)
+        
+        if guard_hit:
+            args_guard = (xt, current_mode, ut, t0, xt_next, dt, dt_shrink, 
+                      current_dyn, current_guard, current_resetmap, reset_args)
+            t_event, x_event, x_reset, next_mode, reset_byproduct = guard_true_func_deterministic(args_guard)
+            
+            # ---------- Compute saltation matrix ---------- 
+            R_x = current_Rx(t_event, x_event, current_mode, reset_args)[0]
+            R_t = current_Rt(t_event, x_event, current_mode, reset_args)[0]
+            
+            g_x = current_gx(t_event, x_event)
+            g_t = current_gt(t_event, x_event)
+            
+            next_dyn = smooth_dynamics[next_mode]
+            
+            F_1 = current_dyn(t_event, x_event)
+            F_2 = next_dyn(t_event, x_reset) # Important, the F2 is evaluated at the reseted state!
+            saltation = saltation_matrix(F_1, F_2, R_t, R_x, g_t, g_x)        
+            xt_next = x_reset
+        
+    mode_mapping = np.array([current_mode, next_mode])
+    
+    return xt_next, saltation, mode_mapping, t_event, x_event, x_reset, reset_byproduct
+
+
 def hybrid_stochastic_feedback_rollout_discrete(init_mode, x0, n_inputs, xt_ref, ref_modes, 
                                                 ut, Kt, kt, target_state, Q_T, t0, dt, 
-                                                epsilon, GaussianNoise, dt_shrinkingrate, 
+                                                epsilon, GaussianNoise, dt_shrinkrate, 
                                                 reference_extension_helper, init_reset_args,
                                                 cond_mode_mismatch_func=None,
                                                 reaction_mode_mismatch_func=None,
@@ -152,25 +190,25 @@ def hybrid_stochastic_feedback_rollout_discrete(init_mode, x0, n_inputs, xt_ref,
     
     # Hybrid event related 
     cnt_event = 0
-    reset_args = init_reset_args
+    reset_args = [np.array([0.0]) for _ in range(n_timestamps)]
     event_args = [init_reset_args[0]]
     
     # -------------- roullout function --------------
     for ii_t in range(n_timestamps-1):   
         
-        current_mode = mode_trj[ii_t]
         xt = xt_trj[ii_t]
-        
+        current_mode = mode_trj[ii_t]
         ref_current_mode = ref_modes[ii_t]
-        reset_args[ii_t] = event_args[cnt_event]
         
-        # ======== Handle mode mismatch ========
         K_fb_i = Kt[ii_t]
         k_ff_i = kt[ii_t]
         xref_i = xt_ref[ii_t] 
         
+        reset_args[ii_t] = event_args[cnt_event]
+        
+        # ======== Handle mode mismatch ========
         if cond_mode_mismatch_func(current_mode, ref_current_mode):
-            print("mode mismatch")
+            print("mode mismatch at time: ", ii_t)
             xref_i, K_fb_i, k_ff_i, cnt_mismatch = reaction_mode_mismatch_func(ii_t, current_mode, ref_current_mode, 
                                                                                 v_ref_ext_fwd[0], v_ref_ext_bwd[0], 
                                                                                 v_event_modechange[0],
@@ -179,7 +217,7 @@ def hybrid_stochastic_feedback_rollout_discrete(init_mode, x0, n_inputs, xt_ref,
                                                                                 cnt_mismatch)
         
         xt_ref_actual[ii_t] = xref_i
-        delta_xt_i = xt_trj[ii_t] - xref_i
+        delta_xt_i = xt - xref_i
         current_u = ut[current_mode][ii_t] + K_fb_i@delta_xt_i + k_ff_i
         ut_cl_trj[current_mode][ii_t] = current_u
         
@@ -189,7 +227,7 @@ def hybrid_stochastic_feedback_rollout_discrete(init_mode, x0, n_inputs, xt_ref,
         # ============================== One step integration ==============================        
         xt_next, next_mode, _, new_reset_arg = hybrid_stochastic_integration_func(xt, current_mode, current_u, 
                                                                                     noise_i, epsilon, 
-                                                                                    dt, dt_shrinkingrate, t0, reset_args[ii_t])
+                                                                                    dt, dt_shrinkrate, t0, reset_args[ii_t])
         
         reset_args[ii_t+1] = new_reset_arg
         
