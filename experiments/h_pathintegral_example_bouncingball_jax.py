@@ -12,7 +12,8 @@ import time
 import jax.numpy as jnp
 
 # Import iLQR class and reference extension handler
-from hybrid_ilqr.h_ilqr import solve_ilqr, extract_extensions
+# from hybrid_ilqr.h_ilqr import solve_ilqr, extract_extensions
+from hybrid_ilqr.h_ilqr_discrete import solve_ilqr, extract_extensions
 # Importing path integral control
 from hybrid_pathintegral.hybrid_pathintegral import *
 from hybrid_pathintegral.sampling_rollout_jax_bouncing import *
@@ -24,6 +25,7 @@ from experiments.exp_params import *
 # Import bouncing ball dynamics
 from hybrid_pathintegral.sampling_rollout_jax_bouncing import sample_bouncing_jax
 from dynamics.dynamics_bouncing import *
+from dynamics.dynamics_discrete_bouncing import *
 
 # Set environment variable to control the GPU memory fraction used by JAX
 os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "0.9"
@@ -39,7 +41,7 @@ def compute_cost(modes,states,inputs,randN,target_state,trj_ref, Qk, Rk, QT, eps
     
     # Initialize cost
     total_cost = 0.0
-    # current_cost = 0.0
+
     for ii in range(n_timestamps-1):
         mode_i = modes[ii]
         current_u = inputs[mode_i][ii]
@@ -57,6 +59,28 @@ def compute_cost(modes,states,inputs,randN,target_state,trj_ref, Qk, Rk, QT, eps
 
     return total_cost
 
+
+def compute_cost_nonoise(modes,states,inputs,target_state,trj_ref, Qk, Rk, QT, dt):
+    
+    n_timestamps = len(states)
+    
+    # Initialize cost
+    total_cost = 0.0
+
+    for ii in range(n_timestamps-1):
+        mode_i = modes[ii]
+        current_u = inputs[mode_i][ii]
+        
+        total_cost += current_u.T@Rk@current_u/2.0*dt 
+        
+    # Compute terminal cost
+    terminal_difference = (target_state-states[-1]).flatten()
+    terminal_cost = terminal_difference.T@QT@terminal_difference/2.0
+
+    total_cost = total_cost+terminal_cost
+
+    return total_cost
+
 def process_compute_costs(sample_i, inputs, dWs, target_state, ref_states, index, Q_k, R_k, Q_T, epsilon, dt):
     costs_i = compute_cost(sample_i, inputs, dWs, target_state, ref_states, Q_k, R_k, Q_T, epsilon, dt)
     return costs_i, index
@@ -64,13 +88,42 @@ def process_compute_costs(sample_i, inputs, dWs, target_state, ref_states, index
 
 def run_experiment(i_exp, nt, n_samples, n_states, n_inputs, 
                     init_mode, init_state, target_state, hybrid_ilqr_result, 
-                    start_time, end_time, dt, dt_shrink, 
+                    start_time, end_time, dt, dt_shrinkingrate, 
                     Q_k, Q_T, R_k, epsilon, init_reset_args):
     
     (modes,states,inputs,
      k_feedforward,K_feedback,
      current_cost,states_iter,
      ref_modechanges,reference_extension_helper, ref_reset_args) = hybrid_ilqr_result
+    
+    RndN_actual = [np.random.randn(nt, 1), np.random.randn(nt, 1)]
+    
+    # =================================================================
+    #                     Hybrid ilqr for comparison
+    # ================================================================= 
+    print("=================== Hybrid ilqr under uncertainties for comparison ===================")
+    # -------------- result collectors, hybrid ilqr proposal --------------
+    xt_trj_ilqr = [np.array([0.0]) for _ in range(nt)]
+    u_trj_ilqr = [np.zeros((nt, n_inputs[0])), np.zeros((nt, n_inputs[1]))]
+    xt_trj_ilqr[0] = init_state
+    
+    mode_trj_ilqr, xt_trj_ilqr, u_trj_ilqr, cost_ilqr, _, _ = hybrid_stochastic_feedback_rollout_discrete_bouncing(init_mode, 
+                                                                                                                   init_state, 
+                                                                                                                    n_inputs, 
+                                                                                                                    states, modes, 
+                                                                                                                    inputs, K_feedback, k_feedforward, 
+                                                                                                                    target_state, Q_T,
+                                                                                                                    start_time, dt, 
+                                                                                                                    epsilon, RndN_actual, dt_shrinkingrate, 
+                                                                                                                    reference_extension_helper,
+                                                                                                                    init_reset_args)
+    
+    show_hilqr_results = False
+    if show_hilqr_results:
+        time_span = np.arange(start_time, end_time, dt).flatten()
+        plot_bouncingball(time_span, mode_trj_ilqr, xt_trj_ilqr, u_trj_ilqr, init_state, target_state, nt, trj_labels='iLQG-stochastic')
+        plt.show()
+        
     
     # mode-dependent reference states. Assuming 2 modes
     # States with padded dimensions
@@ -117,10 +170,6 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
     u_star_pi_jax = [np.zeros((nt, n_inputs[0])), np.zeros((nt, n_inputs[1]))]
     allPathCosts_jax = np.zeros((nt-1, n_samples))
     
-    # -------------- result collectors, hybrid ilqr proposal --------------
-    trj_ilqr = [np.array([0.0]) for _ in range(nt)]
-    u_trj_ilqr = [np.zeros((nt, n_inputs[0])), np.zeros((nt, n_inputs[1]))]
-    
     # -------------- initialize the control loop -------------- 
     x0_jax = jnp.asarray(init_state)
     xt = x0_jax
@@ -130,23 +179,19 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
     next_mode_actual = current_mode_actual
     # current_modechange = np.array([current_mode_actual, next_mode_actual])
     
-    dt_shrinkingrate = 0.9
-    
     modes_pi_jax[0] = init_mode
     trj_pi_jax[0] = x0_jax
-    trj_ilqr[0] = init_state
     
     # current_ref_modechange_ilqr = (0, 0)
     cnt_mismatch = 0
     
     # Assuming 2-mode system
-    RndN_actual = [np.random.randn(nt, 1), np.random.randn(nt, 1)]
     reset_args_actual = ref_reset_args
     event_args_actual = [ref_reset_args[0]]
     cnt_event_actual = 0
     
     # ---------------------------------
-    # Extract the extended references 
+    #  Extract the extended references 
     # ---------------------------------
     (v_mode_change_ref, v_ref_ext_bwd, v_ref_ext_fwd, 
     v_Kfb_ref_ext_bwd, v_Kfb_ref_ext_fwd, 
@@ -182,33 +227,13 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         fig_ext.tight_layout()
     
         plt.show()
-        
-        
-    # =================================================================
-    #                   Hybrid ilqr for comparison
-    # =================================================================            
-    mode_trj_ilqr, trj_ilqr, u_trj_ilqr, cost_ilqr, _ = stochastic_feedback_rollout_bouncing(init_mode, init_state, n_inputs,
-                                                                                            states, ref_modechanges, 
-                                                                                            inputs, K_feedback, k_feedforward, 
-                                                                                            target_state, Q_T,
-                                                                                            start_time, end_time, epsilon, 
-                                                                                            RndN_actual, dt_shrinkingrate, 
-                                                                                            reference_extension_helper,
-                                                                                            init_reset_args)
-    
-    show_hilqr_results = True
-    if show_hilqr_results:
-        print("Plotting h-iLQR controller under uncertainties for comparison.")
-        time_span = np.arange(start_time, end_time, dt).flatten()
-        plot_bouncingball(time_span, mode_trj_ilqr, trj_ilqr, u_trj_ilqr, init_state, target_state, nt, trj_labels='iLQG-stochastic')
-        plt.show()
-
+                
         
     n_modes = 2
     Ksamples_jax_saving = np.zeros((n_samples, nt, n_modes))
     
     # ======================================================
-    # Main loop for the hybrid path integral control
+    #     Main loop for the hybrid path integral control
     # ======================================================
     for i_t in range(nt-1):
         
@@ -218,14 +243,13 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         nt_i = nt - i_t
         
         # ------------------------------------------------------------------------------------
-        # Calculate the slice of the variables for the current future horizon 
+        #         Calculate the slice of the variables for the current future horizon 
         # ------------------------------------------------------------------------------------
         
         # actual modes and states
         current_mode_actual = modes_pi_jax[i_t]
         xt = trj_pi_jax[i_t]
         
-        # references
         # references
         states_0_i = states_0[i_t:, :]
         states_1_i = states_1[i_t:, :]
@@ -267,7 +291,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         # ---------------------------
         GaussianNoise_i[0][int(n_samples/2):, 0] = -GaussianNoise_i[0][:int(n_samples/2), 0]
         GaussianNoise_i[1][int(n_samples/2):, 0] = -GaussianNoise_i[1][:int(n_samples/2), 0]
-                
+        
         # ----------------------------------------------------------
         # Extract the extended references for the future horizon
         # ----------------------------------------------------------
@@ -318,12 +342,14 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         
         if cond_mode_mismatch_bouncing(current_mode_actual, ref_current_mode):
             print("--------------- mode mismatch happened ---------------")
-            xref_i, K_fb, k_ff, cnt_mismatch = reaction_mode_mismatch(cond_early_arrival_bouncing, i_t, 
+            xref_i, K_fb, k_ff, cnt_mismatch = reaction_mode_mismatch(i_t, 
                                                                       current_mode_actual, ref_current_mode, 
                                                                       v_ref_ext_fwd[0], v_ref_ext_bwd[0], 
                                                                       v_mode_change_ref[0],
                                                                       v_Kfb_ref_ext_fwd[0], v_kff_ref_ext_fwd[0], 
-                                                                      v_Kfb_ref_ext_bwd[0], v_kff_ref_ext_bwd[0], cnt_mismatch)
+                                                                      v_Kfb_ref_ext_bwd[0], v_kff_ref_ext_bwd[0], 
+                                                                      cnt_mismatch,
+                                                                      cond_early_arrival=cond_early_arrival_bouncing)
         
         u0_proposal = ubar_i + K_fb@(xt - xref_i) + k_ff
         
@@ -348,11 +374,25 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
             ax2_sample.grid(True)
             
             # ----------------------
-            # Plot all the samples 
+            #  Plot all the samples 
             # ----------------------
-            for i_s in range(n_samples):
+            xt_trj_ilqr = np.asarray(xt_trj_ilqr)
+            states_ref = np.asarray(states)
+                        
+            ax1_sample.plot(xt_trj_ilqr[:,0], xt_trj_ilqr[:,1],'r', alpha=0.9)
+            ax1_sample.plot(states_ref[:,0], states_ref[:,1],'k', alpha=0.9)
+            for i_s in range(20):
                 ax1_sample.plot(Ksamples_jax_i[i_s,:,0], Ksamples_jax_i[i_s,:,1],'b', alpha=0.2)
             
+            fig4, ax10 = plt.subplots()
+            inputs_ref = np.asarray(inputs)
+            u_trj_ilqr = np.asarray(u_trj_ilqr)
+            
+            ax2_sample.plot(inputs_ref[0, :, 0], 'k')
+            ax2_sample.plot(u_trj_ilqr[0, :, 0], 'r')
+            
+            plt.show()
+                      
             ax1_sample.scatter(target_state[0], target_state[1], color='g', marker='x', s=50.0, linewidths=6, label='Target')
             ax1_sample.scatter(init_state[0], init_state[1], color='r', marker='x', s=50.0, linewidths=6, label='Start')
             ax1_sample.scatter(xt[0], xt[1], color='b', marker='x', s=30.0, linewidths=6, label='Current')
@@ -395,10 +435,10 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         reset_args_actual[i_t] = event_args_actual[cnt_event_actual]
         actual_noise_i = RndN_actual[current_mode_actual][i_t]
         
-        xt_next, next_mode_actual, _, new_reset_arg = hybrid_integration_bouncing(xt, current_mode_actual,
-                                                                                    u0_star_jax, actual_noise_i, 
-                                                                                    epsilon, dt, dt_shrink, 
-                                                                                    start_time_i, reset_args_actual[i_t])
+        xt_next, next_mode_actual, _, new_reset_arg = hybrid_stochastic_integration_bouncing(xt, current_mode_actual,
+                                                                                                u0_star_jax, actual_noise_i, 
+                                                                                                epsilon, dt, dt_shrinkingrate, 
+                                                                                                start_time_i, reset_args_actual[i_t])
 
         next_mode_actual = int(next_mode_actual)
         # current_modechange = np.array([current_mode_actual, next_mode_actual])
@@ -415,9 +455,12 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
     # ---------------
     #  Compare cost
     # ---------------
-    dWs_zeros = [np.zeros((nt, n_inputs[0])), np.zeros((nt, n_inputs[1]))]
-    cost_pi = compute_cost(modes_pi_jax, trj_pi_jax, u_star_pi_jax, dWs_zeros, target_state, states, Q_k, R_k, Q_T, epsilon,dt)
-    cost_ilqr = compute_cost(mode_trj_ilqr, trj_ilqr, u_trj_ilqr, dWs_zeros, target_state, states, Q_k, R_k, Q_T, epsilon,dt)
+    # dWs_zeros = [np.zeros((nt, n_inputs[0])), np.zeros((nt, n_inputs[1]))]
+    # cost_pi = compute_cost(modes_pi_jax, trj_pi_jax, u_star_pi_jax, dWs_zeros, target_state, states, Q_k, R_k, Q_T, epsilon,dt)
+    # cost_ilqr = compute_cost(mode_trj_ilqr, xt_trj_ilqr, u_trj_ilqr, dWs_zeros, target_state, states, Q_k, R_k, Q_T, epsilon,dt)
+    
+    cost_pi = compute_cost_nonoise(modes_pi_jax, trj_pi_jax, u_star_pi_jax, target_state, states, Q_k, R_k, Q_T,dt)
+    cost_ilqr = compute_cost_nonoise(mode_trj_ilqr, xt_trj_ilqr, u_trj_ilqr, target_state, states, Q_k, R_k, Q_T,dt)
     
     print("cost_pi:", cost_pi)
     print("cost_ilqr:", cost_ilqr)
@@ -426,9 +469,9 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
     # Record data
     # -------------
     data_i = DataOneSample(modes_pi_jax, trj_pi_jax, u_star_pi_jax, 
-                           mode_trj_ilqr, trj_ilqr, u_trj_ilqr, 
+                           mode_trj_ilqr, xt_trj_ilqr, u_trj_ilqr, 
                            allPathCosts_jax, cost_pi, cost_ilqr, Ksamples_jax_saving)
-    
+
     gc.collect()
 
 
@@ -444,7 +487,7 @@ def main(epsilon, n_samples, dt):
     
    # ---------------- bouncing example -----------------
     # dt = 0.005
-    dt_shrink = 0.7
+    dt_shrink = 0.99
     start_time = 0
     end_time = 2.0
     time_span = np.arange(start_time, end_time, dt).flatten()
@@ -503,13 +546,15 @@ def main(epsilon, n_samples, dt):
     flow_dynamics = [symbolic_dynamics_bouncing, symbolic_dynamics_bouncing]
     
     exp_params.update_params(n_modes, init_mode, target_mode, n_states, init_state, target_state, 
-                             start_time, end_time, dt, initial_guess, 
+                             start_time, end_time, dt, dt_shrink, initial_guess, 
                              epsilon, n_exp, n_samples, 
                              Q_k, R_k, Q_T, flow_dynamics, 
-                             event_detect_bouncing, plot_bouncingball, convert_state_21_bouncing, 
+                             event_detect_bouncing_discrete, 
+                             plot_bouncingball, 
+                             convert_state_21_bouncing, 
                              init_reset_args, target_reset_args)
     exp_data = ExpData(exp_params)
-    
+        
     print("===================== Solving for h-iLQG proposal controller =====================")
     hybrid_ilqr_result = solve_ilqr(exp_params, detect=True, verbose=False)
     
@@ -569,7 +614,7 @@ def main(epsilon, n_samples, dt):
     save_path = f"{save_root}/data/bouncing/{filename}"
     exp_data.dump(save_path)
     
-    print(f" =================== Saved data to: =================== \n {{save_path}}")
+    print(" =================== Saved data to: =================== \n", save_path)
     
     
     # --------------------------------------------
@@ -591,9 +636,9 @@ def main(epsilon, n_samples, dt):
 import argparse
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="The epsilon parameter.")
-    parser.add_argument("--epsilon", type=float, default=0.2, help="The process noise intensity value, epsilon.")
+    parser.add_argument("--epsilon", type=float, default=2.0, help="The process noise intensity value, epsilon.")
     parser.add_argument("--nsamples", type=int, default=1000, help="The number of samples used in path integral control.")
-    parser.add_argument("--dt", type=int, default=0.005, help="The time discretization.")
+    parser.add_argument("--dt", type=int, default=0.0025, help="The time discretization.")
     
     args = parser.parse_args()
 

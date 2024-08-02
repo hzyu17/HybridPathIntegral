@@ -11,7 +11,7 @@ root_dir = os.path.abspath(os.path.join(current_dir, '..'))
 
 sys.path.append(root_dir)
 
-from hybrid_ilqr.saltation_matrix import *
+from dynamics.saltation_matrix import *
 import numpy as np
 import jax.numpy as jnp
 
@@ -157,6 +157,13 @@ def reset_map_slip_21(t, x_event, current_mode, args_reset):
     x_reset = jnp.array([px_reset, vx_reset, pz_reset, vz_reset, theta_reset])
     
     return x_reset, 0, args_reset
+
+
+guard_slip_12.terminal=True
+guard_slip_12.direction=1
+
+guard_slip_21.terminal=True
+guard_slip_21.direction=1
 
 
 # --------------------------------------------------------------

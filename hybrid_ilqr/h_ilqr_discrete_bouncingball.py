@@ -10,9 +10,9 @@ sys.path.append(root_dir)
 
 
 # Import iLQR class
-from hybrid_ilqr.h_ilqr import solve_ilqr
+from hybrid_ilqr.h_ilqr_discrete import solve_ilqr
 # Import bouncing ball dynamics
-from dynamics.dynamics_bouncing import *
+from dynamics.dynamics_discrete_bouncing import *
 # Import experiment parameter class
 from experiments.exp_params import *
 
@@ -73,7 +73,7 @@ if __name__ == '__main__':
     target_reset_args = [np.array([0.0]) for _ in range(nt)]
     
     # ====================================
-    #   Solve for hybrid ilqr proposal
+    # solve for hybrid ilqr proposal
     # ====================================
     exp_params = ExpParams()
     
@@ -85,7 +85,7 @@ if __name__ == '__main__':
                              start_time, end_time, dt, dt_shrink, initial_guess, 
                              epsilon, n_exp, n_samples, 
                              Q_k, R_k, Q_T, flow_dynamics, 
-                             event_detect_bouncing, 
+                             event_detect_bouncing_discrete, 
                              plot_bouncingball, 
                              convert_state_21_bouncing, 
                              init_reset_args, target_reset_args)
@@ -97,10 +97,11 @@ if __name__ == '__main__':
      k_feedforward,K_feedback,
      current_cost,states_iter,
      ref_modechanges,reference_extension_helper, ref_reset_args) = hybrid_ilqr_result
-    
+        
     exp_data.add_nominal_data(hybrid_ilqr_result)
 
 
     show_results = True
     if show_results:
         plot_bouncingball(time_span, modes, states, inputs, init_state, target_state, nt, color='k')
+        plt.show()

@@ -124,7 +124,7 @@ def cost_i(xt, current_mode, cur_St,
            xref, uref, Kfb, kff, 
            randN, eps, dt, dt_shrink, 
            t0, reset_arg, 
-           hybrid_integration_func):
+           hybrid_stochastic_integration_func):
     
     # -------- compute control input --------
     delta_xt = xt - xref
@@ -132,7 +132,7 @@ def cost_i(xt, current_mode, cur_St,
     # next_mode = current_mode
     
     # -------- propagate dynamics with hybrid event --------
-    xt_next, next_mode, dW, new_reset_arg = hybrid_integration_func(xt, current_mode, ut, randN, eps, dt, dt_shrink, t0, reset_arg)
+    xt_next, next_mode, dW, new_reset_arg = hybrid_stochastic_integration_func(xt, current_mode, ut, randN, eps, dt, dt_shrink, t0, reset_arg)
 
     # Collect cost: consider only the terminal state cost for now.
     cur_St += jnp.array([jnp.dot(ut.T, ut)/2.0 * dt + jnp.sqrt(eps) * jnp.dot(ut.T, dW)])[0]

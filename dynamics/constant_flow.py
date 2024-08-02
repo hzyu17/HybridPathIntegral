@@ -2,7 +2,7 @@
 # Hongzhe Yu, 02/09/24
 
 import numpy as np
-from hybrid_ilqr.saltation_matrix import *
+from dynamics.saltation_matrix import *
 import jax
 from jax import jacfwd 
 

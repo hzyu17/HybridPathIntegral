@@ -85,12 +85,6 @@ def stochastic_integration_bouncing(x0, u, t_span, epsilon, dW):
     return stochastic_integration(x0, u, t_span, epsilon, dW, dyn_bouncing, gdWt_bouncing)
 
 
-guard_bouncing_12.terminal=True
-guard_bouncing_12.direction=-1
-
-guard_bouncing_21.terminal=True
-guard_bouncing_21.direction=1
-
 guards_bouncing = {0:guard_bouncing_12, 1: guard_bouncing_21}
 reset_maps_bouncing = {0:reset_map_bouncing_12, 1:reset_map_bouncing_21}
 

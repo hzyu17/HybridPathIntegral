@@ -5,11 +5,11 @@ current_dir = os.path.dirname(file_path)
 root_dir = os.path.abspath(os.path.join(current_dir, '..'))
 sys.path.append(root_dir)
 
-from dynamics.dynamics_slip_discrete import *
+from dynamics.dynamics_discrete_slip_JAX import *
 from hybrid_pathintegral.sampling_rollout_jax import *
 
 
-cost_i_slip = partial(cost_i, hybrid_integration_func=hybrid_integration_slip)
+cost_i_slip = partial(cost_i, hybrid_stochastic_integration_func=hybrid_stochastic_integration_slip_padding)
 
 feedback_cost_slip_jax = partial(feedback_cost_jax, cost_i_func=cost_i_slip)
 
