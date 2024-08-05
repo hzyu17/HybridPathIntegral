@@ -424,11 +424,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
 
     # ---------------
     #  Compare cost
-    # ---------------
-    # dWs_zeros = [np.zeros((nt, n_inputs[0])), np.zeros((nt, n_inputs[1]))]
-    # cost_pi = compute_cost(modes_pi_jax, trj_pi_jax, u_star_pi_jax, dWs_zeros, target_state, states, Q_k, R_k, Q_T, epsilon,dt)
-    # cost_ilqr = compute_cost(mode_trj_ilqr, xt_trj_ilqr, u_trj_ilqr, dWs_zeros, target_state, states, Q_k, R_k, Q_T, epsilon,dt)
-    
+    # ---------------    
     cost_pi = compute_cost_nonoise(modes_pi_jax, trj_pi_jax, u_star_pi_jax, target_state, states, Q_k, R_k, Q_T,dt)
     cost_ilqr = compute_cost_nonoise(mode_trj_ilqr, xt_trj_ilqr, u_trj_ilqr, target_state, states, Q_k, R_k, Q_T,dt)
     
@@ -587,9 +583,9 @@ def main(epsilon, n_samples, dt):
     print(" =================== Saved data to: =================== \n", save_path)
     
     
-    # --------------------------------------------
+    # ---------------------------------------------
     # plot the path integral controlled trajectory
-    # -------------------------------------------- 
+    # --------------------------------------------- 
     show_results = False
     if show_results:
         fig4, axes = plt.subplots(1, 2)
@@ -606,8 +602,8 @@ def main(epsilon, n_samples, dt):
 import argparse
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="The epsilon parameter.")
-    parser.add_argument("--epsilon", type=float, default=5.0, help="The process noise intensity value, epsilon.")
-    parser.add_argument("--nsamples", type=int, default=1000, help="The number of samples used in path integral control.")
+    parser.add_argument("--epsilon", type=float, default=2.0, help="The process noise intensity value, epsilon.")
+    parser.add_argument("--nsamples", type=int, default=5000, help="The number of samples used in path integral control.")
     parser.add_argument("--dt", type=int, default=0.0025, help="The time discretization.")
     
     args = parser.parse_args()

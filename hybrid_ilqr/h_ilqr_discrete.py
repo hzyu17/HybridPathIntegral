@@ -117,16 +117,112 @@ class hybrid_ilqr:
         terminal_cost = 0.5*terminal_difference.T@self.Q_T_@terminal_difference
         total_cost = total_cost+terminal_cost
         return total_cost
+    
+    
+    # def update_inputs(self):
+    #     states = [np.array([0.0]) for _ in range(self._n_timesteps)]
+    #     modes = [0 for _ in range(self._n_timesteps)]
+    #     mode_changess = np.tile(np.array([0, 0]), (self._n_timesteps, 1))
+    #     reset_args = self._init_reset_args
+        
+    #     # Set the first state to be the initial       
+    #     modes[0] = self._init_mode
+    #     states[0] = self._init_state
+    #     mode_changess[0] = np.array([self._init_mode, self._init_mode])
+        
+    #     # Extend reference trj, if a hybrid event is hit.
+    #     hybrid_index = set()
+    #     hybrid_event_info = {} # The dictionary that stores all the information of the jump dynamics and states.
+        
+    #     # Reference hybrid events and extensions from the last iteration
+    #     (v_mode_change_ref, v_ext_trj_bwd_ref, v_ext_trj_fwd_ref, 
+    #     v_Kfb_ext_trj_bwd_ref, v_Kfb_ext_trj_fwd_ref, 
+    #     v_kff_ext_trj_bwd_ref, v_kff_ext_trj_fwd_ref, v_tevents_ref) = extract_extensions(self._reference_extension_helper)
+        
+    #     cnt_event = 0
+    #     hybrid_index_ref = 0
+    #     event_args = self._init_reset_args[0]
+        
+    #     for ii in range(self._n_timesteps-1):
+    #         # ------------------- 
+    #         # Get the references 
+    #         # ------------------- 
+    #         current_mode = modes[ii]
+    #         current_state = states[ii]
+    #         current_input = self._inputs[current_mode][ii]
+            
+    #         reset_args[ii] = event_args
+            
+    #         # ====================================
+    #         #  If it is not the first time rollout
+    #         # ====================================
+            
+    #         ref_state = self._states[ii]
+    #         current_mode_ref = self._modes[ii]
+            
+    #         # ----------------------------------------------- 
+    #         # Get the current (feedback, feedforward) gains 
+    #         # ----------------------------------------------- 
+    #         current_feedforward = self.k_feedforward_[ii]
+    #         current_feedback = self.K_feedback_[ii]
+            
+    #         # ---------------
+    #         #  Mode Mismatch
+    #         # --------------- 
+    #         if (current_mode != current_mode_ref):
+                
+    #             trj_extension = []
+    #             fb_ext_trj = []
+    #             ff_ext_trj = []
+                
+    #             hybrid_index_ref = np.argmin(abs(np.array(v_tevents_ref)-ii)) # find the nearest hybrid event in the reference
+    #             ref_modechange_hybrid = v_mode_change_ref[hybrid_index_ref]
+                
+    #             # ----------------------------------- Early Arrival ----------------------------------- 
+    #             if ((current_mode == ref_modechange_hybrid[1]) and (current_mode_ref==ref_modechange_hybrid[0])):
+    #                 if self._verbose:
+    #                     print(f"early arrival, Time: {ii}. Current mode: {current_mode}, Reference mode: {current_mode_ref}")
+    #                     print(f"Reference mode change from mode {ref_modechange_hybrid[0]} to mode {ref_modechange_hybrid[1]} at time {v_tevents_ref[hybrid_index_ref]}")
+                    
+    #                 trj_extension = v_ext_trj_bwd_ref[hybrid_index_ref]
+    #                 ff_ext_trj = v_kff_ext_trj_bwd_ref[hybrid_index_ref]
+    #                 fb_ext_trj = v_Kfb_ext_trj_bwd_ref[hybrid_index_ref]
+                    
+    #             # ----------------------------------- Late Arrival ----------------------------------- 
+    #             # elif ((current_mode == ref_modechange_hybrid[0]) and (current_mode_ref==ref_modechange_hybrid[1])):
+    #             else:
+    #                 if self._verbose:
+    #                     print(f"late arrival, Time: {ii}. Current mode: {current_mode}, Reference mode: {current_mode_ref}")
+    #                     print(f"Reference mode change from mode {ref_modechange_hybrid[0]} to mode {ref_modechange_hybrid[1]} at time {v_tevents_ref[hybrid_index_ref]}")
+                    
+    #                 trj_extension = v_ext_trj_fwd_ref[hybrid_index_ref]
+    #                 ff_ext_trj = v_kff_ext_trj_fwd_ref[hybrid_index_ref]
+    #                 fb_ext_trj = v_Kfb_ext_trj_fwd_ref[hybrid_index_ref]
+                
+    #             # Modify the reference to the extension
+    #             ref_state = trj_extension[ii]
+    #             current_feedback = fb_ext_trj[ii]
+    #             current_feedforward = ff_ext_trj[ii]
+                
+    #             if self._verbose:
+    #                 print("current_nominal_input: ", current_input)
+            
+    #         # ---------------------------
+    #         #   // End Mode Mismatch //
+    #         # --------------------------- 
+            
+    #         current_input = current_input + current_feedback@(current_state-ref_state) + current_feedforward
+            
+    #         self._inputs[current_mode][ii] = current_input
+        
+    #     return self._inputs
+    
 
     def backwards_pass(self):
         V_xx = self.Q_T_
         
         end_difference = (self._states[-1] - self._target_state).flatten()
         V_x = self.Q_T_@end_difference
-
-        # # Initialize storage variables
-        # k_trj = np.zeros((self._n_timesteps,self._n_inputs))
-        # K_trj = np.zeros((self._n_timesteps,self._n_inputs,self._n_states))
         
         k_trj = [np.zeros((self._n_inputs[0])) for _ in range(self._n_timesteps)]
         K_trj = [np.zeros((self._n_inputs[0], self._n_states[0])) for _ in range(self._n_timesteps)]
@@ -343,6 +439,10 @@ class hybrid_ilqr:
                     if self._verbose:
                         print("current_nominal_input: ", current_input)
                 
+                # ---------------------------
+                #   // End Mode Mismatch //
+                # --------------------------- 
+                
                 current_input = current_input + current_feedback@(current_state-ref_state) + current_feedforward
             
             # =================
@@ -352,7 +452,8 @@ class hybrid_ilqr:
             
             (next_state, saltation, mode_change, 
              t_event, x_event, x_reset, reset_byproduct) = self.detection_func_(current_mode, 
-                                                                                current_state, current_input, 
+                                                                                current_state, 
+                                                                                current_input, 
                                                                                 t_ii, self.dt_, 
                                                                                 self._dtshrinkrate, reset_args[ii], self.detect_)
 
@@ -562,11 +663,16 @@ class hybrid_ilqr:
         #  First rollout using initial guess
         # ------------------------------------
         [modes,states,inputs,saltations,modechanges] = self.rollout()
-        
 
+        self._modes = modes
+        self._states = states
+        self._inputs = inputs
+        self._saltations = saltations
+        self._modechanges = modechanges
+        
         print("===================== Finished initial rollout =====================")
         
-        show_rollout = False
+        show_rollout = True
         r0 = 1
         if show_rollout:
             self._plot_states_func(self.time_span_, modes, states, inputs, 
@@ -576,24 +682,38 @@ class hybrid_ilqr:
             if self._animate_func:
                 self._animate_func(self._modes, self._states, self._init_mode, 
                                     self._init_state, self._target_mode, self._target_state, 
-                                    self._n_timesteps, self._reset_args, self._target_reset_args,step=5)
+                                    self._n_timesteps, self._reset_args, self._target_reset_args,step=20)
             
-        
+            plt.show()
+            
         # ----------------------------------------------------
         # Compute the current cost of the initial trajectory
         # ----------------------------------------------------
         current_cost = self.compute_cost(modes,states,inputs,self.dt_)
-        
+        previous_cost = 0.0
         learning_speed = 0.95 # This can be modified, 0.95 is very slow
-        low_learning_rate = 0.01 # if learning rate drops to this value stop the optimization
+        low_learning_rate = 0.05 # if learning rate drops to this value stop the optimization
         low_expected_reduction = 1e-4 # Determines optimality
         armijo_threshold = 0.1 # Determines if current line search solve is good (this is typically labeled as "c")
         
-        # =============
-        #   Main Loop
-        # =============
-        for ii in range(0,self.n_iterations_):
+        # =================================================================
+        #                             Main Loop
+        # =================================================================
+        for ii in range(0,self.n_iterations_):   
+                         
+            current_cost = self.compute_cost(self._modes,self._states,self._inputs,self.dt_)
+            
             print('========== Starting Iteration: ',ii,', Current cost: ',current_cost, ' ==========')
+            
+            # if (abs(current_cost-previous_cost)) < low_expected_reduction:
+            #     print(" -------- Stopping optimization, Optimal trajectory found --------")
+            #     (self._modes,self._states,self._inputs,
+            #     self._saltations,self._modechanges,
+            #     self._hybrid_event_info,self._reset_args)=self.forward_pass(learning_rate)
+            #     break
+            
+            # previous_cost = current_cost
+            
             print("-------- Backward Pass --------")
             
             # --------------------------------------------------------
@@ -618,26 +738,16 @@ class hybrid_ilqr:
             # ----------------------------------------------
             #  Forward pass under the updated control gains
             # ----------------------------------------------
-            (new_modes,new_states,new_inputs,
-             new_saltations,mode_changes,
-             new_hybrid_event_info,new_stance_xpos)=self.forward_pass(learning_rate)
-            
-            # ---------------------------------------------------------
-            #   Compute new costs and check the optimality conditions
-            # ---------------------------------------------------------
-            new_cost = self.compute_cost(new_modes, new_states, new_inputs, self.dt_)
             
             # Execute linesearch until the armijo condition is met (for
-            # now just check if the cost decreased) TODO add real
-            # armijo condition
-            while((learning_rate > 0.05) and (armijo_flag == 0)):
-                # Decrease learning rate and continue line search
-                learning_rate = learning_speed*learning_rate
+            # now just check if the cost decreased) 
+            while (learning_rate>low_learning_rate and armijo_flag == 0):
                 
                 # Forward pass: line search 
                 (new_modes,new_states,new_inputs,
                  new_saltations,mode_changes,new_hybrid_event_info,new_reset_args)=self.forward_pass(learning_rate)
                 
+                # --------------------------------- Plot forward pass ---------------------------------
                 show_forwardpass = False
                 if show_forwardpass:
                     self._plot_states_func(self.time_span_, new_modes, new_states, new_inputs, 
@@ -652,7 +762,6 @@ class hybrid_ilqr:
                             plot_slip_stance_animate(new_states[ii].flatten(), new_reset_args[ii][0], ax)
                     
                     # Plot start and goal 
-                
                     if self._init_mode == 0:
                         plot_slip_flight_animate(self._init_state, r0, ax, 'r-')
                     elif self._init_mode == 1:
@@ -664,10 +773,10 @@ class hybrid_ilqr:
                         plot_slip_stance_animate(self._target_state, self._target_reset_args, ax, 'g-')
                     
                     plt.show()
-            
+                # ------------------------------- // Plot forward pass // -------------------------------
+
                 new_cost = self.compute_cost(new_modes, new_states, new_inputs, self.dt_)
 
-                
                 print("new_cost: ", new_cost)
                 
                 # Calculate armijo condition
@@ -691,36 +800,34 @@ class hybrid_ilqr:
                     self._reference_extension_helper = self.compute_trejactory_extension(new_hybrid_event_info)
                     self._reset_args = new_reset_args
                     states_iter.append(new_states)
+                else:
+                    # Decrease learning rate and continue line search
+                    learning_rate = learning_speed*learning_rate
                     
             if(learning_rate<low_learning_rate):
                 # If learning rate is low, then stop optimization
                 
                 print(" -------- Stopping optimization, low learning rate --------")
                 
-                current_cost = new_cost
-                self._states = new_states
-                self._inputs = new_inputs
-                self._saltations = new_saltations
-                self._modechanges = mode_changes
-                self._modes = new_modes
-                self._hybrid_event_info = new_hybrid_event_info
-                self._reset_args = new_reset_args
+                # current_cost = new_cost
+                # self._states = new_states
+                # self._inputs = new_inputs
+                # self._saltations = new_saltations
+                # self._modechanges = mode_changes
+                # self._modes = new_modes
+                # self._hybrid_event_info = new_hybrid_event_info
+                # self._reset_args = new_reset_args
                 
-                # Update the hybrid event maps
-                self._reference_extension_helper = self.compute_trejactory_extension(new_hybrid_event_info)
+                # # Update the hybrid event maps
+                # self._reference_extension_helper = self.compute_trejactory_extension(new_hybrid_event_info)
                 
-                states_iter.append(new_states)
+                # states_iter.append(new_states)
                     
                 break
           
             if (ii == self.n_iterations_-1):
                 print(" -------- Stopping optimization, reached max iteration --------")
           
-        # Return the current trajectory
-        
-        # (modes,states,inputs,
-        #          saltations,modechanges,hybrid_event_info,reset_args)=self.forward_pass(learning_rate=1)
-        
         modes = self._modes
         states = self._states
         inputs = self._inputs
@@ -728,11 +835,6 @@ class hybrid_ilqr:
         hybrid_event_info = self._hybrid_event_info
         reset_args = self._reset_args
         
-        show_results = False
-        if show_results:
-            self._plot_states_func(self.time_span_, self._modes, self._states, self._inputs, 
-                                    self._init_state, self._target_state, self._n_timesteps, self._reset_args)
-            
         reference_extension_helper = self.compute_trejactory_extension(hybrid_event_info)
 
         return (modes,states,inputs,
