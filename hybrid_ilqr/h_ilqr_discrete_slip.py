@@ -22,9 +22,9 @@ if __name__ == '__main__':
     # ------------- 
     # SLIP example 
     # -------------
-    dt = 0.00015
+    dt = 0.001
     epsilon = 2.0
-    dt_shrink = 0.99
+    dt_shrink = 0.9
     r0 = 1
     
     n_modes = 2
@@ -72,14 +72,16 @@ if __name__ == '__main__':
     
     # Time definitions
     start_time = 0
-    end_time = 0.5
+    end_time = 0.4
     
     time_span = np.arange(start_time, end_time, dt).flatten()
     nt = len(time_span)
     
+    print("nt", nt)
+    
     # Terminal cost 
     target_mode = 0
-    Q_T = 100.0*np.eye(n_states[0])
+    Q_T = 200.0*np.eye(n_states[0])
     
     # Running costs
     Q_k = [np.zeros((n_states[0],n_states[0])), np.zeros((n_states[1],n_states[1]))] # zero weight to penalties along a strajectory since we are finding a trajectory
@@ -87,7 +89,7 @@ if __name__ == '__main__':
     init_theta_deg = 100
     init_theta = init_theta_deg / 180 * np.pi
     init_state = np.array([init_theta, -4.0, 0.5*r0, 0.0], dtype=np.float64)
-    target_state = np.array([1.1, 2.5, 1.5, 0.0, np.pi/3], dtype=np.float64)  # Swing pendulum upright
+    target_state = np.array([0.85, 2.5, 1.15, 0.55, np.pi/3], dtype=np.float64)  # Swing pendulum upright
     init_reset_args = [np.array([0.0]) for _ in range(nt)]
     target_reset_args = [np.array([0.0]) for _ in range(nt)]
     

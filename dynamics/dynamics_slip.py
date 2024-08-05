@@ -396,6 +396,46 @@ def event_detect_slip(x0, u, t0, tf, current_mode, reset_args, detection=True, b
                                 reset_args, detection, backwards)
     
 
+# def plot_slip_nexp(n_exp, exp_data, time_span, init_state, target_state, args=None):
+    # for i in range(n_exp):
+    #     modes_pi = exp_data.get_data(i).mode_trj_ilqr()
+    #     states_pi = exp_data.get_data(i).x_trj_ilqr()
+    #     inputs_pi = exp_data.get_data(i).ut_trj_ilqr()
+    #     reset_args_pi = exp_data.get_data(i).reset_args()
+    #     states_pi = exp_data.get_data(i).x_trj_pi()
+    #     states_pi = np.array(states_pi)
+        
+    #     modes_ilqg = exp_data.get_data(i).mode_trj_ilqr()
+    #     states_ilqg = exp_data.get_data(i).x_trj_ilqr()
+    #     inputs_ilqg = exp_data.get_data(i).ut_trj_ilqr()
+    #     reset_args_ilqg = exp_data.get_data(i).reset_args()
+    #     states_ilqg = np.array(states_ilqg)
+        
+    #     fig, axes = plt.subplots(2, 7, figsize=(15, 10))
+        
+    #     nt = len(time_span)
+        
+    #     for i_s in range(n_exp):
+            
+    #         time_span_nt = np.arange(nt)
+    #         fig, axes = plot_slip(time_span, modes_ilqg, states_ilqg, 
+    #                                 inputs_ilqg, init_state, target_state, 
+    #                                 nt, reset_args_ilqg, fig, axes, 'r', alpha=0.9, step=1)
+        
+    #         # hilqr 
+    #         fig, axes = plot_slip(time_span_nt, mode_trj_ilqr, xt_trj_ilqr, 
+    #                                 ut_trj_ilqr, init_state, target_state, 
+    #                                 nt_i, reset_args_ilqr, fig, axes, 'r', step=1)
+            
+    #         time_span_nt = np.arange(nt_i)
+    #         fig, axes = plot_slip(time_span_nt, modes, states, 
+    #                                 inputs, init_state, target_state, 
+    #                                 nt_i, sample_reset_args_i, fig, axes, 'k', step=1)
+            
+    #         plt.tight_layout()
+    #         plt.show()
+
+
 def plot_slip(time_span, modes, states, inputs, 
               init_state, target_state, nt, reset_args, 
               fig=None, axes=None, color='k', alpha=1.0, step=2):

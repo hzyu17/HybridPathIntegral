@@ -114,7 +114,9 @@ class ExpData():
 
 
 class DataOneSample():
-    def __init__(self, mode_trj_pi, x_trj_pi, u_trj_pi, mode_trj_ilqr, x_trj_ilqr, u_trj_ilqr, allPathCosts, cost_pi, cost_ilqr, all_samples=None):
+    def __init__(self, mode_trj_pi, x_trj_pi, u_trj_pi, 
+                 mode_trj_ilqr, x_trj_ilqr, u_trj_ilqr, 
+                 allPathCosts, cost_pi, cost_ilqr, all_samples=None):
         """ The data to save for a path integral control in [0, T].
         Args:
             mode_trj_pi (_type_): mode of the controlled path integral trajectory

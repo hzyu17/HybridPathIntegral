@@ -335,12 +335,14 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         
         if cond_mode_mismatch_slip(current_mode_actual, ref_current_mode):
             print("--------------- mode mismatch happened ---------------")
-            xref_actual_i, K_fb_actual, k_ff_actual, cnt_mismatch = reaction_mode_mismatch(cond_early_arrival_slip, i_t, 
-                                                                                            current_mode_actual, ref_current_mode, 
-                                                                                            v_ref_ext_fwd[0], v_ref_ext_bwd[0], 
-                                                                                            v_mode_change_ref[0],
-                                                                                            v_Kfb_ref_ext_fwd[0], v_kff_ref_ext_fwd[0], 
-                                                                                            v_Kfb_ref_ext_bwd[0], v_kff_ref_ext_bwd[0], cnt_mismatch)
+            xref_actual_i, K_fb_actual, k_ff_actual, cnt_mismatch = reaction_mode_mismatch(i_t, 
+                                                                      current_mode_actual, ref_current_mode, 
+                                                                      v_ref_ext_fwd[0], v_ref_ext_bwd[0], 
+                                                                      v_mode_change_ref[0],
+                                                                      v_Kfb_ref_ext_fwd[0], v_kff_ref_ext_fwd[0], 
+                                                                      v_Kfb_ref_ext_bwd[0], v_kff_ref_ext_bwd[0], 
+                                                                      cnt_mismatch,
+                                                                      cond_early_arrival=cond_early_arrival_slip)
         
         
         GaussianNoises_ustar_jax = GaussianNoise_i[current_mode_actual][:,0,:]
@@ -381,7 +383,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
             
             fig, axes = plt.subplots(2, 7, figsize=(15, 10))
             
-            for i_s in range(n_samples_plotted):
+            for i_s in range(1):
                 sample_modes_i = Kmodes_jax_i[i_s]
                 sample_states_i = Ksamples_jax_i[i_s]
                 sample_inputs_i = Ksamples_ut[i_s]
@@ -427,7 +429,6 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
                                         ut_trj_ilqr, init_state, target_state, 
                                         nt_i, reset_args_ilqr, fig, axes, 'r', step=1)
                 
-                time_span_nt = np.arange(nt_i)
                 fig, axes = plot_slip(time_span_nt, modes, states, 
                                         inputs, init_state, target_state, 
                                         nt_i, sample_reset_args_i, fig, axes, 'k', step=1)
@@ -451,18 +452,20 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         
         show_sample_weights = False
         if show_sample_weights:
+            plot_step = 1
+            print("Plotting the sample weights and path costs.")
             ## -------- show path costs and weights in path integral control -------- 
             _, axes_weights = plt.subplots(2, 1, figsize=(8,6))
             (ax2, ax3) = axes_weights.flatten()
             ax2.grid(True)
             ax3.grid(True)
             
-            ax2.bar(range(len(PathCosts_jax_i)), PathCosts_jax_i)
+            ax2.bar(range(0,len(PathCosts_jax_i),plot_step), PathCosts_jax_i[::plot_step])
             ax2.set_title("Path Cost distribution")
             ax2.set_xlabel("Sample Number")
             ax2.set_ylabel("Costs")
             
-            ax3.bar(range(len(weights_jax)), weights_jax)
+            ax3.bar(range(0,len(weights_jax),plot_step), weights_jax[::plot_step])
             ax3.set_title("Weight distribution")
             ax3.set_xlabel("Sample Number")
             ax3.set_ylabel("Weights")
@@ -581,9 +584,13 @@ def main(epsilon, n_samples, dt):
     time_span = np.arange(start_time, end_time, dt).flatten()
     nt = len(time_span)
     
+    print("nt: ", nt)
+    
     # Terminal cost 
     target_mode = 0
-    Q_T = 100.0*np.eye(n_states[0])
+    Q_T = 200.0*np.eye(n_states[0])
+    # Q_T[1,1] = 2000.0
+    # Q_T[3,3] = 2000.0
     
     # Running costs
     Q_k = [np.zeros((n_states[0],n_states[0])), np.zeros((n_states[1],n_states[1]))] # zero weight to penalties along a strajectory since we are finding a trajectory
@@ -678,28 +685,12 @@ def main(epsilon, n_samples, dt):
     print(f" =================== Saved data to: =================== \n {{save_path}}")
     
     
-    # # --------------------------------------------
-    # # plot the path integral controlled trajectory
-    # # -------------------------------------------- 
-    # show_results = False
-    # if show_results:
-    #     fig4, axes = plt.subplots(1, 2)
-    #     (ax4, ax5) = axes.flatten()
-    #     fig4, axes, fig5, ax6 =  plot_bouncingball_nexp(n_exp, exp_data, time_span, init_state, 
-    #                                                         target_state, args=None)
-        
-    #     fig4.tight_layout()
-    #     fig5.tight_layout()
-        
-    #     plt.show()
-
-
 import argparse
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="The epsilon parameter.")
-    parser.add_argument("--epsilon", type=float, default=0.01, help="The process noise intensity value, epsilon.")
-    parser.add_argument("--nsamples", type=int, default=5000, help="The number of samples used in path integral control.")
-    parser.add_argument("--dt", type=int, default=0.0002, help="The time discretization.")
+    parser.add_argument("--epsilon", type=float, default=0.001, help="The process noise intensity value, epsilon.")
+    parser.add_argument("--nsamples", type=int, default=1000, help="The number of samples used in path integral control.")
+    parser.add_argument("--dt", type=int, default=0.0005, help="The time discretization.")
     
     args = parser.parse_args()
 

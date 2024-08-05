@@ -65,7 +65,7 @@ def main(epsilon, n_samples, dt):
     
     # ---------------- bouncing example -----------------
     # dt = 0.01
-    dt_shrink = 0.99
+    dt_shrink = 0.9
     
     start_time = 0
     end_time = 2.0
@@ -300,7 +300,7 @@ if __name__ == '__main__':
     
     parser.add_argument("--epsilon", type=float, default=2.0, help="The process noise intensity value, epsilon.")
     parser.add_argument("--nsamples", type=int, default=5000, help="The number of samples used in path integral control.")
-    parser.add_argument("--dt", type=int, default=0.002, help="The time discretization.")
+    parser.add_argument("--dt", type=int, default=0.0025, help="The time discretization.")
     
     args = parser.parse_args()
 
