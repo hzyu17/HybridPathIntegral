@@ -12,10 +12,6 @@ import jax.numpy as jnp
 from dynamics.dynamics_discrete import *
 
 jax.config.update("jax_enable_x64", True)
-os.environ['CUDA_VISIBLE_DEVICES'] = "0"
-print("Devices:", jax.devices())
-print("jax.default_backend()", jax.default_backend())
-
 
 # ------------------------------------- terminal loss ------------------------------------- 
 def quadratic_terminal_cost(xT, args):

@@ -8,11 +8,9 @@ script_filename = os.path.splitext(os.path.basename(file_path))[0]
 root_dir = os.path.abspath(os.path.join(exp_dir, '..'))
 sys.path.append(root_dir)
 
-import time
 import jax.numpy as jnp
 
 # Import iLQR class and reference extension handler
-# from hybrid_ilqr.h_ilqr import solve_ilqr, extract_extensions
 from hybrid_ilqr.h_ilqr_discrete import solve_ilqr, extract_extensions
 # Importing path integral control
 from hybrid_pathintegral.hybrid_pathintegral import *

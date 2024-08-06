@@ -1,5 +1,4 @@
 import numpy as np
-
 import os
 import sys
 file_path = os.path.abspath(__file__)
@@ -15,43 +14,315 @@ from dynamics.dynamics_bouncing import *
 from dynamics.dynamics_discrete_bouncing import *
 # Importing path integral control
 from hybrid_pathintegral.hybrid_pathintegral import *
-# Import plotting
-import matplotlib.pyplot as plt
 # Import experiment parameter class
 from experiments.exp_params import *
 from experiments.h_pathintegral_example_bouncingball_jax import run_experiment
+import multiprocessing as mp
+
 
 os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
 
 import gc
 gc.collect()
-
-# ====================================== Path Integral Control ====================================== 
-def compute_cost(states,inputs,randN,target_state,trj_ref, Qk, Rk, QT, epsilon, dt):
+# def run_experiment(i_exp, nt, n_samples, n_states, n_inputs, 
+#                     init_mode, init_state, target_state, hybrid_ilqr_result, 
+#                     start_time, end_time, dt, dt_shrinkingrate, 
+#                     Q_k, Q_T, R_k, epsilon, init_reset_args):
     
-    n_timestamps = states.shape[0]
+#     (modes,states,inputs,
+#      k_feedforward,K_feedback,
+#      current_cost,states_iter,
+#      ref_modechanges,reference_extension_helper, ref_reset_args) = hybrid_ilqr_result
     
-    # Initialize cost
-    total_cost = 0.0
-    current_cost = 0.0
-    for ii in range(n_timestamps-1):
-        current_u = inputs[ii]
+#     RndN_actual = [np.random.randn(nt, 1), np.random.randn(nt, 1)]
+    
+#     # =================================================================
+#     #                     Hybrid ilqr for comparison
+#     # ================================================================= 
+#     print("=================== Hybrid ilqr under uncertainties for comparison ===================")
+#     # -------------- result collectors, hybrid ilqr proposal --------------
+#     xt_trj_ilqr = [np.array([0.0]) for _ in range(nt)]
+#     u_trj_ilqr = [np.zeros((nt, n_inputs[0])), np.zeros((nt, n_inputs[1]))]
+#     xt_trj_ilqr[0] = init_state
+    
+#     (mode_trj_ilqr, 
+#      xt_trj_ilqr, 
+#      u_trj_ilqr, 
+#      cost_ilqr, _, _) = hybrid_stochastic_feedback_rollout_discrete_bouncing(init_mode, 
+#                                                                             init_state, 
+#                                                                             n_inputs, 
+#                                                                             states, modes, 
+#                                                                             inputs, K_feedback, k_feedforward, 
+#                                                                             target_state, Q_T,
+#                                                                             start_time, dt, 
+#                                                                             epsilon, RndN_actual, dt_shrinkingrate, 
+#                                                                             reference_extension_helper,
+#                                                                             init_reset_args)
+    
+#     # mode-dependent reference states. Assuming 2 modes
+#     # States with padded dimensions
+#     states_0 = np.zeros((nt, 2))
+#     states_1 = np.zeros((nt, 2))
+    
+#     inputs_0 = np.zeros((nt, 1))
+#     inputs_1 = np.zeros((nt, 1))
+    
+#     K_feedback_0 = np.zeros((nt, 1, 2))
+#     K_feedback_1 = np.zeros((nt, 1, 2))
+    
+#     k_feedforward_0 = np.zeros((nt, 1))
+#     k_feedforward_1 = np.zeros((nt, 1))
+    
+#     for i in range(nt):
+#         mode_i = modes[i]
+#         if mode_i == 0:
+#             states_0[i, :n_states[0]] = states[i]
+#             inputs_0[i, :n_inputs[0]] = inputs[0][i]
+#             K_feedback_0[i, :n_inputs[0], :n_states[0]] = K_feedback[i]
+#             k_feedforward_0[i, :n_inputs[0]] = k_feedforward[i]
         
-        current_cost = current_u.T@Rk@current_u/2.0*dt + np.sqrt(epsilon*dt) * np.dot(current_u.T, randN[ii])
-        total_cost = total_cost+current_cost
+#         if mode_i == 1:
+#             states_1[i, :n_states[1]] = states[i]
+#             inputs_1[i, :n_inputs[1]] = inputs[1][i]
+#             K_feedback_1[i, :n_inputs[1], :n_states[1]] = K_feedback[i]
+#             k_feedforward_1[i, :n_inputs[1]] = k_feedforward[i]
         
-    # Compute terminal cost
-    terminal_difference = (target_state-states[-1]).flatten()
-    terminal_cost = terminal_difference.T@QT@terminal_difference/2.0
+#     ref_reset_args = np.array(ref_reset_args)
+    
+#     ref_reset_args = np.array(ref_reset_args)
+#     k_feedforward_0 = np.array(k_feedforward_0)
+#     k_feedforward_1 = np.array(k_feedforward_1)
+#     K_feedback_0 = np.array(K_feedback_0)
+#     K_feedback_1 = np.array(K_feedback_1)
+    
+#     print(f"=================== The experiment index: {i_exp} ===================" )
+    
+#     # -------------- result collectors, jax --------------
+#     modes_pi_jax = np.zeros(nt, dtype=np.int64)
+#     trj_pi_jax = [np.array([0.0]) for _ in range(nt)]
 
-    total_cost = total_cost+terminal_cost
+#     u_star_pi_jax = [np.zeros((nt, n_inputs[0])), np.zeros((nt, n_inputs[1]))]
+#     allPathCosts_jax = np.zeros((nt-1, n_samples))
+    
+#     # -------------- initialize the control loop -------------- 
+#     x0_jax = jnp.asarray(init_state)
+#     xt = x0_jax
+#     xt_ilqr = init_state
+    
+#     current_mode_actual = init_mode
+#     next_mode_actual = current_mode_actual
+#     # current_modechange = np.array([current_mode_actual, next_mode_actual])
+    
+#     modes_pi_jax[0] = init_mode
+#     trj_pi_jax[0] = x0_jax
+    
+#     # current_ref_modechange_ilqr = (0, 0)
+#     cnt_mismatch = 0
+    
+#     # Assuming 2-mode system
+#     reset_args_actual = ref_reset_args
+#     event_args_actual = [ref_reset_args[0]]
+#     cnt_event_actual = 0
+    
+#     # ---------------------------------
+#     #  Extract the extended references 
+#     # ---------------------------------
+#     (v_mode_change_ref, v_ref_ext_bwd, v_ref_ext_fwd, 
+#     v_Kfb_ref_ext_bwd, v_Kfb_ref_ext_fwd, 
+#     v_kff_ref_ext_bwd, v_kff_ref_ext_fwd, _) = extract_extensions(reference_extension_helper, start_index = 0)
+    
+        
+#     n_modes = 2
+#     Ksamples_jax_saving = np.zeros((n_samples, nt, n_modes))
+    
+#     # ======================================================
+#     #     Main loop for the hybrid path integral control
+#     # ======================================================
+#     for i_t in range(nt-1):
+        
+#         print(f"----------- Time index: {i_t} -----------")
+        
+#         start_time_i = start_time + i_t*dt
+#         nt_i = nt - i_t
+        
+#         # ------------------------------------------------------------------------------------
+#         #         Calculate the slice of the variables for the current future horizon 
+#         # ------------------------------------------------------------------------------------
+        
+#         # actual modes and states
+#         current_mode_actual = modes_pi_jax[i_t]
+#         xt = trj_pi_jax[i_t]
+        
+#         # references
+#         states_0_i = states_0[i_t:, :]
+#         states_1_i = states_1[i_t:, :]
+#         inputs_0_i = inputs_0[i_t:, :]
+#         inputs_1_i = inputs_1[i_t:, :]
+        
+#         states_i = [states_0_i, states_1_i]
+#         inputs_i = [inputs_0_i, inputs_1_i]
+        
+#         # ref_modechange_i = ref_modechanges[i_t:]
+#         modes_i = modes[i_t:]
+        
+#         K_feedback_0_i = K_feedback_0[i_t:,:]
+#         K_feedback_1_i = K_feedback_1[i_t:,:]
+        
+#         k_feedforward_0_i = k_feedforward_0[i_t:,:]
+#         k_feedforward_1_i = k_feedforward_1[i_t:,:]
+        
+#         K_feedback_i = [K_feedback_0_i, K_feedback_1_i]
+#         k_feedforward_i = [k_feedforward_0_i, k_feedforward_1_i]
+        
+#         # states_i = states[i_t:,:]
+#         # inputs_i = inputs[:, i_t:,:]
+#         # ref_modechange_i = ref_modechanges[i_t:]
+#         # modes_i = modes[i_t:]
+#         # K_feedback_i = K_feedback[i_t:,:]
+#         # k_feedforward_i = k_feedforward[i_t:,:]
+        
+#         ref_current_mode = ref_modechanges[i_t][0]
+        
+#         # Randomness is mode dependent, same as control. Assuming 2-mode system.
+#         n_modes = 2
+#         Ksamples_jax_i = np.zeros((n_samples, nt_i, n_modes))
+#         GaussianNoise_i = [np.random.randn(n_samples, nt_i, 1), np.random.randn(n_samples, nt_i, 1)]
+#         init_reset_args_i = np.array(ref_reset_args[i_t])
+        
+#         # --------------------------- 
+#         # Coupling of the randomness
+#         # ---------------------------
+#         # GaussianNoise_i[0][int(n_samples/2):, 0] = -GaussianNoise_i[0][:int(n_samples/2), 0]
+#         # GaussianNoise_i[1][int(n_samples/2):, 0] = -GaussianNoise_i[1][:int(n_samples/2), 0]
+        
+#         # ----------------------------------------------------------
+#         # Extract the extended references for the future horizon
+#         # ----------------------------------------------------------
+#         (v_mode_change_ref_i, v_ref_ext_bwd_i, v_ref_ext_fwd_i, 
+#         v_Kfb_ref_ext_bwd_i, v_Kfb_ref_ext_fwd_i, 
+#         v_kff_ref_ext_bwd_i, v_kff_ref_ext_fwd_i, _) = extract_extensions(reference_extension_helper, start_index = i_t) 
+        
+#         # ====================
+#         # Sampling using jax 
+#         # ====================
+        
+#         # ---------------------------------------------------------------------------------------
+#         #                               Sample future trajectories
+#         # ---------------------------------------------------------------------------------------
+        
+#         # timer_start_tic = time.perf_counter()
+#         (Kmodes_jax_i, Ksamples_jax_i, PathCosts_jax_i, 
+#         Ksamples_ut, Ksamples_xref, Ksamples_Kfb_mode, 
+#         Ksamples_kff_mode, Ksamples_reset_args) = sample_bouncing_jax(n_samples, xt, 
+#                                                                     current_mode_actual, 
+#                                                                     states_0_i, states_1_i, 
+#                                                                     modes_i, 
+#                                                                     inputs_0_i, inputs_1_i, 
+#                                                                     K_feedback_0_i, k_feedforward_0_i, 
+#                                                                     K_feedback_1_i, k_feedforward_1_i, 
+#                                                                     target_state, Q_T, 
+#                                                                     start_time_i, dt, dt_shrinkingrate, 
+#                                                                     epsilon, 
+#                                                                     GaussianNoise_i[0], GaussianNoise_i[1], 
+#                                                                     v_mode_change_ref_i, 
+#                                                                     v_ref_ext_fwd_i, v_ref_ext_bwd_i, 
+#                                                                     v_Kfb_ref_ext_fwd_i, v_kff_ref_ext_fwd_i, 
+#                                                                     v_Kfb_ref_ext_bwd_i, v_kff_ref_ext_bwd_i, 
+#                                                                     init_reset_args_i)
+        
+#         # save the samples at t=0
+#         # if (i_t == 0):
+#         #     Ksamples_jax_saving = Ksamples_jax_i
+        
+#         # --------------------------------------------------------
+#         #               Update the control proposal
+#         # --------------------------------------------------------
+#         # Compute proposal control, possibly with early arrival
+#         ubar_i = inputs_i[current_mode_actual][0]
+#         K_fb = K_feedback_i[current_mode_actual][0]
+#         k_ff = k_feedforward_i[current_mode_actual][0]
+#         xref_i = states_i[current_mode_actual][0]
+        
+#         if cond_mode_mismatch_bouncing(current_mode_actual, ref_current_mode):
+#             print("--------------- mode mismatch happened ---------------")
+#             xref_i, K_fb, k_ff, cnt_mismatch = reaction_mode_mismatch(i_t, 
+#                                                                       current_mode_actual, ref_current_mode, 
+#                                                                       v_ref_ext_fwd[0], v_ref_ext_bwd[0], 
+#                                                                       v_mode_change_ref[0],
+#                                                                       v_Kfb_ref_ext_fwd[0], v_kff_ref_ext_fwd[0], 
+#                                                                       v_Kfb_ref_ext_bwd[0], v_kff_ref_ext_bwd[0], 
+#                                                                       cnt_mismatch,
+#                                                                       cond_early_arrival=cond_early_arrival_bouncing)
+        
+#         u0_proposal = ubar_i + K_fb@(xt - xref_i) + k_ff
+        
+#         GaussianNoises_ustar_jax = GaussianNoise_i[current_mode_actual][:,0,:]
+#         u0_star_jax, weights_jax = update_u0_pathintegral_jax(u0_proposal, PathCosts_jax_i, GaussianNoises_ustar_jax, epsilon, dt)
+        
+#         u_star_pi_jax[current_mode_actual][i_t] = u0_star_jax
+#         allPathCosts_jax[i_t] = PathCosts_jax_i
+        
+#         print("*** Var weight_jax", jnp.var(weights_jax))
+#         print("*** lambda_jax", 1.0 / jnp.mean(weights_jax**2))
+        
+        
+#         # --------------------------------------------- 
+#         # Apply optimal control and go to next state  
+#         # ---------------------------------------------
+#         reset_args_actual[i_t] = event_args_actual[cnt_event_actual]
+#         actual_noise_i = RndN_actual[current_mode_actual][i_t]
+        
+#         xt_next, next_mode_actual, _, new_reset_arg = hybrid_stochastic_integration_bouncing(xt, current_mode_actual,
+#                                                                                                 u0_star_jax, actual_noise_i, 
+#                                                                                                 epsilon, dt, dt_shrinkingrate, 
+#                                                                                                 start_time_i, reset_args_actual[i_t])
 
-    return total_cost
+#         next_mode_actual = int(next_mode_actual)
+#         # current_modechange = np.array([current_mode_actual, next_mode_actual])
+#         modes_pi_jax[i_t+1] = next_mode_actual
+#         trj_pi_jax[i_t+1] = xt_next
+        
+#         # Update the hybrid event information under the actual controller
+#         reset_args_actual[i_t] = event_args_actual[cnt_event_actual]
+#         if (current_mode_actual!=next_mode_actual):
+#             print("----------- Mode changed for the actual controlled system ------------")
+#             event_args_actual.append(new_reset_arg)
+#             cnt_event_actual += 1
 
-def process_compute_costs(sample_i, inputs, dWs, target_state, ref_states, index, Q_k, R_k, Q_T, epsilon, dt):
-    costs_i = compute_cost(sample_i, inputs, dWs, target_state, ref_states, Q_k, R_k, Q_T, epsilon, dt)
-    return costs_i, index
+#     # ---------------
+#     #  Compare cost
+#     # ---------------    
+#     cost_pi = compute_cost_nonoise(modes_pi_jax, trj_pi_jax, u_star_pi_jax, target_state, states, Q_k, R_k, Q_T,dt)
+#     cost_ilqr = compute_cost_nonoise(mode_trj_ilqr, xt_trj_ilqr, u_trj_ilqr, target_state, states, Q_k, R_k, Q_T,dt)
+    
+#     print("cost_pi:", cost_pi)
+#     print("cost_ilqr:", cost_ilqr)
+    
+#     # -------------
+#     # Record data
+#     # -------------
+#     data_i = DataOneSample(modes_pi_jax, trj_pi_jax, u_star_pi_jax, 
+#                            mode_trj_ilqr, xt_trj_ilqr, u_trj_ilqr, 
+#                            allPathCosts_jax, cost_pi, cost_ilqr, Ksamples_jax_saving)
 
+#     gc.collect()
+
+
+#     return cost_pi, cost_ilqr, data_i
+
+
+def compute_on_gpu(inputs):
+    gc.collect()
+    # Perform some computation using JAX
+    
+    # Run a simple JAX computation
+    key = jax.random.PRNGKey(0)
+    x = jax.random.normal(key, (1000, 1000))
+    result = jnp.dot(x, x.T)
+    print("JAX computation result:", result)
+
+    y = jnp.sin(inputs)
+    return y
 
 def main(epsilon, n_samples, dt):
     
@@ -142,19 +413,25 @@ def main(epsilon, n_samples, dt):
     
     exp_data.add_nominal_data(hybrid_ilqr_result)
     exp_data.add_plotting_function(plot_bouncingball)
-
-    # ---------------------
-    #  Show h-iLQG results
-    # ---------------------
-    show_results = False
-    if show_results:
-        plot_bouncingball(time_span, modes, states, inputs, init_state, target_state, nt)
     
     # =============================================================================================
     # Do sample experiments for n_exp number of experiments, under different randomness
     # =============================================================================================          
-    
-    import multiprocessing as mp
+
+    # mp.set_start_method('spawn', force=True)
+
+    # # Create a pool of workers
+    # with mp.Pool(processes=4) as pool:
+    #     # Sample input data
+    #     inputs = [jnp.array([1.0, 2.0, 3.0]), jnp.array([4.0, 5.0, 6.0])]
+
+    #     # Map the function to the inputs
+    #     results = pool.map(compute_on_gpu, inputs)
+
+    #     # Print the results
+    #     for result in results:
+    #         print(result)
+            
     # ==================== 
     # Run ith experiment 
     # ==================== 
@@ -199,98 +476,6 @@ def main(epsilon, n_samples, dt):
     file_path = f"{save_root}/data/bouncing/{filename}"
     print("Saving data to: ", file_path)
     exp_data.dump(file_path)
-
-    show_results = False
-    if show_results:
-        # =============== plotting ===============
-        fig1, axes = plt.subplots(1, 2)
-        (ax1, ax2) = axes.flatten()
-        ax1.grid(True)
-        ax2.grid(True)
-
-        # # ----------- plot the path integral controlled trajectory -----------
-        for i_exp in range(n_exp):
-            trj_ilqr = exp_data.get_data(i_exp).x_trj_ilqr()
-            trj_pi_jax = exp_data.get_data(i_exp).x_trj_pi()
-            
-            ax1.plot(time_span, trj_ilqr[:, 0], 'b', alpha=0.2)
-            ax2.plot(time_span, trj_ilqr[:, 1], 'b', alpha=0.2)
-            
-            ax1.plot(time_span, trj_pi_jax[:, 0], 'r', alpha=0.8)
-            ax2.plot(time_span, trj_pi_jax[:, 1], 'r', alpha=0.8)
-            
-        ax1.plot(time_span, trj_ilqr[:, 0], 'b', alpha=0.2, label='iLQR')
-        ax2.plot(time_span, trj_ilqr[:, 1], 'b', alpha=0.2, label='iLQR')
-
-        ax1.plot(time_span, trj_pi_jax[:, 0], 'r', alpha=0.8, label='Path Integral')
-        ax2.plot(time_span, trj_pi_jax[:, 1], 'r', alpha=0.8, label='Path Integral')
-
-        # ----------- Plot the start and goal states -----------
-        ax1.scatter(time_span[-1], target_state[0], color='g', marker='x', s=50.0, linewidths=6, label='Target')
-        ax1.scatter(time_span[0], init_state[0], color='r', marker='x', s=50.0, linewidths=6, label='Start')
-
-        ax2.scatter(time_span[-1], target_state[1], color='g', marker='x', s=50.0, linewidths=6, label='Target')
-        ax2.scatter(time_span[0], init_state[1], color='r', marker='x', s=50.0, linewidths=6, label='Start')
-
-        # ----------- Plot the reference -----------
-        ax1.plot(time_span, states[:,0],'k',label='iLQR-deterministic')
-        ax2.plot(time_span, states[:,1],'k',label='iLQR-deterministic')
-
-        ax1.set_xlabel(r"Time")
-        ax1.set_ylabel(r"$z$")
-        ax1.set_title("Bouncing Ball Vertical Position")
-
-        ax2.set_xlabel(r"Time")
-        ax2.set_ylabel(r"$\dot z$")
-        ax2.set_title("Bouncing Ball Vertical Velocity")
-
-        ax1.legend()
-        ax2.legend()
-
-        # =========== Plot the z-\dot_z figure ===========
-        fig2, ax5 = plt.subplots()
-        ax5.grid(True)
-
-        # ----------- Plot the last iteration of iLQR controller ----------
-        for i_exp in range(n_exp):
-            trj_ilqr = exp_data.get_data(i_exp).x_trj_ilqr()
-            trj_pi_jax = exp_data.get_data(i_exp).x_trj_pi()
-            ax5.plot(trj_ilqr[:, 0], trj_ilqr[:, 1], 'b', alpha=0.2)
-            ax5.plot(trj_pi_jax[:, 0], trj_pi_jax[:, 1], 'r', alpha=0.8)
-
-        ax5.plot(trj_ilqr[:, 0], trj_ilqr[:, 1], 'b', alpha=0.2, label='iLQR')
-        ax5.plot(trj_pi_jax[:, 0], trj_pi_jax[:, 1], 'r', alpha=0.8, label='Path Integral')
-        ax5.plot(states[:,0], states[:,1],'k',label='iLQR-deterministic')
-
-        # ----------- Plot the start and goal states -----------
-        ax5.scatter(target_state[0], target_state[1], color='g', marker='x', s=50.0, linewidths=6, label='Target')
-        ax5.scatter(init_state[0], init_state[1], color='r', marker='x', s=50.0, linewidths=6, label='Start')
-
-        ax5.legend()
-
-        # plot control inputs
-        fig3, ax7 = plt.subplots(1, 1)
-        ax7.grid(True)
-        ax7.plot(time_span, inputs[:,0],'k',label='Final iteration ilqr')
-        ax7.plot(time_span, u_star_pi_jax[:,0],'r',label='Path integral controller')
-        ax7.set_xlabel(r"Timestep")
-        ax7.set_ylabel(r"$u$")
-        ax7.set_title("Bouncing Ball Final Control Input")
-
-        ax7.legend()
-
-        # plot PathCosts
-        fig3, ax8 = plt.subplots()
-        ax8.grid(True)
-        ax8.bar(range(n_exp), cost_ilqr_exp, width = 2, color='navy', alpha=0.1, label='Cost iLQR')
-        ax8.bar(range(n_exp), cost_pi_exp, width = 2, color='red', alpha=0.5, label='Cost PathIntegralControl')
-
-        ax8.set_xlabel(r"Experiment ID")
-        ax8.set_ylabel(r"$Costs$")
-        ax8.legend()
-
-        plt.show()
-
 
 import argparse
 if __name__ == '__main__':

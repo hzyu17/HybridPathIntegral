@@ -8,6 +8,7 @@ script_filename = os.path.splitext(os.path.basename(file_path))[0]
 root_dir = os.path.abspath(os.path.join(exp_dir, '..'))
 sys.path.append(root_dir)
 
+import gc
 import jax.numpy as jnp
 
 # Import iLQR class and reference extension handler
@@ -63,6 +64,9 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
                     start_time, end_time, dt, dt_shrink, 
                     Q_k, Q_T, R_k, epsilon, init_reset_args):
     
+    
+    gc.collect()
+
     (modes,states,inputs,
      k_feedforward,K_feedback,
      current_cost,states_iter,
@@ -523,7 +527,7 @@ def main(epsilon, n_samples, dt):
     print(f"The value of epsilon input is: {epsilon}")
     print(f"The value of number of samples input is: {n_samples}")
     
-    n_exp = 1
+    n_exp = 20
     
     # === ilqr parameters ===
     # Initialize timings
@@ -676,18 +680,19 @@ def main(epsilon, n_samples, dt):
     filename = f"data_{formatted_datetime}_{script_filename}_{n_exp}experiments_{n_samples}samples_eps_{epsilon}_coupling_dt_{dt}.pickle"
     
     # save_root = '/hddscratch/hyu419/hybrid_pathintegral/exp_200'
-    save_root = '/home/hzyu/git/HybridPathIntegral/experiments'
-    save_path = f"{save_root}/data/bouncing/{filename}"
+    # save_root = '/home/hzyu/git/HybridPathIntegral/experiments'
+    save_root = '/ssdscratch/hyu419/hybrid_pathintegral/new_exp'
+    save_path = f"{save_root}/data/slip/{filename}"
     exp_data.dump(save_path)
     
-    print(f" =================== Saved data to: =================== \n {{save_path}}")
+    print(" =================== Saved data to: =================== \n", save_path)
     
     
 import argparse
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="The epsilon parameter.")
     parser.add_argument("--epsilon", type=float, default=0.001, help="The process noise intensity value, epsilon.")
-    parser.add_argument("--nsamples", type=int, default=1000, help="The number of samples used in path integral control.")
+    parser.add_argument("--nsamples", type=int, default=5000, help="The number of samples used in path integral control.")
     parser.add_argument("--dt", type=int, default=0.0005, help="The time discretization.")
     
     args = parser.parse_args()

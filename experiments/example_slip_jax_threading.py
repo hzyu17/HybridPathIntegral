@@ -14,39 +14,11 @@ from dynamics.dynamics_slip import *
 from dynamics.dynamics_discrete_slip import *
 # Importing path integral control
 from hybrid_pathintegral.hybrid_pathintegral import *
-# Import plotting
-import matplotlib.pyplot as plt
 # Import experiment parameter class
 from experiments.exp_params import *
 from experiments.h_pathintegral_example_slip_jax import run_experiment
 
 os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
-
-import gc
-gc.collect()
-
-# # ====================================== Path Integral Control ====================================== 
-# def compute_cost(states,inputs,randN,target_state,trj_ref, Qk, Rk, QT, epsilon, dt):
-    
-#     n_timestamps = states.shape[0]
-    
-#     # Initialize cost
-#     total_cost = 0.0
-#     current_cost = 0.0
-#     for ii in range(n_timestamps-1):
-#         current_u = inputs[ii]
-        
-#         current_cost = current_u.T@Rk@current_u/2.0*dt + np.sqrt(epsilon*dt) * np.dot(current_u.T, randN[ii])
-#         total_cost = total_cost+current_cost
-        
-#     # Compute terminal cost
-#     terminal_difference = (target_state-states[-1]).flatten()
-#     terminal_cost = terminal_difference.T@QT@terminal_difference/2.0
-
-#     total_cost = total_cost+terminal_cost
-
-#     return total_cost
-
 
 def main(epsilon, n_samples, dt):
     
@@ -56,7 +28,7 @@ def main(epsilon, n_samples, dt):
     # === ilqr parameters ===
     # Initialize timings
     
-    n_exp = 1
+    n_exp = 50
     
     # ---------------- bouncing example -----------------
     dt_shrink = 0.9
@@ -179,9 +151,9 @@ def main(epsilon, n_samples, dt):
     # Run ith experiment 
     # ==================== 
     mp.set_start_method('spawn', force=True)
-        
+
     # Pool of workers
-    num_process = max(1, min(mp.cpu_count()-10, 5))
+    num_process = max(1, min(mp.cpu_count()-10, 8))
     with mp.Pool(processes=num_process) as pool:
         # Prepare the arguments for each experiment
         args = [(i, nt, n_samples, n_states, n_inputs, 
@@ -210,113 +182,22 @@ def main(epsilon, n_samples, dt):
     from datetime import datetime
     current_datetime = datetime.now()
     formatted_datetime = current_datetime.strftime("%Y-%m-%d_%H-%M-%S")
-    filename = f"data_{formatted_datetime}_{script_filename}_{n_samples}samples_eps_{epsilon}_coupling.pickle"
+    filename = f"data_{formatted_datetime}_{script_filename}_{n_exp}exp_{n_samples}samples_eps_{epsilon}_coupling.pickle"
     # filename = f"data_{n_samples}samples_eps_{epsilon}_coupling.pickle"
     # save_root = '/hddscratch/hyu419/hybrid_pathintegral/exp_200'
-    save_root = '/hddscratch/hyu419/hybrid_pathintegral/new_exp'
+    save_root = '/ssdscratch/hyu419/hybrid_pathintegral/new_exp'
     
     # save_root = '/home/hzyu/git/HybridPathIntegral/experiments'
-    file_path = f"{save_root}/data/bouncing/{filename}"
+    file_path = f"{save_root}/data/slip/{filename}"
     print("Saving data to: ", file_path)
     exp_data.dump(file_path)
-
-    show_results = False
-    if show_results:
-        # =============== plotting ===============
-        fig1, axes = plt.subplots(1, 2)
-        (ax1, ax2) = axes.flatten()
-        ax1.grid(True)
-        ax2.grid(True)
-
-        # # ----------- plot the path integral controlled trajectory -----------
-        for i_exp in range(n_exp):
-            trj_ilqr = exp_data.get_data(i_exp).x_trj_ilqr()
-            trj_pi_jax = exp_data.get_data(i_exp).x_trj_pi()
-            
-            ax1.plot(time_span, trj_ilqr[:, 0], 'b', alpha=0.2)
-            ax2.plot(time_span, trj_ilqr[:, 1], 'b', alpha=0.2)
-            
-            ax1.plot(time_span, trj_pi_jax[:, 0], 'r', alpha=0.8)
-            ax2.plot(time_span, trj_pi_jax[:, 1], 'r', alpha=0.8)
-            
-        ax1.plot(time_span, trj_ilqr[:, 0], 'b', alpha=0.2, label='iLQR')
-        ax2.plot(time_span, trj_ilqr[:, 1], 'b', alpha=0.2, label='iLQR')
-
-        ax1.plot(time_span, trj_pi_jax[:, 0], 'r', alpha=0.8, label='Path Integral')
-        ax2.plot(time_span, trj_pi_jax[:, 1], 'r', alpha=0.8, label='Path Integral')
-
-        # ----------- Plot the start and goal states -----------
-        ax1.scatter(time_span[-1], target_state[0], color='g', marker='x', s=50.0, linewidths=6, label='Target')
-        ax1.scatter(time_span[0], init_state[0], color='r', marker='x', s=50.0, linewidths=6, label='Start')
-
-        ax2.scatter(time_span[-1], target_state[1], color='g', marker='x', s=50.0, linewidths=6, label='Target')
-        ax2.scatter(time_span[0], init_state[1], color='r', marker='x', s=50.0, linewidths=6, label='Start')
-
-        # ----------- Plot the reference -----------
-        ax1.plot(time_span, states[:,0],'k',label='iLQR-deterministic')
-        ax2.plot(time_span, states[:,1],'k',label='iLQR-deterministic')
-
-        ax1.set_xlabel(r"Time")
-        ax1.set_ylabel(r"$z$")
-        ax1.set_title("Bouncing Ball Vertical Position")
-
-        ax2.set_xlabel(r"Time")
-        ax2.set_ylabel(r"$\dot z$")
-        ax2.set_title("Bouncing Ball Vertical Velocity")
-
-        ax1.legend()
-        ax2.legend()
-
-        # =========== Plot the z-\dot_z figure ===========
-        fig2, ax5 = plt.subplots()
-        ax5.grid(True)
-
-        # ----------- Plot the last iteration of iLQR controller ----------
-        for i_exp in range(n_exp):
-            trj_ilqr = exp_data.get_data(i_exp).x_trj_ilqr()
-            trj_pi_jax = exp_data.get_data(i_exp).x_trj_pi()
-            ax5.plot(trj_ilqr[:, 0], trj_ilqr[:, 1], 'b', alpha=0.2)
-            ax5.plot(trj_pi_jax[:, 0], trj_pi_jax[:, 1], 'r', alpha=0.8)
-
-        ax5.plot(trj_ilqr[:, 0], trj_ilqr[:, 1], 'b', alpha=0.2, label='iLQR')
-        ax5.plot(trj_pi_jax[:, 0], trj_pi_jax[:, 1], 'r', alpha=0.8, label='Path Integral')
-        ax5.plot(states[:,0], states[:,1],'k',label='iLQR-deterministic')
-
-        # ----------- Plot the start and goal states -----------
-        ax5.scatter(target_state[0], target_state[1], color='g', marker='x', s=50.0, linewidths=6, label='Target')
-        ax5.scatter(init_state[0], init_state[1], color='r', marker='x', s=50.0, linewidths=6, label='Start')
-
-        ax5.legend()
-
-        # plot control inputs
-        fig3, ax7 = plt.subplots(1, 1)
-        ax7.grid(True)
-        ax7.plot(time_span, inputs[:,0],'k',label='Final iteration ilqr')
-        ax7.plot(time_span, u_star_pi_jax[:,0],'r',label='Path integral controller')
-        ax7.set_xlabel(r"Timestep")
-        ax7.set_ylabel(r"$u$")
-        ax7.set_title("Bouncing Ball Final Control Input")
-
-        ax7.legend()
-
-        # plot PathCosts
-        fig3, ax8 = plt.subplots()
-        ax8.grid(True)
-        ax8.bar(range(n_exp), cost_ilqr_exp, width = 2, color='navy', alpha=0.1, label='Cost iLQR')
-        ax8.bar(range(n_exp), cost_pi_exp, width = 2, color='red', alpha=0.5, label='Cost PathIntegralControl')
-
-        ax8.set_xlabel(r"Experiment ID")
-        ax8.set_ylabel(r"$Costs$")
-        ax8.legend()
-
-        plt.show()
 
 
 import argparse
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="The epsilon parameter.")
     
-    parser.add_argument("--epsilon", type=float, default=0.001, help="The process noise intensity value, epsilon.")
+    parser.add_argument("--epsilon", type=float, default=0.005, help="The process noise intensity value, epsilon.")
     parser.add_argument("--nsamples", type=int, default=5000, help="The number of samples used in path integral control.")
     parser.add_argument("--dt", type=int, default=0.0005, help="The time discretization.")
     

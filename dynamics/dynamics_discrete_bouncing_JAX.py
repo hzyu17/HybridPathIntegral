@@ -7,7 +7,6 @@ sys.path.append(root_dir)
 
 from dynamics.dynamics_bouncing import *
 from dynamics.dynamics_discrete import *
-from jax import disable_jit
 
 
 def stochastic_integration_euler_bouncing_JAX(mode, x0, u, dt, eps, dW):
