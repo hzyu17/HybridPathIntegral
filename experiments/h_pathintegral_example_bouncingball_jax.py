@@ -27,9 +27,6 @@ from hybrid_pathintegral.sampling_rollout_jax_bouncing import sample_bouncing_ja
 from dynamics.dynamics_bouncing import *
 from dynamics.dynamics_discrete_bouncing import *
 
-# Set environment variable to control the GPU memory fraction used by JAX
-os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "0.9"
-
 
 import gc
 gc.collect()
