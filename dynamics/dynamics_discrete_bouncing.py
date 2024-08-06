@@ -48,7 +48,7 @@ def guard_true_func_bouncing(args):
             xt_current, u_current, dt_int, dt_shrinkrate, RandN, eps, cnt_shrink
         )
     
-    print("final dt_int CPU: ", dt_int)
+    # print("final dt_int CPU: ", dt_int)
     
     # Execute the reset map after the loop
     xt_next, next_mode, new_reset_arg = reset_map_bouncing_12(t, xt_shrinked, current_mode, reset_arg)

@@ -23,8 +23,6 @@ from experiments.exp_params import *
 # Import slip model dynamics
 from dynamics.dynamics_discrete_slip import *
 
-# Set environment variable to control the GPU memory fraction used by JAX
-os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "0.9"
 
 
 import gc

@@ -8,49 +8,44 @@ script_filename = os.path.splitext(os.path.basename(file_path))[0]
 root_dir = os.path.abspath(os.path.join(exp_dir, '..'))
 sys.path.append(root_dir)
 
-from dynamics.dynamics_bouncing import *
 # Import iLQR class
 from hybrid_ilqr.h_ilqr_discrete import solve_ilqr
-from dynamics.dynamics_bouncing import *
-from dynamics.dynamics_discrete_bouncing import *
+from dynamics.dynamics_slip import *
+from dynamics.dynamics_discrete_slip import *
 # Importing path integral control
 from hybrid_pathintegral.hybrid_pathintegral import *
 # Import plotting
 import matplotlib.pyplot as plt
 # Import experiment parameter class
 from experiments.exp_params import *
-from experiments.h_pathintegral_example_bouncingball_jax import run_experiment
+from experiments.h_pathintegral_example_slip_jax import run_experiment
 
 os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
 
 import gc
 gc.collect()
 
-# ====================================== Path Integral Control ====================================== 
-def compute_cost(states,inputs,randN,target_state,trj_ref, Qk, Rk, QT, epsilon, dt):
+# # ====================================== Path Integral Control ====================================== 
+# def compute_cost(states,inputs,randN,target_state,trj_ref, Qk, Rk, QT, epsilon, dt):
     
-    n_timestamps = states.shape[0]
+#     n_timestamps = states.shape[0]
     
-    # Initialize cost
-    total_cost = 0.0
-    current_cost = 0.0
-    for ii in range(n_timestamps-1):
-        current_u = inputs[ii]
+#     # Initialize cost
+#     total_cost = 0.0
+#     current_cost = 0.0
+#     for ii in range(n_timestamps-1):
+#         current_u = inputs[ii]
         
-        current_cost = current_u.T@Rk@current_u/2.0*dt + np.sqrt(epsilon*dt) * np.dot(current_u.T, randN[ii])
-        total_cost = total_cost+current_cost
+#         current_cost = current_u.T@Rk@current_u/2.0*dt + np.sqrt(epsilon*dt) * np.dot(current_u.T, randN[ii])
+#         total_cost = total_cost+current_cost
         
-    # Compute terminal cost
-    terminal_difference = (target_state-states[-1]).flatten()
-    terminal_cost = terminal_difference.T@QT@terminal_difference/2.0
+#     # Compute terminal cost
+#     terminal_difference = (target_state-states[-1]).flatten()
+#     terminal_cost = terminal_difference.T@QT@terminal_difference/2.0
 
-    total_cost = total_cost+terminal_cost
+#     total_cost = total_cost+terminal_cost
 
-    return total_cost
-
-def process_compute_costs(sample_i, inputs, dWs, target_state, ref_states, index, Q_k, R_k, Q_T, epsilon, dt):
-    costs_i = compute_cost(sample_i, inputs, dWs, target_state, ref_states, Q_k, R_k, Q_T, epsilon, dt)
-    return costs_i, index
+#     return total_cost
 
 
 def main(epsilon, n_samples, dt):
@@ -61,78 +56,103 @@ def main(epsilon, n_samples, dt):
     # === ilqr parameters ===
     # Initialize timings
     
+    n_exp = 1
+    
     # ---------------- bouncing example -----------------
-    # dt = 0.01
     dt_shrink = 0.9
+    r0 = 1
     
-    start_time = 0
-    end_time = 2.0
-    time_span = np.arange(start_time, end_time, dt).flatten()
-    nt = len(time_span)
-
-    init_state = np.array([5, 1.5])    # Define the initial state to be the origin with no velocity
-    target_state = np.array([2.5, 0])  # Swing pendulum upright
-    
-    init_mode = 0
-
-    # ---------------- / bouncing example -----------------
-
-    # ===== OR =====
-    # dt = 5e-5
-    # # ------------- verification with no contact ------------- 
-    # start_time = 0
-    # end_time = 1.0
-    # time_span = np.arange(start_time, end_time, dt).flatten()
-    # nt = len(time_span)
-
-    # init_state = np.array([5, 1.5])    # Define the initial state to be the origin with no velocity
-    # target_state = np.array([1.0, 0.0])
-
-    # # ------------- /verification with no contact ------------- 
-
-    # Set desired state
     n_modes = 2
     
-    # the state and control dimensions, mode-dependent
-    n_states = [2, 2]
-    n_inputs = [1, 1]
-
-    # ---------------------------- 
-    # Define weighting matrices
+    # mode 1 (flight): x = [px, vx, pz, vz, theta], u = [theta_dot]
+    # mode 2 (stance): x = [theta, theta_dot, r, r_dot], u = [r_delta, \tau_hip]
+    
+    # --------------
+    # SLIP Dynamics
+    # --------------
+    # mode 1 (flight): x = [px, vx, pz, vz, theta], u = [theta_dot]
+    # mode 2 (stance): x = [theta, theta_dot, r, r_dot], u = [r_delta, \tau_hip]
+    
+    # For the slip dynamics, mode 1 has 1 input, and mode 2 has 2 inputs. 
+    n_states = [5, 4]
+    n_inputs = [1, 2]
+    
     # ----------------------------
+    # Case 1: vertical bouncing
+    # ----------------------------
+    # start_time = 0
+    # end_time = 1.5
+    # init_mode = 0
+    # init_state = np.array([0.0, 0.0, 2.0, 0.0, np.pi/2], dtype=np.float64)    # Define the initial state to be the origin with no velocity
+    # target_state = np.array([0.0, 0.0, 2.3, 0.0, np.pi/2], dtype=np.float64)  # Swing pendulum upright
+
+    # # Time definitions
+    # start_time = 0
+    # end_time = 1.5
+    # time_span = np.arange(start_time, end_time, dt).flatten()
+    # nt = len(time_span)
+    
+    # # Terminal cost 
+    # target_mode = 0
+    # Q_T = 0.01*np.eye(n_states[0])
+    
+    # # Running costs
+    # Q_k = [np.zeros((n_states[0],n_states[0])), np.zeros((n_states[1],n_states[1]))] # zero weight to penalties along a strajectory since we are finding a trajectory
+    # R_k = [np.eye(n_inputs[0]), np.eye(n_inputs[1])]
+    
+    # --------------------------
+    # Case 2: Running one step
+    # --------------------------
+    init_mode = 1
+    
+    # Time definitions
+    start_time = 0
+    end_time = 0.5
+    
+    time_span = np.arange(start_time, end_time, dt).flatten()
+    nt = len(time_span)
+    
+    print("nt: ", nt)
+    
+    # Terminal cost 
+    target_mode = 0
+    Q_T = 200.0*np.eye(n_states[0])
+    # Q_T[1,1] = 2000.0
+    # Q_T[3,3] = 2000.0
+    
+    # Running costs
     Q_k = [np.zeros((n_states[0],n_states[0])), np.zeros((n_states[1],n_states[1]))] # zero weight to penalties along a strajectory since we are finding a trajectory
     R_k = [np.eye(n_inputs[0]), np.eye(n_inputs[1])]
-
-    # ---------------------------- Set the terminal cost ----------------------------
-    target_mode = 0
-    Q_T = 200*np.eye(n_states[0])
-    Q_T[0,0] = 2000.0
-
-    n_exp = 10
     
+    init_theta_deg = 100
+    init_theta = init_theta_deg / 180 * np.pi
+    init_state = np.array([init_theta, -4.0, 0.5*r0, 0.0], dtype=np.float64)
+    target_state = np.array([1.1, 2.5, 1.5, 0.0, np.pi/3], dtype=np.float64)  # Swing pendulum upright
     init_reset_args = [np.array([0.0]) for _ in range(nt)]
     target_reset_args = [np.array([0.0]) for _ in range(nt)]
     
-    # ============================================================================================================
-    #                                       Solve for hybrid ilqg proposal
-    # ============================================================================================================
+    # ---------------- / slip example -----------------
+    
+    # ================================
+    # solve for hybrid ilqr proposal
+    # ================================
     exp_params = ExpParams()
     
-    initial_guess = [0.5*np.ones((np.shape(time_span)[0],n_inputs[0])), 0.5*np.ones((np.shape(time_span)[0],n_inputs[1]))]
+    initial_guess = [0.0*np.ones((np.shape(time_span)[0],n_inputs[0])), 0.0*np.ones((np.shape(time_span)[0],n_inputs[1]))]
+    smooth_dynamics = [symbolic_flight_dynamics_slip, symbolic_stance_dynamics_slip]
     
-    flow_dynamics = [symbolic_dynamics_bouncing, symbolic_dynamics_bouncing]
-    
-    exp_params.update_params(n_modes, init_mode, target_mode, n_states, init_state, target_state, 
+    exp_params.update_params(n_modes, init_mode, target_mode, n_states, 
+                             init_state, target_state, 
                              start_time, end_time, dt, dt_shrink,
                              initial_guess, 
                              epsilon, n_exp, n_samples, 
-                             Q_k, R_k, Q_T, flow_dynamics, 
-                             event_detect_bouncing_discrete, 
-                             plot_bouncingball, 
-                             convert_state_21_bouncing, 
+                             Q_k, R_k, Q_T, smooth_dynamics, 
+                             event_detect_slip_discrete, 
+                             plot_slip, convert_state_21_slip, 
                              init_reset_args, target_reset_args)
     exp_data = ExpData(exp_params)
     
+    print("===================== Solving for h-iLQG proposal controller =====================")
     hybrid_ilqr_result = solve_ilqr(exp_params, detect=True, verbose=False)
     
     (modes,states,inputs,
@@ -141,14 +161,14 @@ def main(epsilon, n_samples, dt):
      ref_modechanges,reference_extension_helper, ref_reset_args) = hybrid_ilqr_result
     
     exp_data.add_nominal_data(hybrid_ilqr_result)
-    exp_data.add_plotting_function(plot_bouncingball)
-
+    exp_data.add_plotting_function(plot_slip)
+    
     # ---------------------
     #  Show h-iLQG results
     # ---------------------
     show_results = False
     if show_results:
-        plot_bouncingball(time_span, modes, states, inputs, init_state, target_state, nt)
+        plot_slip(time_span, modes, states, inputs, init_state, target_state, nt)
     
     # =============================================================================================
     # Do sample experiments for n_exp number of experiments, under different randomness
@@ -296,9 +316,9 @@ import argparse
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="The epsilon parameter.")
     
-    parser.add_argument("--epsilon", type=float, default=2.0, help="The process noise intensity value, epsilon.")
+    parser.add_argument("--epsilon", type=float, default=0.001, help="The process noise intensity value, epsilon.")
     parser.add_argument("--nsamples", type=int, default=5000, help="The number of samples used in path integral control.")
-    parser.add_argument("--dt", type=int, default=0.0025, help="The time discretization.")
+    parser.add_argument("--dt", type=int, default=0.0005, help="The time discretization.")
     
     args = parser.parse_args()
 
