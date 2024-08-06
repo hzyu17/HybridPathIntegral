@@ -19,7 +19,7 @@ if __name__ == '__main__':
     exp_data = ExpData(exp_params)
 
     # filename = root_dir+"/data/bouncing/ablation_study_nsamples/data_5000samples_eps_15.0_coupling.pickle"
-    filename = root_dir+"/experiments/data/slip/data_2024-08-02_14-23-21_h_pathintegral_example_slip_jax_1experiments_5000samples_eps_0.05_coupling_dt_0.0005.pickle"
+    filename = root_dir+"/experiments/data/slip/data_2024-08-05_22-31-33_h_pathintegral_example_slip_jax_2experiments_5000samples_eps_0.001_coupling_dt_0.0005.pickle"
     print("loading data: ", filename)
     exp_data.load(filename)
     

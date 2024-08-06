@@ -36,14 +36,13 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
                     init_mode, init_state, target_state, hybrid_ilqr_result, 
                     start_time, end_time, dt, dt_shrinkingrate, 
                     Q_k, Q_T, R_k, epsilon, init_reset_args):
-    
     (modes,states,inputs,
-     k_feedforward,K_feedback,
-     current_cost,states_iter,
-     ref_modechanges,reference_extension_helper, ref_reset_args) = hybrid_ilqr_result
-    
+        k_feedforward,K_feedback,
+        current_cost,states_iter,
+        ref_modechanges,reference_extension_helper, ref_reset_args) = hybrid_ilqr_result
+
     RndN_actual = [np.random.randn(nt, 1), np.random.randn(nt, 1)]
-    
+
     # =================================================================
     #                     Hybrid ilqr for comparison
     # ================================================================= 
@@ -52,11 +51,11 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
     xt_trj_ilqr = [np.array([0.0]) for _ in range(nt)]
     u_trj_ilqr = [np.zeros((nt, n_inputs[0])), np.zeros((nt, n_inputs[1]))]
     xt_trj_ilqr[0] = init_state
-    
+
     (mode_trj_ilqr, 
-     xt_trj_ilqr, 
-     u_trj_ilqr, 
-     cost_ilqr, _, _) = hybrid_stochastic_feedback_rollout_discrete_bouncing(init_mode, 
+        xt_trj_ilqr, 
+        u_trj_ilqr, 
+        cost_ilqr, _, _) = hybrid_stochastic_feedback_rollout_discrete_bouncing(init_mode, 
                                                                             init_state, 
                                                                             n_inputs, 
                                                                             states, modes, 
@@ -66,28 +65,28 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
                                                                             epsilon, RndN_actual, dt_shrinkingrate, 
                                                                             reference_extension_helper,
                                                                             init_reset_args)
-    
+
     show_hilqr_results = False
     if show_hilqr_results:
         time_span = np.arange(start_time, end_time, dt).flatten()
         plot_bouncingball(time_span, mode_trj_ilqr, xt_trj_ilqr, u_trj_ilqr, init_state, target_state, nt, trj_labels='iLQG-stochastic')
         plt.show()
         
-    
+
     # mode-dependent reference states. Assuming 2 modes
     # States with padded dimensions
     states_0 = np.zeros((nt, 2))
     states_1 = np.zeros((nt, 2))
-    
+
     inputs_0 = np.zeros((nt, 1))
     inputs_1 = np.zeros((nt, 1))
-    
+
     K_feedback_0 = np.zeros((nt, 1, 2))
     K_feedback_1 = np.zeros((nt, 1, 2))
-    
+
     k_feedforward_0 = np.zeros((nt, 1))
     k_feedforward_1 = np.zeros((nt, 1))
-    
+
     for i in range(nt):
         mode_i = modes[i]
         if mode_i == 0:
@@ -103,54 +102,54 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
             k_feedforward_1[i, :n_inputs[1]] = k_feedforward[i]
         
     ref_reset_args = np.array(ref_reset_args)
-    
+
     ref_reset_args = np.array(ref_reset_args)
     k_feedforward_0 = np.array(k_feedforward_0)
     k_feedforward_1 = np.array(k_feedforward_1)
     K_feedback_0 = np.array(K_feedback_0)
     K_feedback_1 = np.array(K_feedback_1)
-    
+
     print(f"=================== The experiment index: {i_exp} ===================" )
-    
+
     # -------------- result collectors, jax --------------
     modes_pi_jax = np.zeros(nt, dtype=np.int64)
-    trj_pi_jax = [np.array([0.0]) for _ in range(nt)]
+    trj_pi_jax = [np.zeros(n_states[0]) for _ in range(nt)]
 
     u_star_pi_jax = [np.zeros((nt, n_inputs[0])), np.zeros((nt, n_inputs[1]))]
     allPathCosts_jax = np.zeros((nt-1, n_samples))
-    
+
     # -------------- initialize the control loop -------------- 
     x0_jax = jnp.asarray(init_state)
     xt = x0_jax
     xt_ilqr = init_state
-    
+
     current_mode_actual = init_mode
     next_mode_actual = current_mode_actual
     # current_modechange = np.array([current_mode_actual, next_mode_actual])
-    
+
     modes_pi_jax[0] = init_mode
     trj_pi_jax[0] = x0_jax
-    
+
     # current_ref_modechange_ilqr = (0, 0)
     cnt_mismatch = 0
-    
+
     # Assuming 2-mode system
     reset_args_actual = ref_reset_args
     event_args_actual = [ref_reset_args[0]]
     cnt_event_actual = 0
-    
+
     # ---------------------------------
     #  Extract the extended references 
     # ---------------------------------
     (v_mode_change_ref, v_ref_ext_bwd, v_ref_ext_fwd, 
     v_Kfb_ref_ext_bwd, v_Kfb_ref_ext_fwd, 
     v_kff_ref_ext_bwd, v_kff_ref_ext_fwd, _) = extract_extensions(reference_extension_helper, start_index = 0)
-    
-    
+
+
     show_trj_extensions = False
     if show_trj_extensions:
         time_span = np.arange(start_time, end_time, dt).flatten()
-         
+            
         fig_ext, axes_ext = plt.subplots(3, 1, figsize=(10, 12))
         (ax_ext_1, ax_ext_2, ax_ext_3) = axes_ext.flatten()
 
@@ -174,13 +173,15 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         ax_ext_2.legend()
         ax_ext_3.legend()
         fig_ext.tight_layout()
-    
+
         plt.show()
                 
         
     n_modes = 2
     Ksamples_jax_saving = np.zeros((n_samples, nt, n_modes))
     
+    time_span = np.linspace(0, end_time, nt)
+
     # ======================================================
     #     Main loop for the hybrid path integral control
     # ======================================================
@@ -276,9 +277,39 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
                                                                     v_Kfb_ref_ext_bwd_i, v_kff_ref_ext_bwd_i, 
                                                                     init_reset_args_i)
         
-        # save the samples at t=0
-        # if (i_t == 0):
-        #     Ksamples_jax_saving = Ksamples_jax_i
+        
+        # =============================== Create samples under zero-control input ==========================
+        inputs_0_i_zero = np.zeros_like(inputs_0_i)
+        inputs_1_i_zero = np.zeros_like(inputs_1_i)
+        K_feedback_0_i_zero = np.zeros_like(K_feedback_0_i)
+        k_feedforward_0_i_zero = np.zeros_like(k_feedforward_0_i)
+        K_feedback_1_i_zero = np.zeros_like(K_feedback_1_i)
+        k_feedforward_1_i_zero = np.zeros_like(k_feedforward_1_i)
+        
+        v_Kfb_ref_ext_fwd_i_zero = [np.zeros_like(v_Kfb_ref_ext_fwd_i[0])]
+        v_kff_ref_ext_fwd_i_zero = [np.zeros_like(v_kff_ref_ext_fwd_i[0])]
+        v_Kfb_ref_ext_bwd_i_zero = [np.zeros_like(v_Kfb_ref_ext_bwd_i[0])]
+        v_kff_ref_ext_bwd_i_zero = [np.zeros_like(v_kff_ref_ext_bwd_i[0])]
+        
+        
+        (_, Ksamples_jax_i_zero, _, 
+        _, _, _, 
+        _, _) = sample_bouncing_jax(n_samples, xt, 
+                                    current_mode_actual, 
+                                    states_0_i, states_1_i, 
+                                    modes_i, 
+                                    inputs_0_i_zero, inputs_1_i_zero, 
+                                    K_feedback_0_i_zero, k_feedforward_0_i_zero, 
+                                    K_feedback_1_i_zero, k_feedforward_1_i_zero, 
+                                    target_state, Q_T, 
+                                    start_time_i, dt, dt_shrinkingrate, 
+                                    epsilon, 
+                                    GaussianNoise_i[0], GaussianNoise_i[1], 
+                                    v_mode_change_ref_i, 
+                                    v_ref_ext_fwd_i, v_ref_ext_bwd_i, 
+                                    v_Kfb_ref_ext_fwd_i_zero, v_kff_ref_ext_fwd_i_zero, 
+                                    v_Kfb_ref_ext_bwd_i_zero, v_kff_ref_ext_bwd_i_zero, 
+                                    init_reset_args_i)        
         
         # --------------------------------------------------------
         #               Update the control proposal
@@ -292,13 +323,13 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         if cond_mode_mismatch_bouncing(current_mode_actual, ref_current_mode):
             print("--------------- mode mismatch happened ---------------")
             xref_i, K_fb, k_ff, cnt_mismatch = reaction_mode_mismatch(i_t, 
-                                                                      current_mode_actual, ref_current_mode, 
-                                                                      v_ref_ext_fwd[0], v_ref_ext_bwd[0], 
-                                                                      v_mode_change_ref[0],
-                                                                      v_Kfb_ref_ext_fwd[0], v_kff_ref_ext_fwd[0], 
-                                                                      v_Kfb_ref_ext_bwd[0], v_kff_ref_ext_bwd[0], 
-                                                                      cnt_mismatch,
-                                                                      cond_early_arrival=cond_early_arrival_bouncing)
+                                                                        current_mode_actual, ref_current_mode, 
+                                                                        v_ref_ext_fwd[0], v_ref_ext_bwd[0], 
+                                                                        v_mode_change_ref[0],
+                                                                        v_Kfb_ref_ext_fwd[0], v_kff_ref_ext_fwd[0], 
+                                                                        v_Kfb_ref_ext_bwd[0], v_kff_ref_ext_bwd[0], 
+                                                                        cnt_mismatch,
+                                                                        cond_early_arrival=cond_early_arrival_bouncing)
         
         u0_proposal = ubar_i + K_fb@(xt - xref_i) + k_ff
         
@@ -314,52 +345,116 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         # -------------------------------
         # Visualize sampled trajectories
         # -------------------------------
-        show_samples = False
+        show_samples = True
         if show_samples:
-            _, axes_sample = plt.subplots(2, 1)
-            (ax1_sample, ax2_sample) = axes_sample.flatten()
+            from matplotlib.font_manager import FontProperties
+            font_props = FontProperties(family='serif', size=12, weight='normal')
             
-            ax1_sample.grid(True)
-            ax2_sample.grid(True)
-            
-            # ----------------------
-            #  Plot all the samples 
-            # ----------------------
-            xt_trj_ilqr = np.asarray(xt_trj_ilqr)
-            states_ref = np.asarray(states)
-                        
-            
-            for i_s in range(20):
-                ax1_sample.plot(Ksamples_jax_i[i_s,:,0], Ksamples_jax_i[i_s,:,1],'b', alpha=0.2)
-                ax2_sample.plot(Ksamples_jax_i[i_s,:,0], 'b', alpha=0.2)
-                # ax2_sample.plot(Ksamples_ut[i_s,:,0], 'b', alpha=0.2)
+            if (i_t==0):
+                fig2, axes_samples_compare = plt.subplots(1, 2, figsize=(15,8))
+                (ax1_sample_compare, ax2_sample_compare) = axes_samples_compare.flatten()
+                ax1_sample_compare.grid(True)
+                ax2_sample_compare.grid(True)
                 
-            ax1_sample.plot(xt_trj_ilqr[:,0], xt_trj_ilqr[:,1],'r', alpha=0.9, label='h-iLQR stochastic control')
-            ax1_sample.plot(states_ref[:,0], states_ref[:,1],'k', alpha=0.9, label='Reference')
-            ax1_sample.plot(Ksamples_jax_i[i_s,:,0], Ksamples_jax_i[i_s,:,1],'b', alpha=0.2, label='Samples')
-            # ax2_sample.plot(Ksamples_ut[i_s,:,0], 'b', alpha=0.2, label='sampled stochastic control')
-            ax2_sample.plot(Ksamples_jax_i[i_s,:,0], 'b', alpha=0.2, label='sampled stochastic control')
-            
-            fig4, ax10 = plt.subplots()
-            inputs_ref = np.asarray(inputs)
-            u_trj_ilqr = np.asarray(u_trj_ilqr)
-            
-            # ax2_sample.plot(inputs_ref[0, :, 0], 'k', label='Ref control')
-            # ax2_sample.plot(u_trj_ilqr[0, :, 0], 'r', label='h-iLQR stochastic control')
-            
-            ax2_sample.plot(states_ref[:, 0], 'k', label='Ref control')
-            ax2_sample.plot(xt_trj_ilqr[:, 0], 'r', label='h-iLQR stochastic control')
-            
-            ax1_sample.legend()
-            ax2_sample.legend()
-            
-            plt.show()
-            
-            ax1_sample.scatter(target_state[0], target_state[1], color='g', marker='x', s=50.0, linewidths=6, label='Target')
-            ax1_sample.scatter(init_state[0], init_state[1], color='r', marker='x', s=50.0, linewidths=6, label='Start')
-            ax1_sample.scatter(xt[0], xt[1], color='b', marker='x', s=30.0, linewidths=6, label='Current')
-            
+                time_span_i = time_span[i_t:]
+                
+                for i_s in range(80):
+                    ax1_sample_compare.plot(Ksamples_jax_i[i_s,:,0], Ksamples_jax_i[i_s,:,1],'b', alpha=0.1)         
+                    ax2_sample_compare.plot(Ksamples_jax_i_zero[i_s,:,0], Ksamples_jax_i_zero[i_s,:,1],'r', alpha=0.1)  
+                    
+                ax1_sample_compare.plot(Ksamples_jax_i[i_s,:,0], Ksamples_jax_i[i_s,:,1],'b', alpha=0.2, label=r'Samples under h-iLQG')         
+                ax2_sample_compare.plot(Ksamples_jax_i_zero[i_s,:,0], Ksamples_jax_i_zero[i_s,:,1],'r', alpha=0.2, label=r'Uncontrolled distribution samples')    
+                
+                ax1_sample_compare.scatter(target_state[0], target_state[1], color='g', marker='x', s=60.0, linewidths=7)
+                ax1_sample_compare.scatter(init_state[0], init_state[1], color='r', marker='x', s=60.0, linewidths=7)
+                ax1_sample_compare.scatter(xt[0], xt[1], color='c', marker='x', s=60.0, linewidths=6)
+                ax1_sample_compare.scatter(target_state[0], target_state[1], color='g', marker='x', s=60.0, linewidths=7, label=r'Target')
+                ax1_sample_compare.scatter(init_state[0], init_state[1], color='r', marker='x', s=60.0, linewidths=7, label=r'Start')
+                
+                ax2_sample_compare.scatter(target_state[0], target_state[1], color='g', marker='x', s=60.0, linewidths=7)
+                ax2_sample_compare.scatter(init_state[0], init_state[1], color='r', marker='x', s=60.0, linewidths=7)
+                ax2_sample_compare.scatter(xt[0], xt[1], color='c', marker='x', s=60.0, linewidths=6)
+                ax2_sample_compare.scatter(target_state[0], target_state[1], color='g', marker='x', s=60.0, linewidths=7, label=r'Target')
+                ax2_sample_compare.scatter(init_state[0], init_state[1], color='r', marker='x', s=60.0, linewidths=7, label=r'Start')
+                
+                ax1_sample_compare.set_xlabel(r'$X_1$', fontproperties=font_props)
+                ax1_sample_compare.set_ylabel(r'$X_2$', fontproperties=font_props)
+                
+                ax2_sample_compare.set_xlabel(r'$X_1$', fontproperties=font_props)
+                ax2_sample_compare.set_ylabel(r'$X_2$', fontproperties=font_props)
+                
+                ax1_sample_compare.legend(loc='upper right', prop={'family': 'serif', 'size': 15})
+                ax2_sample_compare.legend(loc='upper right', prop={'family': 'serif', 'size': 15})
+                
+                plt.tight_layout()
+                plt.show()
+                fig2.savefig(root_dir+'/data/figures/Girsanov.pdf', dpi=2000)
+                
+                
+            if (i_t==300):
+                
+                # _, axes_sample = plt.subplots(2, 1, figsize=(8,12))
+                # (ax1_sample, ax2_sample) = axes_sample.flatten()
+                
+                # ax1_sample.grid(True)
+                # ax2_sample.grid(True)
+                
+                fig, ax1_sample = plt.subplots(figsize=(8,8))
+                ax1_sample.grid(True)
+                
+                time_span_i = time_span[i_t:]
+                
+                # ----------------------
+                #  Plot all the samples 
+                # ----------------------
+                xt_trj_ilqr = np.asarray(xt_trj_ilqr)
+                states_ref = np.asarray(states)
+                trj_pi_jax_arr = np.asarray(trj_pi_jax)
+                
+                for i_s in range(80):
+                    ax1_sample.plot(Ksamples_jax_i[i_s,:,0], Ksamples_jax_i[i_s,:,1],'b', alpha=0.1)    
+                    
+                    # ax2_sample.plot(time_span_i, Ksamples_jax_i[i_s,:,0], 'b', alpha=0.1)
+                    
+                # ax1_sample.plot(xt_trj_ilqr[:,0], xt_trj_ilqr[:,1],'b', alpha=1.0, label='h-iLQG feedback control')
+                ax1_sample.plot(trj_pi_jax_arr[:i_t,0], trj_pi_jax_arr[:i_t,1],'r', alpha=1.0, label=r'h-PI controlled trajectory')
+                ax1_sample.plot(states_ref[:,0], states_ref[:,1],'k', alpha=1.0, label=r'h-iLQG Reference')
+                ax1_sample.plot(Ksamples_jax_i[i_s,:,0], Ksamples_jax_i[i_s,:,1],'b', alpha=0.2, label='Trajectory Samples')
+                
+                u_trj_ilqr = np.asarray(u_trj_ilqr)
+                
+                ax1_sample.scatter(target_state[0], target_state[1], color='g', marker='x', s=60.0, linewidths=7)
+                ax1_sample.scatter(init_state[0], init_state[1], color='r', marker='x', s=60.0, linewidths=7)
+                ax1_sample.scatter(xt[0], xt[1], color='c', marker='x', s=60.0, linewidths=6)
+                ax1_sample.scatter(target_state[0], target_state[1], color='g', marker='x', s=60.0, linewidths=7, label=r'Target')
+                ax1_sample.scatter(init_state[0], init_state[1], color='r', marker='x', s=60.0, linewidths=7, label=r'Start')
+                ax1_sample.scatter(xt[0], xt[1], color='c', marker='x', s=60.0, linewidths=7, label=r'Current')
+                
+                
+                # ax2_sample.scatter(time_span_i[-1], target_state[0], color='g', marker='x', s=50.0, linewidths=6, label='Target')
+                # ax2_sample.scatter(time_span[0], init_state[0], color='r', marker='x', s=50.0, linewidths=6, label='Start')  
+                # ax2_sample.scatter(time_span[i_t], xt[0], color='b', marker='x', s=30.0, linewidths=6, label='Current')         
+                
+                # ax2_sample.plot(time_span_i, Ksamples_jax_i[i_s,:,0], 'b', alpha=0.1, label='Trajectory Samples')
+                # ax2_sample.plot(time_span, states_ref[:, 0], 'k', label='h-iLQG Reference')
+                # ax2_sample.plot(time_span[:i_t], trj_pi_jax_arr[:i_t,0],'r', alpha=1.0, label='h-PI controlled trajectory')
+                # ax2_sample.plot(time_span, xt_trj_ilqr[:, 0], 'r', label='h-iLQR feedback control')
+                
+                ax1_sample.set_xlabel(r'$X_1$', fontproperties=font_props)
+                ax1_sample.set_ylabel(r'$X_2$', fontproperties=font_props)
+                
+                # ax2_sample.set_xlabel(r'Time $t$', fontproperties=font_props)
+                # ax2_sample.set_ylabel(r'$X_1$', fontproperties=font_props)
+                
+                ax1_sample.legend(loc='upper right', prop={'family': 'serif', 'size': 15})
+                # ax2_sample.legend(loc='upper right')
+                
+                plt.tight_layout()
+                plt.show()
+                fig.savefig(root_dir+'/data/figures/method.pdf', dpi=2000)
+        
         # ----------------------------------- 
+        
         
         # --------------------------------------------- 
         # Apply optimal control and go to next state  
@@ -383,36 +478,15 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
             print("----------- Mode changed for the actual controlled system ------------")
             event_args_actual.append(new_reset_arg)
             cnt_event_actual += 1
-
-    # ---------------
-    #  Compare cost
-    # ---------------    
-    cost_pi = compute_cost_nonoise(modes_pi_jax, trj_pi_jax, u_star_pi_jax, target_state, states, Q_k, R_k, Q_T,dt)
-    cost_ilqr = compute_cost_nonoise(mode_trj_ilqr, xt_trj_ilqr, u_trj_ilqr, target_state, states, Q_k, R_k, Q_T,dt)
+        
     
-    print("cost_pi:", cost_pi)
-    print("cost_ilqr:", cost_ilqr)
+import argparse
+
+if __name__ == '__main__':
     
-    # -------------
-    # Record data
-    # -------------
-    data_i = DataOneSample(modes_pi_jax, trj_pi_jax, u_star_pi_jax, 
-                           mode_trj_ilqr, xt_trj_ilqr, u_trj_ilqr, 
-                           allPathCosts_jax, cost_pi, cost_ilqr, Ksamples_jax_saving)
-
-    gc.collect()
-
-
-    return cost_pi, cost_ilqr, data_i
-
-def main(epsilon, n_samples, dt):
-    
-    print(f"The value of epsilon input is: {epsilon}")
-    print(f"The value of number of samples input is: {n_samples}")
-    print(f"The value of time discretization dt is: {dt}")
-    # === ilqr parameters ===
-    # Initialize timings
-    
+    dt = 0.0025
+    epsilon = 2.0
+    n_samples = 5000
     n_exp = 1
     
     # ---------------- bouncing example -----------------
@@ -427,21 +501,6 @@ def main(epsilon, n_samples, dt):
     target_state = np.array([2.5, 0], dtype=np.float64)  # Swing pendulum upright
     
     init_mode = 0
-
-    # ---------------- / bouncing example -----------------
-
-    # ===== OR =====
-    # dt = 5e-5
-    # # ------------- verification with no contact ------------- 
-    # start_time = 0
-    # end_time = 1.0
-    # time_span = np.arange(start_time, end_time, dt).flatten()
-    # nt = len(time_span)
-
-    # init_state = np.array([5, 1.5])    # Define the initial state to be the origin with no velocity
-    # target_state = np.array([1.0, 0.0])
-
-    # # ------------- /verification with no contact ------------- 
 
     # Set desired state
     n_modes = 2
@@ -522,53 +581,3 @@ def main(epsilon, n_samples, dt):
                                 init_mode, init_state, target_state, hybrid_ilqr_result, 
                                 start_time, end_time, dt, dt_shrink, 
                                 Q_k, Q_T, R_k, epsilon, init_reset_args)
-
-        cost_pi_exp[i_exp] = result[0]
-        cost_ilqr_exp[i_exp] = result[1]
-        exp_data.add_data(i_exp, result[2])
-        
-        
-    print("E[cost_pi]: ", np.mean(cost_pi_exp))
-    print("E[cost_ilqr_exp]: ", np.mean(cost_ilqr_exp))
-
-    # =========== save data ===========
-    from datetime import datetime
-    current_datetime = datetime.now()
-    formatted_datetime = current_datetime.strftime("%Y-%m-%d_%H-%M-%S")
-    filename = f"data_{formatted_datetime}_{script_filename}_{n_exp}experiments_{n_samples}samples_eps_{epsilon}_coupling_dt_{dt}.pickle"
-    
-    # save_root = '/hddscratch/hyu419/hybrid_pathintegral/exp_200'
-    save_root = '/home/hzyu/git/HybridPathIntegral/experiments'
-    save_path = f"{save_root}/data/bouncing/{filename}"
-    exp_data.dump(save_path)
-    
-    print(" =================== Saved data to: =================== \n", save_path)
-    
-    
-    # ---------------------------------------------
-    # plot the path integral controlled trajectory
-    # --------------------------------------------- 
-    show_results = False
-    if show_results:
-        fig4, axes = plt.subplots(1, 2)
-        (ax4, ax5) = axes.flatten()
-        fig4, axes, fig5, ax6 =  plot_bouncingball_nexp(n_exp, exp_data, time_span, init_state, 
-                                                            target_state, args=None)
-        
-        fig4.tight_layout()
-        fig5.tight_layout()
-        
-        plt.show()
-
-
-import argparse
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="The epsilon parameter.")
-    parser.add_argument("--epsilon", type=float, default=2.0, help="The process noise intensity value, epsilon.")
-    parser.add_argument("--nsamples", type=int, default=5000, help="The number of samples used in path integral control.")
-    parser.add_argument("--dt", type=int, default=0.0025, help="The time discretization.")
-    
-    args = parser.parse_args()
-
-    main(args.epsilon, args.nsamples, args.dt)
-    
