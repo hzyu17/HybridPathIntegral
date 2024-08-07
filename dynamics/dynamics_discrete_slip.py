@@ -82,18 +82,21 @@ def guard_true_func_slip(args):
         
         return xt_shrinked, dt_shrink, cnt_shrink, new_condition
     
-    cnt_shrink = 0
-    can_continue = True
-    xt_shrinked = xt_next
+    # cnt_shrink = 0
+    # can_continue = True
+    # xt_shrinked = xt_next
     
-    # Implementing the loop with Python's while
-    while can_continue:
-        xt_shrinked, dt_int, cnt_shrink, can_continue = while_loop_body(
-            xt_current, u, t, dt_int, dt_shrinkrate, RandN, eps, cnt_shrink
-        )
+    # # Implementing the loop with Python's while
+    # while can_continue:
+    #     xt_shrinked, dt_int, cnt_shrink, can_continue = while_loop_body(
+    #         xt_current, u, t, dt_int, dt_shrinkrate, RandN, eps, cnt_shrink
+    #     )
     
-    # Execute the reset map after the loop
-    xt_next, next_mode, new_reset_arg = reset_map_slip_21(t, xt_shrinked, current_mode, reset_arg)
+    # # Execute the reset map after the loop
+    # xt_next, next_mode, new_reset_arg = reset_map_slip_21(t, xt_shrinked, current_mode, reset_arg)
+    # dW_new = np.sqrt(dt_int) * RandN
+    
+    xt_next, next_mode, new_reset_arg = reset_map_slip_21(t, xt_current, current_mode, reset_arg)
     dW_new = np.sqrt(dt_int) * RandN
     
     return xt_next, next_mode, dW_new, new_reset_arg

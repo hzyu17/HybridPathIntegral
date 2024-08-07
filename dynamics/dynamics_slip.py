@@ -3,9 +3,13 @@
 # mode 2 (stance): x = [theta, theta_dot, r, r_dot], u = [r_delta, \tau_hip]
 # reset maps: identity
 
-import matplotlib.pyplot as plt
+
 from dynamics.dynamics import *
 from dynamics.guard_reset_slip import *
+
+import matplotlib.pyplot as plt
+from matplotlib.font_manager import FontProperties
+font_props = FontProperties(family='serif', size=16, weight='normal')
 
 # =================================
 # Flight dynamics Definitions
@@ -324,7 +328,7 @@ def hybrid_stochastic_feedback_rollout_slip(init_mode, x0, n_inputs, xt_ref, ref
               x0, target_state, n_timestamps, reset_args, 
               fig=None, axes=None, color='k', alpha=1.0, step=2)
     
-    ax.legend()
+    ax.legend(loc='best', prop={'family': 'serif', 'size': 15})
     plt.show()
     
     # Terminal cost
@@ -342,17 +346,17 @@ def hybrid_stochastic_feedback_rollout_slip(init_mode, x0, n_inputs, xt_ref, ref
         ax5.plot(xt_ref[:,0], xt_ref[:,1],color='k',linewidth=2.5,label='Reference')
         ax5.plot(xt_ref_actual[:,0], xt_ref_actual[:,1],color='r',linewidth=1.5,linestyle='--', label='Modified Reference')
         
-        ax5.set_xlabel(r"z", fontsize=14)
-        ax5.set_ylabel(r"$\dot z$", fontsize=14)
-        ax5.legend(loc='upper right')
+        ax5.set_xlabel(r"z", fontproperties=font_props)
+        ax5.set_ylabel(r"$\dot z$", fontproperties=font_props)
+        ax5.legend(loc='best', prop={'family': 'serif', 'size': 15})
         plt.tight_layout()
         
         ax6.plot(xt_trj[:,0], xt_trj[:,1],color='b',linewidth=1.5,label='Rollout')
         ax6.plot(xt_ref[:,0], xt_ref[:,1],color='k',linewidth=2.5,label='Reference')
         ax6.plot(xt_ref_actual[:,0], xt_ref_actual[:,1],color='r',linewidth=1.5,linestyle='--',label='Modified Reference')
-        ax6.set_xlabel(r"z", fontsize=14)
-        ax6.set_ylabel(r"$\dot z$", fontsize=14)
-        ax6.legend(loc='upper right')
+        ax6.set_xlabel(r"z", fontproperties=font_props)
+        ax6.set_ylabel(r"$\dot z$", fontproperties=font_props)
+        ax6.legend(loc='best', prop={'family': 'serif', 'size': 15})
         plt.tight_layout()
         
         plt.show()
@@ -436,6 +440,10 @@ def event_detect_slip(x0, u, t0, tf, current_mode, reset_args, detection=True, b
     #         plt.show()
 
 
+spring_coils = 15
+spring_amplitude = 0.01
+ball_radius = 0.015
+
 def plot_slip(time_span, modes, states, inputs, 
               init_state, target_state, nt, reset_args, 
               fig=None, axes=None, color='k', alpha=1.0, step=2):
@@ -478,7 +486,7 @@ def plot_slip(time_span, modes, states, inputs,
     
     
     # --------------------------------------- 
-    # collect the mode 1 states and inputs
+    #  Collect the mode 1 states and inputs
     # ---------------------------------------
     mode1_timestamps = []
     mode1_states = []
@@ -486,7 +494,7 @@ def plot_slip(time_span, modes, states, inputs,
     mode1_modes = []
     
     # --------------------------------------- 
-    # collect the mode 0 states and inputs
+    #  Collect the mode 0 states and inputs
     # ---------------------------------------
     mode0_timestamps = []
     mode0_states = []
@@ -554,63 +562,63 @@ def plot_slip(time_span, modes, states, inputs,
     ax16.scatter(time_span[0], init_state[4], color='r', marker='x', s=50.0, linewidths=6, label='Start')
     
     
-    ax11.set_xlabel(r"Time")
-    ax11.set_ylabel(r"mode")
-    ax11.set_title(r"SLIP mode")
+    ax11.set_xlabel(r"Time", fontproperties=font_props)
+    ax11.set_ylabel(r"mode", fontproperties=font_props)
+    ax11.set_title(r"SLIP mode", fontproperties=font_props)
     
-    ax12.set_xlabel(r"Time")
-    ax12.set_ylabel(r"$x$")
-    ax12.set_title(r"SLIP x")
+    ax12.set_xlabel(r"Time", fontproperties=font_props)
+    ax12.set_ylabel(r"$x$", fontproperties=font_props)
+    ax12.set_title(r"SLIP x", fontproperties=font_props)
 
-    ax13.set_xlabel(r"Time")
-    ax13.set_ylabel(r"$\dot x$")
-    ax13.set_title(r"SLIP $\dot x$")
+    ax13.set_xlabel(r"Time", fontproperties=font_props)
+    ax13.set_ylabel(r"$\dot x$", fontproperties=font_props)
+    ax13.set_title(r"SLIP $\dot x$", fontproperties=font_props)
     
-    ax14.set_xlabel(r"Time")
-    ax14.set_ylabel(r"$z$")
-    ax14.set_title(r"SLIP $z$")
+    ax14.set_xlabel(r"Time", fontproperties=font_props)
+    ax14.set_ylabel(r"$z$", fontproperties=font_props)
+    ax14.set_title(r"SLIP $z$", fontproperties=font_props)
     
-    ax15.set_xlabel(r"Time")
-    ax15.set_ylabel(r"$\dot z$")
-    ax15.set_title(r"SLIP $\dot z$")
+    ax15.set_xlabel(r"Time", fontproperties=font_props)
+    ax15.set_ylabel(r"$\dot z$", fontproperties=font_props)
+    ax15.set_title(r"SLIP $\dot z$", fontproperties=font_props)
     
-    ax16.set_xlabel(r"Time")
-    ax16.set_ylabel(r"$\theta$")
-    ax16.set_title(r"SLIP $\theta $")
+    ax16.set_xlabel(r"Time", fontproperties=font_props)
+    ax16.set_ylabel(r"$\theta$", fontproperties=font_props)
+    ax16.set_title(r"SLIP $\theta $", fontproperties=font_props)
     
-    ax17.set_xlabel(r"Time")
-    ax17.set_ylabel(r"Inputs")
-    ax17.set_title(r"SLIP Inputs")
+    ax17.set_xlabel(r"Time", fontproperties=font_props)
+    ax17.set_ylabel(r"Inputs", fontproperties=font_props)
+    ax17.set_title(r"SLIP Inputs", fontproperties=font_props)
     
-    ax21.set_xlabel(r"Time")
-    ax21.set_ylabel(r"mode")
-    ax21.set_title(r"SLIP mode")
+    ax21.set_xlabel(r"Time", fontproperties=font_props)
+    ax21.set_ylabel(r"mode", fontproperties=font_props)
+    ax21.set_title(r"SLIP mode", fontproperties=font_props)
     
-    ax22.set_xlabel(r"Time")
-    ax22.set_ylabel(r"$\theta$")
-    ax22.set_title(r"SLIP $\theta$")
+    ax22.set_xlabel(r"Time", fontproperties=font_props)
+    ax22.set_ylabel(r"$\theta$", fontproperties=font_props)
+    ax22.set_title(r"SLIP $\theta$", fontproperties=font_props)
     
-    ax23.set_xlabel(r"Time")
-    ax23.set_ylabel(r"$\dot \theta$")
-    ax23.set_title(r"SLIP $\dot \theta$")
+    ax23.set_xlabel(r"Time", fontproperties=font_props)
+    ax23.set_ylabel(r"$\dot \theta$", fontproperties=font_props)
+    ax23.set_title(r"SLIP $\dot \theta$", fontproperties=font_props)
     
-    ax24.set_xlabel(r"Time")
-    ax24.set_ylabel(r"$r$")
-    ax24.set_title(r"SLIP $r$")
+    ax24.set_xlabel(r"Time", fontproperties=font_props)
+    ax24.set_ylabel(r"$r$", fontproperties=font_props)
+    ax24.set_title(r"SLIP $r$", fontproperties=font_props)
 
-    ax25.set_xlabel(r"Time")
-    ax25.set_ylabel(r"$\dot r$")
-    ax25.set_title(r"SLIP $\dot r$")
+    ax25.set_xlabel(r"Time", fontproperties=font_props)
+    ax25.set_ylabel(r"$\dot r$", fontproperties=font_props)
+    ax25.set_title(r"SLIP $\dot r$", fontproperties=font_props)
     
-    ax26.set_xlabel(r"Time")
-    ax26.set_ylabel(r"Inputs")
-    ax26.set_title(r"SLIP Inputs")
+    ax26.set_xlabel(r"Time", fontproperties=font_props)
+    ax26.set_ylabel(r"Inputs", fontproperties=font_props)
+    ax26.set_title(r"SLIP Inputs", fontproperties=font_props)
     
     if ax26.get_legend() is None:
-        ax26.legend()
+        ax26.legend(loc='best', prop={'family': 'serif', 'size': 15})
         
     if ax17.get_legend() is None:
-        ax17.legend()
+        ax17.legend(loc='best', prop={'family': 'serif', 'size': 15})
     
     return fig, np.array([[ax11, ax12, ax13, ax14, ax15, ax16, ax17], [ax21, ax22, ax23, ax24, ax25, ax26, ax27]], dtype=object)  
 
@@ -623,28 +631,35 @@ def plot_slip_flight_animate(state_flight, r0, ax=None, spring_color='c-'):
     # Parameters
     x, _, z, _, theta = state_flight[0], state_flight[1], state_flight[2], state_flight[3], state_flight[4]
     
-    spring_coils = 15
-    spring_amplitude = 0.02
-    ball_radius = 0.02
     theta_spring = np.pi / 2 - theta
     
     # Generate spring data
     t = np.linspace(0, 2 * np.pi * spring_coils, 1000)
     x_spring = spring_amplitude * np.sin(t)
-    y_spring = np.linspace(0, r0, 1000)
-    x_spring_rot = x_spring * np.cos(theta_spring) + y_spring * np.sin(theta_spring)
-    z_spring_rot = -x_spring * np.sin(theta_spring) + y_spring * np.cos(theta_spring)
+    z_spring = np.linspace(0, 0.4*r0, 1000)
+    
+    x_spring_rot = x_spring * np.cos(theta_spring) + z_spring * np.sin(theta_spring)
+    z_spring_rot = -x_spring * np.sin(theta_spring) + z_spring * np.cos(theta_spring)
 
-    x_spring_rot = x_spring_rot + x - r0*np.cos(theta)
-    z_spring_rot = z_spring_rot + z - r0*np.sin(theta)
+    x_spring_rot = x_spring_rot + x - 0.7*r0*np.cos(theta)
+    z_spring_rot = z_spring_rot + z - 0.7*r0*np.sin(theta)
     
     # Plot the spring
-    ax.plot(x_spring_rot, z_spring_rot, spring_color, lw=2)
-
-    # Calculate spring end position
-    spring_end_x = x
-    spring_end_z = z
+    ax.plot(x_spring_rot, z_spring_rot, spring_color, lw=1.5)
     
+    # Plot the line connecting the ends of the spring
+    t1_x = np.linspace(x_spring_rot[-1], x, 1000)
+    t1_z = np.linspace(z_spring_rot[-1], z, 1000)
+    
+    x_tail = x - r0*np.cos(theta)
+    z_tail = z - r0*np.sin(theta)
+    t2_x = np.linspace(x_tail, x_spring_rot[0], 1000)
+    t2_z = np.linspace(z_tail, z_spring_rot[0], 1000)
+    
+    ax.plot(t2_x, t2_z, spring_color, lw=1.5)
+    ax.plot(t1_x, t1_z, spring_color, lw=1.5)
+
+    # Calculate spring end position    
     ball_x = x 
     ball_y = z 
     
@@ -653,8 +668,8 @@ def plot_slip_flight_animate(state_flight, r0, ax=None, spring_color='c-'):
     
     colors = ['r', 'g', 'b', 'c']
     labels = ['Start', 'Goal', 'Stance', 'Flight']
-    proxy_artists = [plt.Line2D([0], [0], color=color, lw=2) for color in colors]
-    ax.legend(proxy_artists, labels)
+    proxy_artists = [plt.Line2D([0], [0], color=color, lw=1.5) for color in colors]
+    ax.legend(proxy_artists, labels, loc='best', prop={'family': 'serif', 'size': 15})
     
     plt.tight_layout()
     
@@ -665,28 +680,38 @@ def plot_slip_stance_animate(state_stance, xp, ax=None, spring_color='b-'):
         ax.grid(True)
 
     # Parameters
-    theta, theta_dot, r, rdot = state_stance[0], state_stance[1], state_stance[2], state_stance[3]
-    
-    spring_coils = 15
-    spring_amplitude = 0.02
-    ball_radius = 0.02
+    theta, r = state_stance[0], state_stance[2]
+
     theta_spring = np.pi / 2 - theta
     
     # Generate spring data
     t = np.linspace(0, 2 * np.pi * spring_coils, 1000)
     x_spring = spring_amplitude * np.sin(t)
-    y_spring = np.linspace(0, r, 1000)
+    y_spring = np.linspace(0, 0.5*r, 1000)
+    
     x_spring_rot = x_spring * np.cos(theta_spring) + y_spring * np.sin(theta_spring)
     z_spring_rot = -x_spring * np.sin(theta_spring) + y_spring * np.cos(theta_spring)
 
     x_spring_rot = x_spring_rot + xp
     
     # Plot the spring
-    ax.plot(x_spring_rot, z_spring_rot, spring_color, lw=2)
+    ax.plot(x_spring_rot, z_spring_rot, spring_color, lw=1.5)
 
     # Calculate spring end position
     spring_end_x = xp + r * np.cos(theta)
     spring_end_z = r * np.sin(theta)
+    
+    # Plot the line connecting the ends of the spring
+    t1_x = np.linspace(x_spring_rot[-1], spring_end_x, 1000)
+    t1_z = np.linspace(z_spring_rot[-1], spring_end_z, 1000)
+    
+    x_tail = xp
+    z_tail = 0.0
+    t2_x = np.linspace(x_tail, x_spring_rot[0], 1000)
+    t2_z = np.linspace(z_tail, z_spring_rot[0], 1000)
+    
+    ax.plot(t2_x, t2_z, spring_color, lw=1.5)
+    ax.plot(t1_x, t1_z, spring_color, lw=1.5)
     
     ball_x = spring_end_x
     ball_y = spring_end_z
@@ -762,4 +787,4 @@ def animate_slip(modes, states, init_mode, init_state, target_mode, target_state
     elif target_mode == 1:
         plot_slip_stance_animate(target_state, target_reset_args, ax, 'g-')
     
-    plt.show()
+    return fig, ax

@@ -64,29 +64,35 @@ def guard_true_func_deterministic(args):
         
         new_condition = True
         if (guard.direction == 1):
-            new_condition = ((guard(0.0,xt_shrinked)>0) and (cnt_shrink < 20))
+            new_condition = ((guard(0.0,xt_shrinked)>0) and (cnt_shrink < 50))
         elif (guard.direction == -1):
-            new_condition = ((guard(0.0,xt_shrinked)<=0) and (cnt_shrink < 20))
+            new_condition = ((guard(0.0,xt_shrinked)<=0) and (cnt_shrink < 50))
             
         cnt_shrink += 1
         
         return xt_shrinked, dt_shrinked, cnt_shrink, new_condition
     
-    cnt_shrink = 0
-    can_continue = True
-    xt_shrinked = xt_next
+    # cnt_shrink = 0
+    # can_continue = True
+    # xt_shrinked = xt_next
     
-    # Implementing the loop with Python's while
-    while can_continue:
-        xt_shrinked, dt_int, cnt_shrink, can_continue = while_loop_body(
-            xt_current, u_current, t, dt_int, dt_shrinkrate, cnt_shrink
-        )
+    # # Implementing the loop with Python's while
+    # while can_continue:
+    #     xt_shrinked, dt_int, cnt_shrink, can_continue = while_loop_body(
+    #         xt_current, u_current, t, dt_int, dt_shrinkrate, cnt_shrink
+    #     )
     
-    # Execute the reset map after the loop
+    # # Execute the reset map after the loop
+    # t_event =  t + dt_int
+    # x_reset, next_mode, new_reset_arg = resetmap(t, xt_shrinked, current_mode, reset_arg)
+    
+    # return t_event, xt_shrinked, x_reset, next_mode, new_reset_arg
+    
+    x_reset, next_mode, new_reset_arg = resetmap(t, xt_current, current_mode, reset_arg)
+    
     t_event =  t + dt_int
-    x_reset, next_mode, new_reset_arg = resetmap(t, xt_shrinked, current_mode, reset_arg)
     
-    return t_event, xt_shrinked, x_reset, next_mode, new_reset_arg
+    return t_event, xt_next, x_reset, next_mode, new_reset_arg
 
 
 

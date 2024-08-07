@@ -96,7 +96,7 @@ if __name__ == '__main__':
     # ---------------- / slip example -----------------
     
     # ================================
-    # solve for hybrid ilqr proposal
+    #  Solve for hybrid ilqr proposal
     # ================================
     exp_params = ExpParams()
     

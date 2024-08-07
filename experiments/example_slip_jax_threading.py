@@ -18,7 +18,11 @@ from hybrid_pathintegral.hybrid_pathintegral import *
 from experiments.exp_params import *
 from experiments.h_pathintegral_example_slip_jax import run_experiment
 
+from jax import pmap
+
 os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
+import gc
+gc.collect()
 
 def main(epsilon, n_samples, dt):
     
@@ -28,7 +32,7 @@ def main(epsilon, n_samples, dt):
     # === ilqr parameters ===
     # Initialize timings
     
-    n_exp = 50
+    n_exp = 5
     
     # ---------------- bouncing example -----------------
     dt_shrink = 0.9
@@ -153,13 +157,13 @@ def main(epsilon, n_samples, dt):
     mp.set_start_method('spawn', force=True)
 
     # Pool of workers
-    num_process = max(1, min(mp.cpu_count()-10, 8))
+    num_process = max(1, min(mp.cpu_count()-10, 5))
     with mp.Pool(processes=num_process) as pool:
         # Prepare the arguments for each experiment
-        args = [(i, nt, n_samples, n_states, n_inputs, 
+        args = [(i_exp, nt, n_samples, n_states, n_inputs, 
                  init_mode, init_state, target_state, hybrid_ilqr_result, 
                  start_time, end_time, dt, dt_shrink, 
-                 Q_k, Q_T, R_k, epsilon, init_reset_args) for i in range(n_exp)]
+                 Q_k, Q_T, R_k, epsilon, init_reset_args) for i_exp in range(n_exp)]
         
         # Map each experiment to the pool
         results = pool.starmap(run_experiment, args)

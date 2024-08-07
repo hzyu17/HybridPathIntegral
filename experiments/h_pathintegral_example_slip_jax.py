@@ -177,7 +177,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
     cnt_event_actual = 0
     
     # ---------------------------------
-    # Extract the extended references 
+    #  Extract the extended references 
     # ---------------------------------
     (v_mode_change_ref, v_ref_ext_bwd, v_ref_ext_fwd, 
     v_Kfb_ref_ext_bwd, v_Kfb_ref_ext_fwd, 
@@ -377,15 +377,14 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         # ---------------------------------
         #  Visualize sampled trajectories
         # ---------------------------------
-        show_samples = False
+        show_samples = True
         if show_samples:
             time_span = np.arange(start_time, end_time, dt).flatten()
-            n_samples_plotted = 10
-            print(f"Plotting {n_samples_plotted} h-PathIntegral trajectory samples.")
+            print(f"Plotting trajectory samples.")
             
             fig, axes = plt.subplots(2, 7, figsize=(15, 10))
             
-            for i_s in range(1):
+            for i_s in range(50):
                 sample_modes_i = Kmodes_jax_i[i_s]
                 sample_states_i = Ksamples_jax_i[i_s]
                 sample_inputs_i = Ksamples_ut[i_s]
@@ -435,11 +434,9 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
                                         inputs, init_state, target_state, 
                                         nt_i, sample_reset_args_i, fig, axes, 'k', step=1)
                 
-                plt.tight_layout()
-                plt.show()
-                
-                aa = 0
-            
+            plt.tight_layout()
+            plt.show()
+                        
             # # --------------------------------------------------
             # # Plot the sample corresponding to the highest cost
             # # --------------------------------------------------
@@ -692,7 +689,7 @@ import argparse
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="The epsilon parameter.")
     parser.add_argument("--epsilon", type=float, default=0.001, help="The process noise intensity value, epsilon.")
-    parser.add_argument("--nsamples", type=int, default=5000, help="The number of samples used in path integral control.")
+    parser.add_argument("--nsamples", type=int, default=500, help="The number of samples used in path integral control.")
     parser.add_argument("--dt", type=int, default=0.0005, help="The time discretization.")
     
     args = parser.parse_args()

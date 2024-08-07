@@ -8,9 +8,6 @@ script_filename = os.path.splitext(os.path.basename(file_path))[0]
 root_dir = os.path.abspath(os.path.join(exp_dir, '..'))
 sys.path.append(root_dir)
 
-import time
-import jax.numpy as jnp
-
 # Import iLQR class and reference extension handler
 # from hybrid_ilqr.h_ilqr import solve_ilqr, extract_extensions
 from hybrid_ilqr.h_ilqr_discrete import solve_ilqr, extract_extensions
@@ -26,6 +23,9 @@ from experiments.exp_params import *
 from hybrid_pathintegral.sampling_rollout_jax_bouncing import sample_bouncing_jax
 from dynamics.dynamics_bouncing import *
 from dynamics.dynamics_discrete_bouncing import *
+
+from matplotlib.font_manager import FontProperties
+font_props = FontProperties(family='serif', size=12, weight='normal')
 
 
 import gc
@@ -346,10 +346,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         # Visualize sampled trajectories
         # -------------------------------
         show_samples = True
-        if show_samples:
-            from matplotlib.font_manager import FontProperties
-            font_props = FontProperties(family='serif', size=12, weight='normal')
-            
+        if show_samples:            
             if (i_t==0):
                 fig2, axes_samples_compare = plt.subplots(1, 2, figsize=(15,8))
                 (ax1_sample_compare, ax2_sample_compare) = axes_samples_compare.flatten()

@@ -680,10 +680,12 @@ class hybrid_ilqr:
                                     self._n_timesteps, reset_args=self._reset_args)
             
             if self._animate_func:
-                self._animate_func(self._modes, self._states, self._init_mode, 
-                                    self._init_state, self._target_mode, self._target_state, 
-                                    self._n_timesteps, self._reset_args, self._target_reset_args,step=20)
+                fig, ax = self._animate_func(self._modes, self._states, self._init_mode, 
+                                            self._init_state, self._target_mode, self._target_state, 
+                                            self._n_timesteps, self._reset_args, self._target_reset_args,step=20)
             
+            plt.tight_layout()
+            # fig.savefig(root_dir+'/data/figures/slip/slip_jump_setting.pdf', dpi=2000)
             plt.show()
             
         # ----------------------------------------------------
@@ -700,7 +702,7 @@ class hybrid_ilqr:
         #                             Main Loop
         # =================================================================
         for ii in range(0,self.n_iterations_):   
-                         
+            
             current_cost = self.compute_cost(self._modes,self._states,self._inputs,self.dt_)
             
             print('========== Starting Iteration: ',ii,', Current cost: ',current_cost, ' ==========')

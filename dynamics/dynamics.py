@@ -53,12 +53,12 @@ def extract_extensions(reference_extension_helper, start_index=0, padding=False)
             max_nstate = np.max(n_states)
             max_ninput = np.max(n_inputs)
             
-            nt_length = MC_EXTTRJ_MAP[cur_mode_i].shape[0] - start_index - 1
+            nt_length = MC_EXTTRJ_MAP[cur_mode_i].shape[0] - start_index 
             
             ext_trj_fwd = np.zeros((nt_length, max_nstate))
             ext_trj_bwd = np.zeros((nt_length, max_nstate))
-            ext_trj_fwd[:, :n_states[0]] = MC_EXTTRJ_MAP[cur_mode_i][start_index:-1]
-            ext_trj_bwd[:, :n_states[1]] = MC_EXTTRJ_MAP[next_mode_i][start_index:-1]
+            ext_trj_fwd[:, :n_states[0]] = MC_EXTTRJ_MAP[cur_mode_i][start_index:]
+            ext_trj_bwd[:, :n_states[1]] = MC_EXTTRJ_MAP[next_mode_i][start_index:]
             
             v_ext_trj_fwd.append(ext_trj_fwd)
             v_ext_trj_bwd.append(ext_trj_bwd)
@@ -81,8 +81,8 @@ def extract_extensions(reference_extension_helper, start_index=0, padding=False)
             
         else:
             # Add the forward and backward extensions to the collection        
-            v_ext_trj_fwd.append(MC_EXTTRJ_MAP[cur_mode_i][start_index:-1])
-            v_ext_trj_bwd.append(MC_EXTTRJ_MAP[next_mode_i][start_index:-1])
+            v_ext_trj_fwd.append(MC_EXTTRJ_MAP[cur_mode_i][start_index:])
+            v_ext_trj_bwd.append(MC_EXTTRJ_MAP[next_mode_i][start_index:])
             
             # Add the feedback gain for forward and backward extensions to the collection
             v_Kfb_ext_trj_fwd.append(MC_FEEDBACK_EXTTRJ_MAP[cur_mode_i][start_index:])
@@ -188,7 +188,7 @@ def event_reactive_fun(args):
         reset_byproduct = reset_args
         
         # /---- solver for the deterministic part
-        if (not event_condition(xt_current, xt_swch, current_guard)) or (cnt==10): # Until the guard condition is no longer met.
+        if (not event_condition(xt_current, xt_swch, current_guard)) or (cnt==50): # Until the guard condition is no longer met.
             # The reset map is called
             xt_next, next_mode, reset_byproduct = current_resetmap(t, xt_swch, current_mode, reset_args)
             dW = dW_new

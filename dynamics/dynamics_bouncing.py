@@ -1,5 +1,7 @@
 from dynamics.dynamics import *
 import matplotlib.pyplot as plt
+from matplotlib.font_manager import FontProperties
+font_props = FontProperties(family='serif', size=16, weight='normal')
 
 def dyn_bouncing(t, x, *args):
     """
@@ -220,17 +222,17 @@ def stochastic_feedback_rollout_bouncing(init_mode, x0, n_inputs, xt_ref, ref_mo
         ax5.plot(xt_ref[:,0], xt_ref[:,1],color='k',linewidth=2.5,label='Reference')
         ax5.plot(xt_ref_actual[:,0], xt_ref_actual[:,1],color='r',linewidth=1.5,linestyle='--', label='Modified Reference')
         
-        ax5.set_xlabel(r"z", fontsize=14)
-        ax5.set_ylabel(r"$\dot z$", fontsize=14)
-        ax5.legend(loc='upper right')
+        ax5.set_xlabel(r"z", fontproperties=font_props)
+        ax5.set_ylabel(r"$\dot z$", fontproperties=font_props)
+        ax5.legend(loc='upper right', prop={'family': 'serif', 'size': 15})
         plt.tight_layout()
         
         ax6.plot(xt_trj[:,0], xt_trj[:,1],color='b',linewidth=1.5,label='Rollout')
         ax6.plot(xt_ref[:,0], xt_ref[:,1],color='k',linewidth=2.5,label='Reference')
         ax6.plot(xt_ref_actual[:,0], xt_ref_actual[:,1],color='r',linewidth=1.5,linestyle='--',label='Modified Reference')
-        ax6.set_xlabel(r"z", fontsize=14)
-        ax6.set_ylabel(r"$\dot z$", fontsize=14)
-        ax6.legend(loc='upper right')
+        ax6.set_xlabel(r"z", fontproperties=font_props)
+        ax6.set_ylabel(r"$\dot z$", fontproperties=font_props)
+        ax6.legend(loc='upper right', prop={'family': 'serif', 'size': 15})
         plt.tight_layout()
         
         plt.show()
@@ -303,21 +305,22 @@ def plot_bouncingball_nexp(n_exp, exp_data, time_span, init_state,
         # ----------- Plot the last iteration of iLQR controller ----------
         if i == n_exp-1:
         
-            ax1.plot(time_span[:], states_pi[:,0], color='r', alpha=1.0, label='H-PI')
-            ax1.plot(time_span[:], states_ilqg[:,0], color='b', alpha=0.2, label='H-iLQG')
+            ax1.plot(time_span[:], states_pi[:,0], color='r', alpha=1.0, label='H-PI', linewidth=0.8)
+            # ax1.plot(time_span[:], states_ilqg[:,0], color='b', alpha=0.2, label='H-iLQG')
             
-            ax2.plot(time_span[:], states_pi[:,1], color='r', alpha=1.0, label='H-PI')
-            ax2.plot(time_span[:], states_ilqg[:,1], color='b', alpha=0.2, label='H-iLQG')
+            ax2.plot(time_span[:], states_pi[:,1], color='r', alpha=1.0, label='H-PI', linewidth=0.8)
+            # ax2.plot(time_span[:], states_ilqg[:,1], color='b', alpha=0.2, label='H-iLQG')
 
             # ------------- Plot the z-\dot_z figure -------------
-            ax3.plot(states_pi[:,0], states_pi[:,1],color='r', alpha=1.0, label='H-PI')
-            ax3.plot(states_ilqg[:,0], states_ilqg[:,1],color='b', alpha=0.2, label='H-iLQG')
+            ax3.plot(states_pi[:,0], states_pi[:,1],color='r', alpha=1.0, label='H-PI', linewidth=0.8)
+            # ax3.plot(states_ilqg[:,0], states_ilqg[:,1],color='b', alpha=0.2, label='H-iLQG')
             
         else:
             
-            ax1.plot(time_span[:], states_pi[:,0], color='r', alpha=1.0)
-            ax2.plot(time_span[:], states_pi[:,1], color='r', alpha=1.0)
-            ax3.plot(states_ilqg[:,0], states_ilqg[:,1],color='b', alpha=0.2)
+            ax1.plot(time_span[:], states_pi[:,0], color='r', alpha=0.4, linewidth=0.8)
+            ax2.plot(time_span[:], states_pi[:,1], color='r', alpha=0.4, linewidth=0.8)
+            ax3.plot(states_pi[:,0], states_pi[:,1],color='r', alpha=0.4, linewidth=0.8)
+            # ax3.plot(states_ilqg[:,0], states_ilqg[:,1],color='b', alpha=0.2)
     
     # ----------- Plot the start and goal states -----------
     ax1.scatter(time_span[-1], target_state[0], color='g', marker='x', s=50.0, linewidths=6, label='Target')
@@ -330,17 +333,17 @@ def plot_bouncingball_nexp(n_exp, exp_data, time_span, init_state,
     ax3.scatter(target_state[0], target_state[1], color='g', marker='x', s=50.0, linewidths=6, label='Target')
     ax3.scatter(init_state[0], init_state[1], color='r', marker='x', s=50.0, linewidths=6, label='Start')
     
-    ax1.legend()
-    ax2.legend()
-    ax3.legend()
+    ax1.legend(loc='best', prop={'family': 'serif', 'size': 15})
+    ax2.legend(loc='best', prop={'family': 'serif', 'size': 15})
+    ax3.legend(loc='best', prop={'family': 'serif', 'size': 15})
 
-    ax1.set_xlabel(r"Time")
-    ax1.set_ylabel(r"$z$")
-    ax1.set_title("Bouncing Ball Vertical Position")
+    ax1.set_xlabel(r"Time", fontproperties=font_props)
+    ax1.set_ylabel(r"$z$", fontproperties=font_props)
+    ax1.set_title(r"Bouncing Ball Vertical Position", fontproperties=font_props)
 
-    ax2.set_xlabel(r"Time")
-    ax2.set_ylabel(r"$\dot z$")
-    ax2.set_title("Bouncing Ball Vertical Velocity")
+    ax2.set_xlabel(r"Time", fontproperties=font_props)
+    ax2.set_ylabel(r"$\dot z$", fontproperties=font_props)
+    ax2.set_title(r"Bouncing Ball Vertical Velocity", fontproperties=font_props)
 
     return fig1, axes_12, fig2, ax3
 
@@ -388,17 +391,17 @@ def plot_bouncingball(time_span, modes, states, inputs, init_state,
         ax3.scatter(target_state[0], target_state[1], color='g', marker='x', s=50.0, linewidths=6, label='Target')
         ax3.scatter(init_state[0], init_state[1], color='r', marker='x', s=50.0, linewidths=6, label='Start')
         
-        ax1.legend()
-        ax2.legend()
-        ax3.legend()
+        ax1.legend(loc='upper right', prop={'family': 'serif', 'size': 15})
+        ax2.legend(loc='upper right', prop={'family': 'serif', 'size': 15})
+        ax3.legend(loc='upper right', prop={'family': 'serif', 'size': 15})
 
-    ax1.set_xlabel(r"Time")
-    ax1.set_ylabel(r"$z$")
-    ax1.set_title("Bouncing Ball Vertical Position")
+    ax1.set_xlabel(r"Time", fontproperties=font_props)
+    ax1.set_ylabel(r"$z$", fontproperties=font_props)
+    ax1.set_title(r"Bouncing Ball Vertical Position", fontproperties=font_props)
 
-    ax2.set_xlabel(r"Time")
-    ax2.set_ylabel(r"$\dot z$")
-    ax2.set_title("Bouncing Ball Vertical Velocity")
+    ax2.set_xlabel(r"Time", fontproperties=font_props)
+    ax2.set_ylabel(r"$\dot z$", fontproperties=font_props)
+    ax2.set_title(r"Bouncing Ball Vertical Velocity", fontproperties=font_props)
 
     return fig1, axes_12, fig2, ax3
 

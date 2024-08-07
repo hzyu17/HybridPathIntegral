@@ -1,5 +1,6 @@
 from example_bouncingball import *
-
+from matplotlib.font_manager import FontProperties
+font_props = FontProperties(family='serif', size=12, weight='normal')
 
 if __name__ == '__main__':
     
@@ -7,7 +8,7 @@ if __name__ == '__main__':
     exp_data = ExpData(exp_params)
 
     # filename = root_dir+"/data/bouncing/ablation_study_nsamples/data_5000samples_eps_15.0_coupling.pickle"
-    filename = root_dir+"/experiments/data/bouncing/data_2024-08-02_07-16-52_h_pathintegral_example_bouncingball_jax_1experiments_1000samples_eps_5.0_coupling_dt_0.0025.pickle"
+    filename = root_dir+"/experiments/data/new_exp/bouncing/data_2024-08-06_06-43-55_example_bouncingball_jax_threading_5000samples_eps_2.0_coupling.pickle"
     print("loading data: ", filename)
     exp_data.load(filename)
     
@@ -65,9 +66,8 @@ if __name__ == '__main__':
     print("E[cost_ilqr_exp]: ", np.mean(cost_ilqr_exp))
     print("improved: ", (np.mean(cost_ilqr_exp) - np.mean(cost_pi_exp)) / np.mean(cost_ilqr_exp))
     
-    
     # ================================
-    # Sorting the cost improvements
+    #  Sorting the cost improvements
     # ================================
     cost_diff = (cost_ilqr_exp - cost_pi_exp) / cost_ilqr_exp * 100
     sorted_indices = [index for index, value in sorted(enumerate(cost_diff), key=lambda x: x[1])]
@@ -109,10 +109,7 @@ if __name__ == '__main__':
     #                   Plottings
     # ============================================== 
     from matplotlib.font_manager import FontProperties
-    # ---------------------------------------
-    # Setting font properties using fontdict
-    # ---------------------------------------
-    font_props = FontProperties(family='serif', size=18, weight='normal')
+    font_props = FontProperties(family='serif', size=16, weight='normal')
     
     # --------------------------------------------
     # plot the path integral controlled trajectory
@@ -155,7 +152,7 @@ if __name__ == '__main__':
     ax8.set_xticklabels(index)
 
     # Adding a legend
-    ax8.legend()
+    ax8.legend(loc='best', prop={'family': 'serif', 'size': 15})
 
     fig3.tight_layout()
     fig3.savefig(root_dir+'/data/figures/bouncing/bouncing_1D_costs.pdf', dpi=2000)
@@ -194,8 +191,8 @@ if __name__ == '__main__':
     ax10.set_ylim(0, 110)
     fig5.tight_layout()
     
-    ax9.legend()
-    ax10.legend()
+    ax9.legend(loc='best', prop={'family': 'serif', 'size': 15})
+    ax10.legend(loc='best', prop={'family': 'serif', 'size': 15})
     
     fig4.savefig(root_dir+'/data/figures/bouncing/bouncing_1D_var.pdf', format='pdf', dpi=2000)
     fig5.savefig(root_dir+'/data/figures/bouncing/bouncing_1D_lbda.pdf', format='pdf', dpi=2000)
