@@ -18,12 +18,9 @@ from hybrid_pathintegral.hybrid_pathintegral import *
 from experiments.exp_params import *
 from experiments.h_pathintegral_example_bouncingball_jax_zero_control import run_experiment
 import multiprocessing as mp
-
+import gc
 
 os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
-
-import gc
-gc.collect()
 
 
 def compute_on_gpu(inputs):
@@ -40,6 +37,8 @@ def compute_on_gpu(inputs):
     return y
 
 def main(epsilon, n_samples, dt):
+    
+    gc.collect()
     
     print(f"The value of epsilon input is: {epsilon}")
     print(f"The value of number of samples input is: {n_samples}")
@@ -94,7 +93,7 @@ def main(epsilon, n_samples, dt):
     Q_T = 200*np.eye(n_states[0])
     Q_T[0,0] = 2000.0
 
-    n_exp = 10
+    n_exp = 50
     
     init_reset_args = [np.array([0.0]) for _ in range(nt)]
     target_reset_args = [np.array([0.0]) for _ in range(nt)]
@@ -153,7 +152,7 @@ def main(epsilon, n_samples, dt):
     mp.set_start_method('spawn', force=True)
         
     # Pool of workers
-    num_process = max(1, min(mp.cpu_count()-10, 5))
+    num_process = max(1, min(mp.cpu_count()-10, 3))
     with mp.Pool(processes=num_process) as pool:
         # Prepare the arguments for each experiment
         args = [(i, nt, n_samples, n_states, n_inputs, 
@@ -182,7 +181,7 @@ def main(epsilon, n_samples, dt):
     from datetime import datetime
     current_datetime = datetime.now()
     formatted_datetime = current_datetime.strftime("%Y-%m-%d_%H-%M-%S")
-    filename = f"data_{formatted_datetime}_{script_filename}_{n_samples}samples_eps_{epsilon}_coupling.pickle"
+    filename = f"data_{formatted_datetime}_{script_filename}_{n_samples}samples_eps_{epsilon}_coupling_zero_control.pickle"
     # filename = f"data_{n_samples}samples_eps_{epsilon}_coupling.pickle"
     # save_root = '/hddscratch/hyu419/hybrid_pathintegral/exp_200'
     save_root = '/hddscratch/hyu419/hybrid_pathintegral/new_exp'
@@ -196,8 +195,8 @@ import argparse
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="The epsilon parameter.")
     
-    parser.add_argument("--epsilon", type=float, default=2.0, help="The process noise intensity value, epsilon.")
-    parser.add_argument("--nsamples", type=int, default=500, help="The number of samples used in path integral control.")
+    parser.add_argument("--epsilon", type=float, default=5.0, help="The process noise intensity value, epsilon.")
+    parser.add_argument("--nsamples", type=int, default=5000, help="The number of samples used in path integral control.")
     parser.add_argument("--dt", type=int, default=0.0025, help="The time discretization.")
     
     args = parser.parse_args()

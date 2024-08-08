@@ -11,6 +11,7 @@ import jax.numpy as jnp
 # discrete dynamics import
 from dynamics.dynamics_discrete import *
 
+os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
 jax.config.update("jax_enable_x64", True)
 
 # ------------------------------------- terminal loss ------------------------------------- 
