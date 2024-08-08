@@ -100,7 +100,7 @@ def guard_true_func_slip_padding(args):
     # xt_next, next_mode, new_reset_arg = reset_map_slip_21_padding(t, xt_shrinked, current_mode, reset_arg)
     # dW_new = jnp.sqrt(dt_shrinked)*RandN
     
-    xt_next, next_mode, new_reset_arg = reset_map_slip_21_padding(t, xt_current, current_mode, reset_arg)
+    xt_next, next_mode, new_reset_arg = reset_map_slip_21_padding(t, xt_next, current_mode, reset_arg)
     dW_new = jnp.sqrt(dt_int)*RandN
     
     return xt_next, next_mode, dW_new, new_reset_arg

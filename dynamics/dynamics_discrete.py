@@ -72,6 +72,9 @@ def guard_true_func_deterministic(args):
         
         return xt_shrinked, dt_shrinked, cnt_shrink, new_condition
     
+    # -------------------
+    #   Shrinking step 
+    # -------------------
     # cnt_shrink = 0
     # can_continue = True
     # xt_shrinked = xt_next
@@ -88,9 +91,47 @@ def guard_true_func_deterministic(args):
     
     # return t_event, xt_shrinked, x_reset, next_mode, new_reset_arg
     
-    x_reset, next_mode, new_reset_arg = resetmap(t, xt_current, current_mode, reset_arg)
+    # -------------------
+    #     Bi-section 
+    # -------------------
+    tol = 1e-8
+    t_left = t
+    x_left = xt_current
+    t_right = t+dt_int
+    x_right = xt_next
+    
+    while (t_right - t_left) / 2.0 > tol:
+        t_mid = (t_left + t_right) / 2.0
+        t_span = (t_left, t_right)
+        dt_new = t_right - t_left
+        
+        x_mid = x_left + smooth_dyn(t_left, x_left, u_current) * dt_new
+        
+        if guard(t_mid, x_mid) == 0:
+            return (t_mid, x_mid)  # We've found the exact root
+        
+        elif guard(t_left, x_left) * guard(t_mid, x_mid) < 0:
+            t_right = t_mid  # The root is in the left half
+            x_right = x_mid
+        else:
+            t_left = t_mid  # The root is in the right half
+            x_left = x_mid
+            
+    print(f"guard left: {guard(t, xt_current)}, t_right: {guard(t+dt_int, xt_next)}, midpoint: {guard(t_mid, x_mid)}")  # Debug statement
+    
+    # t_event = (t_left + t_right) / 2.0
+    # x_event = (x_left + x_right) / 2.0
     
     t_event =  t + dt_int
+    x_event = x_left
+    # dt_final = t_event - t_left
+    x_reset, next_mode, new_reset_arg = resetmap(t_event, x_event, current_mode, reset_arg)
+    
+    # # --------------------
+    # #   Direct reset map 
+    # # --------------------
+    # x_reset, next_mode, new_reset_arg = resetmap(t, xt_next, current_mode, reset_arg)
+    # t_event =  t + dt_int
     
     return t_event, xt_next, x_reset, next_mode, new_reset_arg
 

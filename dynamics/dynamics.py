@@ -167,32 +167,80 @@ def event_reactive_fun(args):
      RandN, epsilon, 
      smooth_integration_fun, guard_fun, reset_map_fun, reset_args) = args
     
-    xt_swch = xt_next
     current_guard = guard_fun[current_mode]
     current_resetmap = reset_map_fun[current_mode]
     
-    # Sandwich rule to find finer grind 
-    cnt = 0
-    while (True):
-        cnt += 1
+    # -------------------
+    #   Shrinking step 
+    # -------------------
+    # xt_swch = xt_next
         
-        # Too far from the guard, shrink the step size.
-        dt_int = dt_int * dt_shrinkingrate
-        dW_new = np.sqrt(dt_int)*RandN
+    # # Sandwich rule to find finer grind 
+    # cnt = 0
+    # while (True):
+    #     cnt += 1
         
-        # ---- solver for the deterministic part
-        t_span = (t, t+dt_int)
+    #     # Too far from the guard, shrink the step size.
+    #     dt_int = dt_int * dt_shrinkingrate
+    #     dW_new = np.sqrt(dt_int)*RandN
         
-        xt_swch = smooth_integration_fun(current_mode, xt_current, u, t_span, epsilon, dW_new)
+    #     # ---- solver for the deterministic part
+    #     t_span = (t, t+dt_int)
+        
+    #     xt_swch = smooth_integration_fun(current_mode, xt_current, u, t_span, epsilon, dW_new)
 
-        reset_byproduct = reset_args
+    #     reset_byproduct = reset_args
         
-        # /---- solver for the deterministic part
-        if (not event_condition(xt_current, xt_swch, current_guard)) or (cnt==50): # Until the guard condition is no longer met.
-            # The reset map is called
-            xt_next, next_mode, reset_byproduct = current_resetmap(t, xt_swch, current_mode, reset_args)
-            dW = dW_new
-            break
+    #     # /---- solver for the deterministic part
+    #     if (not event_condition(xt_current, xt_swch, current_guard)) or (cnt==50): # Until the guard condition is no longer met.
+    #         # The reset map is called
+    #         xt_next, next_mode, reset_byproduct = current_resetmap(t, xt_swch, current_mode, reset_args)
+    #         dW = dW_new
+    #         break
+    
+    # -------------------
+    #     Bi-section 
+    # -------------------
+    tol = 1e-6
+    t_left = t
+    x_left = xt_current
+    t_right = t+dt_int
+    x_right = xt_next
+    
+    while (t_right - t_left) / 2.0 > tol:
+        t_mid = (t_left + t_right) / 2.0
+        t_span = (t_left, t_right)
+        dt_new = t_mid - t_left
+        dW_new = np.sqrt(dt_new)*RandN
+        
+        x_mid = smooth_integration_fun(current_mode, x_left, u, t_span, epsilon, dW_new)
+        
+        if current_guard(t_mid, x_mid) == 0:
+            return (t_mid, x_mid)  # We've found the exact root
+        
+        elif current_guard(t_left, x_left) * current_guard(t_mid, x_mid) < 0:
+            t_right = t_mid  # The root is in the left half
+            x_right = x_mid
+        else:
+            t_left = t_mid  # The root is in the right half
+            x_left = x_mid
+            
+        print(f"t_left: {t_left}, t_right: {t_right}, midpoint: {t_mid}, x_mid: {x_mid}")  # Debug statement
+    
+    # t_event = (t_left + t_right) / 2.0
+    # x_event = (x_left + x_right) / 2.0
+    
+    t_event = t_left
+    dt_final = t_event - t_left
+    dW = np.sqrt(dt_final)*RandN
+    
+    xt_next, next_mode, reset_byproduct = current_resetmap(t_left, x_left, current_mode, reset_args)
+    
+    # # -------------------
+    # #   Direct reset map 
+    # # -------------------
+    # dW = np.sqrt(dt_int)*RandN
+    # xt_next, next_mode, reset_byproduct = current_resetmap(t, xt_next, current_mode, reset_args)
         
     return xt_next, next_mode, dW, reset_byproduct
 

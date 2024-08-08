@@ -19,7 +19,7 @@ if __name__ == '__main__':
     exp_data = ExpData(exp_params)
 
     # filename = root_dir+"/data/bouncing/ablation_study_nsamples/data_5000samples_eps_15.0_coupling.pickle"
-    filename = root_dir+"/experiments/data/new_exp/slip/data_2024-08-07_13-24-57_example_slip_jax_threading_5exp_5000samples_eps_0.005_coupling.pickle"
+    filename = root_dir+"/experiments/data/new_exp/slip/data_2024-08-07_17-04-55_example_slip_jax_threading_10exp_5000samples_eps_0.01_coupling_noshrinking.pickle"
     print("loading data: ", filename)
     exp_data.load(filename)
     
@@ -130,7 +130,7 @@ if __name__ == '__main__':
     # plot the path integral controlled trajectory
     # -------------------------------------------- 
     
-    fig, axes = plt.subplots(2, 7, figsize=(15, 10))
+    fig, axes = plt.subplots(2, 6, figsize=(15, 10))
     
     for i in range(n_exp):
         modes_pi = exp_data.get_data(i).mode_trj_pi()

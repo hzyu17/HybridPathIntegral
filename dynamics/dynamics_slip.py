@@ -400,45 +400,60 @@ def event_detect_slip(x0, u, t0, tf, current_mode, reset_args, detection=True, b
                                 reset_args, detection, backwards)
     
 
-# def plot_slip_nexp(n_exp, exp_data, time_span, init_state, target_state, args=None):
-    # for i in range(n_exp):
-    #     modes_pi = exp_data.get_data(i).mode_trj_ilqr()
-    #     states_pi = exp_data.get_data(i).x_trj_ilqr()
-    #     inputs_pi = exp_data.get_data(i).ut_trj_ilqr()
-    #     reset_args_pi = exp_data.get_data(i).reset_args()
-    #     states_pi = exp_data.get_data(i).x_trj_pi()
-    #     states_pi = np.array(states_pi)
+def plot_sample_trajectory_slip(nsamples_plot, nt_i, time_span,
+                                Kmodes_jax_i, Ksamples_jax_i, Ksamples_ut, 
+                                Ksamples_reset_args, 
+                                mode_trj_ilqr, xt_trj_ilqr, ut_trj_ilqr, reset_args_ilqr,
+                                modes, states, inputs,ref_reset_args,
+                                init_state, target_state):
+    
+    fig, axes = plt.subplots(2, 6, figsize=(20, 10))
+    
+    # hilqr 
+    fig, axes = plot_slip(time_span, mode_trj_ilqr, xt_trj_ilqr, 
+                            ut_trj_ilqr, init_state, target_state, 
+                            nt_i, reset_args_ilqr, fig, axes, 'r', step=1)
+    
+    # reference
+    fig, axes = plot_slip(time_span, modes, states, 
+                            inputs, init_state, target_state, 
+                            nt_i, ref_reset_args, fig, axes, 'k', step=1)
         
-    #     modes_ilqg = exp_data.get_data(i).mode_trj_ilqr()
-    #     states_ilqg = exp_data.get_data(i).x_trj_ilqr()
-    #     inputs_ilqg = exp_data.get_data(i).ut_trj_ilqr()
-    #     reset_args_ilqg = exp_data.get_data(i).reset_args()
-    #     states_ilqg = np.array(states_ilqg)
+    for i_s in range(nsamples_plot):
+        sample_modes_i = Kmodes_jax_i[i_s]
+        sample_states_i = Ksamples_jax_i[i_s]
+        sample_inputs_i = Ksamples_ut[i_s]
+        sample_states_i = unpad_state_slip(sample_modes_i, sample_states_i)
+        sample_inputs_i = unpad_control_slip(sample_modes_i, sample_inputs_i)
         
-    #     fig, axes = plt.subplots(2, 7, figsize=(15, 10))
+        sample_reset_args_i = Ksamples_reset_args[i_s]
         
-    #     nt = len(time_span)
+        # # --------------------- Debug: plot the control gains --------------------- 
+        # fig3, axes = plt.subplots(2, 1)
+        # (ax6, ax7) = axes.flatten()
         
-    #     for i_s in range(n_exp):
-            
-    #         time_span_nt = np.arange(nt)
-    #         fig, axes = plot_slip(time_span, modes_ilqg, states_ilqg, 
-    #                                 inputs_ilqg, init_state, target_state, 
-    #                                 nt, reset_args_ilqg, fig, axes, 'r', alpha=0.9, step=1)
+        # ax6.grid(True)
+        # ax7.grid(True)
+                        
+        # ax6.plot(np.arange(nt), K_feedback_0_i[:, 0, 4], label='ref mode0 Kfb[4]')
+        # ax6.plot(np.arange(nt), K_feedback_1_i[:, 0, 0], label='ref mode1 Kfb[0]')
+        # ax6.plot(np.arange(nt), Ksamples_Kfb_mode_i[:, 0, 0], label='Ksamples Kfb[0]')
+        # ax6.plot(np.arange(nt), Ksamples_Kfb_mode_i[:, 0, 4], label='Ksamples Kfb[4]')
         
-    #         # hilqr 
-    #         fig, axes = plot_slip(time_span_nt, mode_trj_ilqr, xt_trj_ilqr, 
-    #                                 ut_trj_ilqr, init_state, target_state, 
-    #                                 nt_i, reset_args_ilqr, fig, axes, 'r', step=1)
-            
-    #         time_span_nt = np.arange(nt_i)
-    #         fig, axes = plot_slip(time_span_nt, modes, states, 
-    #                                 inputs, init_state, target_state, 
-    #                                 nt_i, sample_reset_args_i, fig, axes, 'k', step=1)
-            
-    #         plt.tight_layout()
-    #         plt.show()
-
+        # ax7.plot(np.arange(nt), k_feedforward_0_i[:, 0], label='ref mode0 kff[0]')
+        # ax7.plot(np.arange(nt), k_feedforward_1_i[:, 0], label='ref mode1 kff[0]')
+        # ax7.plot(np.arange(nt), Ksamples_kff_mode_i[:, 0], label='Ksamples kff[0]')
+        
+        # ax6.legend()
+        # ax7.legend()
+        
+        # fig3.tight_layout()
+        # plt.show()
+        fig, axes = plot_slip(time_span, sample_modes_i, sample_states_i, 
+                             sample_inputs_i, init_state, target_state, 
+                             nt_i, sample_reset_args_i, fig, axes, 'b', alpha=0.1, step=1)
+    
+    return fig, axes
 
 spring_coils = 15
 spring_amplitude = 0.01
@@ -449,16 +464,15 @@ def plot_slip(time_span, modes, states, inputs,
               fig=None, axes=None, color='k', alpha=1.0, step=2):
     # =============== plotting ===============
     if (fig is None) and (axes is None):
-        fig, axes = plt.subplots(2, 7, figsize=(15, 10))
+        fig, axes = plt.subplots(2, 6, figsize=(20, 10))
         
-    (ax11, ax12, ax13, ax14, ax15, ax16, ax17, ax21, ax22, ax23, ax24, ax25, ax26, ax27) = axes.flatten()
+    (ax11, ax12, ax13, ax14, ax15, ax16, ax21, ax22, ax23, ax24, ax25, ax26) = axes.flatten()
     ax11.grid(True)
     ax12.grid(True)
     ax13.grid(True)
     ax14.grid(True)
     ax15.grid(True)
     ax16.grid(True)
-    ax17.grid(True)
     
     ax21.grid(True)
     ax22.grid(True)
@@ -466,7 +480,6 @@ def plot_slip(time_span, modes, states, inputs,
     ax24.grid(True)
     ax25.grid(True)
     ax26.grid(True)
-    ax27.grid(True)
 
     # convert the stance mode states to the flight mode states
     flight_mode_states = np.zeros((nt, 5))
@@ -477,12 +490,12 @@ def plot_slip(time_span, modes, states, inputs,
             flight_mode_states[i] = convert_state_21_slip(states[i], reset_args[i][0]).flatten()
 
     
-    ax11.plot(time_span[0:-1:step], modes[0:-1:step], color=color)   
-    ax12.plot(time_span[0:-1:step], flight_mode_states[0:-1:step,0], color=color, alpha=alpha)
-    ax13.plot(time_span[0:-1:step], flight_mode_states[0:-1:step,1], color=color, alpha=alpha)
-    ax14.plot(time_span[0:-1:step], flight_mode_states[0:-1:step,2], color=color, alpha=alpha)
-    ax15.plot(time_span[0:-1:step], flight_mode_states[0:-1:step,3], color=color, alpha=alpha)
-    ax16.plot(time_span[0:-1:step], flight_mode_states[0:-1:step,4], color=color, alpha=alpha)
+    ax11.plot(time_span[::step], modes[::step], color=color)   
+    ax12.plot(time_span[::step], flight_mode_states[::step,0], color=color, alpha=alpha)
+    ax13.plot(time_span[::step], flight_mode_states[::step,1], color=color, alpha=alpha)
+    ax14.plot(time_span[::step], flight_mode_states[::step,2], color=color, alpha=alpha)
+    ax15.plot(time_span[::step], flight_mode_states[::step,3], color=color, alpha=alpha)
+    ax16.plot(time_span[::step], flight_mode_states[::step,4], color=color, alpha=alpha)
     
     
     # --------------------------------------- 
@@ -528,19 +541,18 @@ def plot_slip(time_span, modes, states, inputs,
     mode1_modes = np.array(mode1_modes)
     
     # plot mode 0 control input
-    ax17.plot(mode0_timestamps[0:-1:step], mode0_inputs[0:-1:step], color='b', label=r'$u$')
-    ax17.set_ylim(np.min(mode0_inputs)-1, np.max(mode0_inputs)+1)
+    ax25.plot(mode0_timestamps[0:-1:step], mode0_inputs[0:-1:step], color='b', label=r'$u$')
+    ax25.set_ylim(np.min(mode0_inputs)-1, np.max(mode0_inputs)+1)
     
     # plot mode 1
-    ax21.plot(mode1_timestamps[0:-1:step], mode1_modes[0:-1:step], color=color, alpha=alpha)   
-    ax22.plot(mode1_timestamps[0:-1:step], mode1_states[0:-1:step, 0], color=color, alpha=alpha)
-    ax23.plot(mode1_timestamps[0:-1:step], mode1_states[0:-1:step, 1], color=color, alpha=alpha)
-    ax24.plot(mode1_timestamps[0:-1:step], mode1_states[0:-1:step, 2], color=color, alpha=alpha)
-    ax25.plot(mode1_timestamps[0:-1:step], mode1_states[0:-1:step, 3], color=color, alpha=alpha)
+    # ax21.plot(mode1_timestamps[0:-1:step], mode1_modes[0:-1:step], color=color, alpha=alpha)   
+    ax21.plot(mode1_timestamps[::step], mode1_states[::step, 0], color=color, alpha=alpha)
+    ax22.plot(mode1_timestamps[::step], mode1_states[::step, 1], color=color, alpha=alpha)
+    ax23.plot(mode1_timestamps[::step], mode1_states[::step, 2], color=color, alpha=alpha)
+    ax24.plot(mode1_timestamps[::step], mode1_states[::step, 3], color=color, alpha=alpha)
     
-    ax26.plot(mode1_timestamps[0:-1:step], mode1_inputs[0:-1:step, 0], color='b', label=r'$u_1$')
-    ax26.plot(mode1_timestamps[0:-1:step], mode1_inputs[0:-1:step, 1], color='r', label=r'$u_2$')
-    
+    ax26.plot(mode1_timestamps[::step], mode1_inputs[::step, 0], color='b', label=r'$u_1$')
+    ax26.plot(mode1_timestamps[::step], mode1_inputs[::step, 1], color='r', label=r'$u_2$')
     
     # ----------- Plot the start and goal states -----------
     if (modes[0] == 1):
@@ -586,41 +598,45 @@ def plot_slip(time_span, modes, states, inputs,
     ax16.set_ylabel(r"$\theta$", fontproperties=font_props)
     ax16.set_title(r"SLIP $\theta $", fontproperties=font_props)
     
-    ax17.set_xlabel(r"Time", fontproperties=font_props)
-    ax17.set_ylabel(r"Inputs", fontproperties=font_props)
-    ax17.set_title(r"SLIP Inputs", fontproperties=font_props)
+    ax25.set_xlabel(r"Time", fontproperties=font_props)
+    ax25.set_ylabel(r"Inputs", fontproperties=font_props)
+    ax25.set_title(r"SLIP Inputs Mode 0", fontproperties=font_props)
+    
+    # ax21.set_xlabel(r"Time", fontproperties=font_props)
+    # ax21.set_ylabel(r"mode", fontproperties=font_props)
+    # ax21.set_title(r"SLIP mode", fontproperties=font_props)
     
     ax21.set_xlabel(r"Time", fontproperties=font_props)
-    ax21.set_ylabel(r"mode", fontproperties=font_props)
-    ax21.set_title(r"SLIP mode", fontproperties=font_props)
+    ax21.set_ylabel(r"$\theta$", fontproperties=font_props)
+    ax21.set_title(r"SLIP $\theta$", fontproperties=font_props)
     
     ax22.set_xlabel(r"Time", fontproperties=font_props)
-    ax22.set_ylabel(r"$\theta$", fontproperties=font_props)
-    ax22.set_title(r"SLIP $\theta$", fontproperties=font_props)
+    ax22.set_ylabel(r"$\dot \theta$", fontproperties=font_props)
+    ax22.set_title(r"SLIP $\dot \theta$", fontproperties=font_props)
     
     ax23.set_xlabel(r"Time", fontproperties=font_props)
-    ax23.set_ylabel(r"$\dot \theta$", fontproperties=font_props)
-    ax23.set_title(r"SLIP $\dot \theta$", fontproperties=font_props)
-    
-    ax24.set_xlabel(r"Time", fontproperties=font_props)
-    ax24.set_ylabel(r"$r$", fontproperties=font_props)
-    ax24.set_title(r"SLIP $r$", fontproperties=font_props)
+    ax23.set_ylabel(r"$r$", fontproperties=font_props)
+    ax23.set_title(r"SLIP $r$", fontproperties=font_props)
 
+    ax24.set_xlabel(r"Time", fontproperties=font_props)
+    ax24.set_ylabel(r"$\dot r$", fontproperties=font_props)
+    ax24.set_title(r"SLIP $\dot r$", fontproperties=font_props)
+    
     ax25.set_xlabel(r"Time", fontproperties=font_props)
-    ax25.set_ylabel(r"$\dot r$", fontproperties=font_props)
-    ax25.set_title(r"SLIP $\dot r$", fontproperties=font_props)
+    ax25.set_ylabel(r"Inputs", fontproperties=font_props)
+    ax25.set_title(r"SLIP Inputs Mode 0", fontproperties=font_props)
     
     ax26.set_xlabel(r"Time", fontproperties=font_props)
     ax26.set_ylabel(r"Inputs", fontproperties=font_props)
-    ax26.set_title(r"SLIP Inputs", fontproperties=font_props)
+    ax26.set_title(r"SLIP Inputs Mode 1", fontproperties=font_props)
     
     if ax26.get_legend() is None:
         ax26.legend(loc='best', prop={'family': 'serif', 'size': 15})
         
-    if ax17.get_legend() is None:
-        ax17.legend(loc='best', prop={'family': 'serif', 'size': 15})
+    if ax25.get_legend() is None:
+        ax25.legend(loc='best', prop={'family': 'serif', 'size': 15})
     
-    return fig, np.array([[ax11, ax12, ax13, ax14, ax15, ax16, ax17], [ax21, ax22, ax23, ax24, ax25, ax26, ax27]], dtype=object)  
+    return fig, np.array([[ax11, ax12, ax13, ax14, ax15, ax16], [ax21, ax22, ax23, ax24, ax25, ax26]], dtype=object)  
 
 
 def plot_slip_flight_animate(state_flight, r0, ax=None, spring_color='c-'):

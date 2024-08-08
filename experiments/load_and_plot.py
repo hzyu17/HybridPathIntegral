@@ -2,13 +2,27 @@ from example_bouncingball import *
 from matplotlib.font_manager import FontProperties
 font_props = FontProperties(family='serif', size=12, weight='normal')
 
+
+def compute_cvar(samples, confidence_level=0.95):
+    # Step 1: Sort the samples
+    samples_sorted = np.sort(samples)
+    
+    # Step 2: Find the VaR (confidence_level percentile)
+    var_index = int(np.floor(confidence_level * len(samples_sorted)))
+    var_value = samples_sorted[var_index]
+    
+    # Step 3: Calculate CVaR as the mean of the losses exceeding the VaR
+    cvar_value = np.mean(samples_sorted[var_index:])
+    
+    return var_value, cvar_value
+
 if __name__ == '__main__':
     
     exp_params = ExpParams()
     exp_data = ExpData(exp_params)
 
     # filename = root_dir+"/data/bouncing/ablation_study_nsamples/data_5000samples_eps_15.0_coupling.pickle"
-    filename = root_dir+"/experiments/data/new_exp/bouncing/data_2024-08-06_06-43-55_example_bouncingball_jax_threading_5000samples_eps_2.0_coupling.pickle"
+    filename = root_dir+"/experiments/data/new_exp/bouncing/data_2024-08-07_18-46-25_example_bouncingball_jax_threading_5000samples_eps_10.0_coupling.pickle"
     print("loading data: ", filename)
     exp_data.load(filename)
     
@@ -77,23 +91,11 @@ if __name__ == '__main__':
     sorted_cost_ilqr_indices = [index for index, value in sorted(enumerate(cost_ilqr_exp), key=lambda x: x[1])]
     sorted_costilqr = sorted(cost_ilqr_exp)
     ilqr_tail_index = sorted_cost_ilqr_indices[int(np.floor(0.9 * len(sorted_cost_ilqr_indices))):]
+    ilqr_best_index = sorted_cost_ilqr_indices[:int(np.floor(0.1 * len(sorted_cost_ilqr_indices)))]
     
     # ------------------------------------------------------------------
     #   Compute CVaR: check the cases where h-iLQR do not perform well
-    # ------------------------------------------------------------------
-    def compute_cvar(samples, confidence_level=0.95):
-        # Step 1: Sort the samples
-        samples_sorted = np.sort(samples)
-        
-        # Step 2: Find the VaR (confidence_level percentile)
-        var_index = int(np.floor(confidence_level * len(samples_sorted)))
-        var_value = samples_sorted[var_index]
-        
-        # Step 3: Calculate CVaR as the mean of the losses exceeding the VaR
-        cvar_value = np.mean(samples_sorted[var_index:])
-        
-        return var_value, cvar_value
-    
+    # ------------------------------------------------------------------    
     for confidence in [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]:
         cVaR = compute_cvar(cost_diff, confidence)[1]
         print("cVaR at confidence level: ", confidence, " is ", cVaR)   
@@ -114,19 +116,31 @@ if __name__ == '__main__':
     # --------------------------------------------
     # plot the path integral controlled trajectory
     # -------------------------------------------- 
-    fig1, axes_12 = plt.subplots(1, 2)
+    
+    # plot the best 10%
+    fig1, axes_12 = plt.subplots(1, 2, figsize=(8,8))
     fig2, ax3 = plt.subplots()
-    fig1, axes_12, fig2, ax3 =  plot_bouncingball_nexp(n_exp, exp_data, time_span, init_state, 
+    fig1, axes_12, fig2, ax3 =  plot_bouncingball_nexp(ilqr_best_index, exp_data, time_span, init_state, 
                                                         target_state, args=None)
     
     fig1.tight_layout()
     fig2.tight_layout()
+        
+    # plot the tail 10%
+    fig3, axes_34 = plt.subplots(1, 2, figsize=(8,8))
+    fig4, ax5 = plt.subplots()
+    fig3, axes_34, fig4, ax5 =  plot_bouncingball_nexp(ilqr_tail_index, exp_data, time_span, init_state, 
+                                                        target_state, args=None)
+    
+    fig3.tight_layout()
+    fig4.tight_layout()
     
     plt.show()
     
     # save figures
-    fig1.savefig(root_dir+'/data/figures/bouncing/bouncing_1D.pdf', format='pdf', dpi=2000)
-    fig2.savefig(root_dir+'/data/figures/bouncing/bouncing_1D_zdotz.pdf', format='pdf', dpi=2000)
+    # fig1.savefig(root_dir+'/data/figures/bouncing/bouncing_1D.pdf', format='pdf', dpi=2000)
+    fig2.savefig(root_dir+'/data/figures/bouncing/bouncing_1D_zdotz_best10.pdf', format='pdf', dpi=2000)
+    fig4.savefig(root_dir+'/data/figures/bouncing/bouncing_1D_zdotz_tail10.pdf', format='pdf', dpi=2000)
 
     # ------------------------------------------ 
     # Bar Plot PathCosts for all experiments

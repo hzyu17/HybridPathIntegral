@@ -25,7 +25,6 @@ from hybrid_pathintegral.sampling_rollout_jax_bouncing import sample_bouncing_ja
 from dynamics.dynamics_bouncing import *
 from dynamics.dynamics_discrete_bouncing import *
 
-
 import gc
 gc.collect()
 
@@ -35,9 +34,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
                     start_time, end_time, dt, dt_shrinkingrate, 
                     Q_k, Q_T, R_k, epsilon, init_reset_args):
     
-    (modes,states,inputs,
-     k_feedforward,K_feedback,
-     current_cost,states_iter,
+    (timespan,modes,states,inputs,k_feedforward,K_feedback, current_cost,states_iter,
      ref_modechanges,reference_extension_helper, ref_reset_args) = hybrid_ilqr_result
     
     RndN_actual = [np.random.randn(nt, 1), np.random.randn(nt, 1)]
@@ -55,8 +52,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
      xt_trj_ilqr, 
      u_trj_ilqr, 
      cost_ilqr, _, _) = hybrid_stochastic_feedback_rollout_discrete_bouncing(init_mode, 
-                                                                            init_state, 
-                                                                            n_inputs, 
+                                                                            init_state, n_inputs, 
                                                                             states, modes, 
                                                                             inputs, K_feedback, k_feedforward, 
                                                                             target_state, Q_T,
@@ -218,13 +214,6 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         K_feedback_i = [K_feedback_0_i, K_feedback_1_i]
         k_feedforward_i = [k_feedforward_0_i, k_feedforward_1_i]
         
-        # states_i = states[i_t:,:]
-        # inputs_i = inputs[:, i_t:,:]
-        # ref_modechange_i = ref_modechanges[i_t:]
-        # modes_i = modes[i_t:]
-        # K_feedback_i = K_feedback[i_t:,:]
-        # k_feedforward_i = k_feedforward[i_t:,:]
-        
         ref_current_mode = ref_modechanges[i_t][0]
         
         # Randomness is mode dependent, same as control. Assuming 2-mode system.
@@ -250,33 +239,63 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         # Sampling using jax 
         # ====================
         
+        # =============================== Create samples under zero-control input ==========================
+        inputs_0_i_zero = np.zeros_like(inputs_0_i)
+        inputs_1_i_zero = np.zeros_like(inputs_1_i)
+        K_feedback_0_i_zero = np.zeros_like(K_feedback_0_i)
+        k_feedforward_0_i_zero = np.zeros_like(k_feedforward_0_i)
+        K_feedback_1_i_zero = np.zeros_like(K_feedback_1_i)
+        k_feedforward_1_i_zero = np.zeros_like(k_feedforward_1_i)
+        
+        v_Kfb_ref_ext_fwd_i_zero = [np.zeros_like(v_Kfb_ref_ext_fwd_i[0])]
+        v_kff_ref_ext_fwd_i_zero = [np.zeros_like(v_kff_ref_ext_fwd_i[0])]
+        v_Kfb_ref_ext_bwd_i_zero = [np.zeros_like(v_Kfb_ref_ext_bwd_i[0])]
+        v_kff_ref_ext_bwd_i_zero = [np.zeros_like(v_kff_ref_ext_bwd_i[0])]
+        
+        
+        
         # ---------------------------------------------------------------------------------------
         #                               Sample future trajectories
         # ---------------------------------------------------------------------------------------
         
-        # timer_start_tic = time.perf_counter()
         (Kmodes_jax_i, Ksamples_jax_i, PathCosts_jax_i, 
         Ksamples_ut, Ksamples_xref, Ksamples_Kfb_mode, 
         Ksamples_kff_mode, Ksamples_reset_args) = sample_bouncing_jax(n_samples, xt, 
-                                                                    current_mode_actual, 
-                                                                    states_0_i, states_1_i, 
-                                                                    modes_i, 
-                                                                    inputs_0_i, inputs_1_i, 
-                                                                    K_feedback_0_i, k_feedforward_0_i, 
-                                                                    K_feedback_1_i, k_feedforward_1_i, 
-                                                                    target_state, Q_T, 
-                                                                    start_time_i, dt, dt_shrinkingrate, 
-                                                                    epsilon, 
-                                                                    GaussianNoise_i[0], GaussianNoise_i[1], 
-                                                                    v_mode_change_ref_i, 
-                                                                    v_ref_ext_fwd_i, v_ref_ext_bwd_i, 
-                                                                    v_Kfb_ref_ext_fwd_i, v_kff_ref_ext_fwd_i, 
-                                                                    v_Kfb_ref_ext_bwd_i, v_kff_ref_ext_bwd_i, 
-                                                                    init_reset_args_i)
+                                                                        current_mode_actual, 
+                                                                        states_0_i, states_1_i, 
+                                                                        modes_i, 
+                                                                        inputs_0_i_zero, inputs_1_i_zero, 
+                                                                        K_feedback_0_i_zero, k_feedforward_0_i_zero, 
+                                                                        K_feedback_1_i_zero, k_feedforward_1_i_zero, 
+                                                                        target_state, Q_T, 
+                                                                        start_time_i, dt, dt_shrinkingrate, 
+                                                                        epsilon, 
+                                                                        GaussianNoise_i[0], GaussianNoise_i[1], 
+                                                                        v_mode_change_ref_i, 
+                                                                        v_ref_ext_fwd_i, v_ref_ext_bwd_i, 
+                                                                        v_Kfb_ref_ext_fwd_i_zero, v_kff_ref_ext_fwd_i_zero, 
+                                                                        v_Kfb_ref_ext_bwd_i_zero, v_kff_ref_ext_bwd_i_zero, 
+                                                                        init_reset_args_i)       
         
-        # save the samples at t=0
-        # if (i_t == 0):
-        #     Ksamples_jax_saving = Ksamples_jax_i
+        # # timer_start_tic = time.perf_counter()
+        # (Kmodes_jax_i, Ksamples_jax_i, PathCosts_jax_i, 
+        # Ksamples_ut, Ksamples_xref, Ksamples_Kfb_mode, 
+        # Ksamples_kff_mode, Ksamples_reset_args) = sample_bouncing_jax(n_samples, xt, 
+        #                                                             current_mode_actual, 
+        #                                                             states_0_i, states_1_i, 
+        #                                                             modes_i, 
+        #                                                             inputs_0_i, inputs_1_i, 
+        #                                                             K_feedback_0_i, k_feedforward_0_i, 
+        #                                                             K_feedback_1_i, k_feedforward_1_i, 
+        #                                                             target_state, Q_T, 
+        #                                                             start_time_i, dt, dt_shrinkingrate, 
+        #                                                             epsilon, 
+        #                                                             GaussianNoise_i[0], GaussianNoise_i[1], 
+        #                                                             v_mode_change_ref_i, 
+        #                                                             v_ref_ext_fwd_i, v_ref_ext_bwd_i, 
+        #                                                             v_Kfb_ref_ext_fwd_i, v_kff_ref_ext_fwd_i, 
+        #                                                             v_Kfb_ref_ext_bwd_i, v_kff_ref_ext_bwd_i, 
+        #                                                             init_reset_args_i)
         
         # --------------------------------------------------------
         #               Update the control proposal
@@ -484,11 +503,10 @@ def main(epsilon, n_samples, dt):
     print("===================== Solving for h-iLQG proposal controller =====================")
     hybrid_ilqr_result = solve_ilqr(exp_params, detect=True, verbose=False)
     
-    (modes,states,inputs,
+    (timespan,modes,states,inputs,
      k_feedforward,K_feedback,
      current_cost,states_iter,
      ref_modechanges,reference_extension_helper, ref_reset_args) = hybrid_ilqr_result
-    
     
     exp_data.add_nominal_data(hybrid_ilqr_result)
     exp_data.add_plotting_function(plot_bouncingball)

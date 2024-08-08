@@ -82,6 +82,10 @@ def guard_true_func_slip(args):
         
         return xt_shrinked, dt_shrink, cnt_shrink, new_condition
     
+    # -------------------
+    #   Shrinking step 
+    # -------------------
+    
     # cnt_shrink = 0
     # can_continue = True
     # xt_shrinked = xt_next
@@ -96,8 +100,62 @@ def guard_true_func_slip(args):
     # xt_next, next_mode, new_reset_arg = reset_map_slip_21(t, xt_shrinked, current_mode, reset_arg)
     # dW_new = np.sqrt(dt_int) * RandN
     
-    xt_next, next_mode, new_reset_arg = reset_map_slip_21(t, xt_current, current_mode, reset_arg)
-    dW_new = np.sqrt(dt_int) * RandN
+    
+    # -----------------
+    #    Bi-section 
+    # -----------------    
+    def bisection_while_body(carry):
+        t_left, t_mid, t_right, x_left, x_mid, x_right, u_current, tol, randN, continue_cond = carry
+        
+        t_mid = (t_left + t_right) / 2.0
+        dt_new = t_mid - t_left
+        dW_new = np.sqrt(dt_new)*randN
+        
+        x_mid = stochastic_integration_euler_SLIP(current_mode, x_left, u_current, dt_new, eps, dW_new)
+
+        # Define conditions
+        guard_left = guard_slip_21(t_left, x_left)
+        guard_mid = guard_slip_21(t_mid, x_mid)
+        
+        # Check if guard condition at mid is zero
+        continue_cond = (guard_mid != 0) and ((t_right-t_left)/2.0 >= tol)
+        
+        if (guard_left * guard_mid < 0):
+            t_right = t_mid
+            x_right = x_mid
+        else:
+            t_left = t_mid
+            x_left = x_mid
+            
+        # print(f"t_left: {guard_left}, t_right: {t_right}, midpoint: {guard_left}, x_mid: {x_mid}")  # Debug statement
+
+        return t_left, t_mid, t_right, x_left, x_mid, x_right, u_current, tol, randN, continue_cond
+
+    tol = 1e-10
+    t_left = t
+    t_right = t+dt_int
+    t_mid = t
+    x_left = xt_current
+    x_mid = xt_next
+    x_right = xt_next
+    continue_bisection = True
+    
+    while (continue_bisection):
+        args = (t_left, t_mid, t_right, x_left, x_mid, x_right, u, tol, RandN, continue_bisection)
+        t_left, t_mid, t_right, x_left, x_mid, x_right, u, tol, RandN, continue_bisection = bisection_while_body(args)
+    
+    # Debug statement
+    print(f"guard left: {guard_slip_21(t_left, x_left)}, guard right: {guard_slip_21(t_right, x_right)}, guard mid: {guard_slip_21(t_mid, x_mid)}")  
+    
+    xt_next, next_mode, new_reset_arg = reset_map_slip_21(t_left, x_left, current_mode, reset_arg)
+    dt_final = t_left - t
+    dW_new = np.sqrt(dt_final) * RandN
+    
+    # # --------------------
+    # #   Direct reset map 
+    # # --------------------
+    # xt_next, next_mode, new_reset_arg = reset_map_slip_21(t, xt_next, current_mode, reset_arg)
+    # dW_new = np.sqrt(dt_int) * RandN
     
     return xt_next, next_mode, dW_new, new_reset_arg
 
