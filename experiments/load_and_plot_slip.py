@@ -19,7 +19,7 @@ if __name__ == '__main__':
     exp_data = ExpData(exp_params)
 
     # filename = root_dir+"/data/bouncing/ablation_study_nsamples/data_5000samples_eps_15.0_coupling.pickle"
-    filename = root_dir+"/experiments/data/new_exp/slip/data_2024-08-07_17-04-55_example_slip_jax_threading_10exp_5000samples_eps_0.01_coupling_noshrinking.pickle"
+    filename = root_dir+"/experiments/data/new_exp/slip/data_2024-08-07_15-26-04_example_slip_jax_threading_10exp_5000samples_eps_0.001_coupling_noshrinking.pickle"
     print("loading data: ", filename)
     exp_data.load(filename)
     
@@ -89,6 +89,7 @@ if __name__ == '__main__':
     sorted_cost_ilqr_indices = [index for index, value in sorted(enumerate(cost_ilqr_exp), key=lambda x: x[1])]
     sorted_costilqr = sorted(cost_ilqr_exp)
     ilqr_tail_index = sorted_cost_ilqr_indices[int(np.floor(0.9 * len(sorted_cost_ilqr_indices))):]
+    ilqr_best_index = sorted_cost_ilqr_indices[:int(np.floor(0.1 * len(sorted_cost_ilqr_indices)))]
     
     # ------------------------------------------------------------------
     #   Compute CVaR: check the cases where h-iLQR do not perform well
@@ -130,39 +131,11 @@ if __name__ == '__main__':
     # plot the path integral controlled trajectory
     # -------------------------------------------- 
     
-    fig, axes = plt.subplots(2, 6, figsize=(15, 10))
-    
-    for i in range(n_exp):
-        modes_pi = exp_data.get_data(i).mode_trj_pi()
-        states_pi = exp_data.get_data(i).x_trj_pi()
-        inputs_pi = exp_data.get_data(i).u_trj_pi()
-        # reset_args_pi = exp_data.get_data(i).reset_args()
-        states_pi = exp_data.get_data(i).x_trj_pi()
-        states_pi = np.array(states_pi)
-        
-        modes_ilqg = exp_data.get_data(i).mode_trj_ilqr()
-        states_ilqg = exp_data.get_data(i).x_trj_ilqr()
-        inputs_ilqg = exp_data.get_data(i).u_trj_ilqr()
-        # reset_args_ilqg = exp_data.get_data(i).reset_args()
-                
-        nt = len(time_span)
-        reset_args = [np.array([0.0]) for _ in range(nt)]
-        states_pi = unpad_state_slip(modes_pi, states_pi)
-        
-        # h-pi
-        time_span_discrete = np.arange(0, nt)
-        fig, axes = plot_slip(time_span_discrete, modes_pi, states_pi, 
-                                inputs_pi, init_state, target_state, 
-                                nt, reset_args, fig, axes, 'r', alpha=0.9, step=1)
-    
-        # hilqr 
-        fig, axes = plot_slip(time_span_discrete, modes_ilqg, states_ilqg, 
-                                inputs_ilqg, init_state, target_state, 
-                                nt, reset_args, fig, axes, 'b', step=1)
+    plot_slip_nexp(ilqr_best_index, exp_data, time_span, init_state, target_state, args=None)
+    plot_slip_nexp(ilqr_tail_index, exp_data, time_span, init_state, target_state, args=None)
         
     plt.tight_layout()
     plt.show()
-            
     
     # save figures
     fig1.savefig(root_dir+'/data/figures/slip/slip.pdf', format='pdf', dpi=2000)

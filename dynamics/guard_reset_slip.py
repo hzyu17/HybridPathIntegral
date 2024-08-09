@@ -121,24 +121,6 @@ def reset_control_slip_21(t, u_minus):
 def reset_control_slip_12(t, u_minus):
     return np.zeros(2)
 
-def reset_map_slip_21_padding(t, x_event, current_mode, args_reset):
-    
-    print("Reset map from mode 2 to mode 1, with padding.")
-    
-    xp = args_reset[0]
-    r0 = 1
-    theta, theta_dot, r, r_dot = x_event[0], x_event[1], x_event[2], x_event[3]
-    
-    px_reset = xp + r0*jnp.cos(theta)
-    vx_reset = r_dot*jnp.cos(theta) - r*theta_dot*jnp.sin(theta)
-    pz_reset = r0*jnp.sin(theta)
-    vz_reset = r0*theta_dot*jnp.cos(theta) + r_dot*jnp.sin(theta)
-    theta_reset = theta
-
-    x_reset = jnp.array([px_reset, vx_reset, pz_reset, vz_reset, theta_reset])
-
-    return x_reset, 0, args_reset
-
 
 # reset map from stance mode to flight mode
 def reset_map_slip_21(t, x_event, current_mode, args_reset):

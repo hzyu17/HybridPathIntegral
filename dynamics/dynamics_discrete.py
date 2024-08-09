@@ -5,30 +5,6 @@ from dynamics.dynamics import extract_extensions
 from dynamics.saltation_matrix import saltation_matrix
 
 
-# @jax.jit
-def hybrid_stochastic_integration_euler_JAX(xt, current_mode, ut, 
-                                            randN, eps, 
-                                            dt, dt_shrink, t0, reset_arg, 
-                                            stochastic_integration_euler_func=None,
-                                            guard_condition_func=None,
-                                            guard_condition_true_fun=None,
-                                            guard_condition_false_fun=None):
-    
-    dW = jnp.sqrt(dt)*randN
-    xt_next = stochastic_integration_euler_func(current_mode, xt, ut, dt, eps, dW)
-    
-    # ------------
-    # change mode
-    # ------------
-    # next_mode = current_mode
-    args_guard = (xt, current_mode, ut, t0, xt_next, dt, dt_shrink, randN, eps, reset_arg)
-
-    guard_hit = guard_condition_func(xt, xt_next, current_mode)
-    xt_next, next_mode, dW, new_reset_arg = jax.lax.cond(guard_hit, guard_condition_true_fun, guard_condition_false_fun, args_guard)
-
-    return xt_next, next_mode, dW, new_reset_arg
-
-
 def hybrid_stochastic_integration_euler(xt, current_mode, ut, 
                                         randN, eps, 
                                         dt, dt_shrink, t0, reset_arg, 
@@ -122,7 +98,7 @@ def guard_true_func_deterministic(args):
     # t_event = (t_left + t_right) / 2.0
     # x_event = (x_left + x_right) / 2.0
     
-    t_event =  t + dt_int
+    t_event =  t_left
     x_event = x_left
     # dt_final = t_event - t_left
     x_reset, next_mode, new_reset_arg = resetmap(t_event, x_event, current_mode, reset_arg)
@@ -133,7 +109,7 @@ def guard_true_func_deterministic(args):
     # x_reset, next_mode, new_reset_arg = resetmap(t, xt_next, current_mode, reset_arg)
     # t_event =  t + dt_int
     
-    return t_event, xt_next, x_reset, next_mode, new_reset_arg
+    return t_event, x_event, x_reset, next_mode, new_reset_arg
 
 
 
@@ -183,7 +159,7 @@ def event_detect_onestep_discrete(xt, ut,
         
         if guard_hit:
             args_guard = (xt, current_mode, ut, t0, xt_next, dt, dt_shrink, 
-                      current_dyn, current_guard, current_resetmap, reset_args)
+                          current_dyn, current_guard, current_resetmap, reset_args)
             t_event, x_event, x_reset, next_mode, reset_byproduct = guard_true_func_deterministic(args_guard)
             
             # ---------- Compute saltation matrix ---------- 

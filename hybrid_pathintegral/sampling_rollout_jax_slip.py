@@ -5,12 +5,18 @@ current_dir = os.path.dirname(file_path)
 root_dir = os.path.abspath(os.path.join(current_dir, '..'))
 sys.path.append(root_dir)
 
-from dynamics.dynamics_discrete_slip_JAX import *
+from hybrid_pathintegral.dynamics_discrete_slip_JAX import *
 from hybrid_pathintegral.sampling_rollout_jax import *
 
+from functools import partial
+
+hybrid_stochastic_integration_slip_padding = partial(hybrid_stochastic_integration_euler_JAX, 
+                                                    stochastic_integration_euler_func = stochastic_integration_euler_SLIP_padding, 
+                                                    guard_condition_func = guard_condition_slip_padding, 
+                                                    guard_condition_true_fun = guard_true_func_slip_padding, 
+                                                    guard_condition_false_fun = guard_false_func_slip_padding)
 
 cost_i_slip = partial(cost_i, hybrid_stochastic_integration_func=hybrid_stochastic_integration_slip_padding)
-
 feedback_cost_slip_jax = partial(feedback_cost_jax, cost_i_func=cost_i_slip)
 
 # =======================================================
@@ -68,30 +74,30 @@ def sample_slip_jax(i_exp, n_samples,
     
     # Perform operations on the chosen device
     with jax.default_device(device):
-        # ===========================
-        # start jax sampling process
-        # ===========================
-        x0_jax = jnp.asarray(x0)
-        
         # -----------------------------------
         # vectorizing carrys and inputs
         # -----------------------------------
         
         # ---------------  carrys ---------------  
         """
-        (v_x0, 
+        (
+        v_timespan,
+        v_x0, 
         v_current_mode, 
         v_St, 
-        v_cnt_ModeMismatch, 
-        v_index)
+        v_index,
+        v_event_args)
         """
+        x0_jax = jnp.asarray(x0)
         
+        v_t = jnp.zeros((n_samples, 1), dtype=jnp.float64)
         v_x0 = jnp.tile(x0_jax, (n_samples, 1))
         v_current_mode = jnp.tile(current_mode, (n_samples, ))
         v_St = jnp.zeros((n_samples, ), dtype=jnp.float64)
-        v_cnt_MM = jnp.zeros((n_samples, ), dtype=jnp.int64)
         v_index = jnp.tile(0, (n_samples, ))
         v_init_event_args = jnp.tile(init_reset_args, (n_samples, 1))
+        
+        v_initial_carry = (v_t, v_x0, v_current_mode, v_St, v_index, v_init_event_args)
         
         # --------------- // carrys // --------------- 
         
@@ -123,7 +129,6 @@ def sample_slip_jax(i_exp, n_samples,
         v_randN_mode1 = jnp.asarray(noise_mode1)
         v_ref_modes = jnp.tile(ref_modes, (n_samples, 1))
         
-        v_initial_carry = (v_x0, v_current_mode, v_St, v_cnt_MM, v_index, v_init_event_args)
         v_inputs = (v_uref_mode0, v_uref_mode1, 
                     v_Kfb_0, v_kff_0,
                     v_Kfb_1, v_kff_1, 
@@ -133,17 +138,12 @@ def sample_slip_jax(i_exp, n_samples,
         
         # -------------------- // inputs // ------------------------- 
         
-        # =================
-        # Sampling process
-        # =================
-
-        # ================================
+        # --------------------------------
         #  Define scan and vmap functions
-        # ================================ 
+        # -------------------------------- 
         feedback_cost_scan_fun = partial(feedback_cost_slip_jax, 
                                         eps=eps, dt=dt, 
                                         dt_shrink=dt_shr, 
-                                        t0=t0,
                                         v_ext_ref_mode_change=v_ext_trj_mode_change, 
                                         v_ext_trj_fwd=v_ext_trj_fwd, 
                                         v_ext_trj_bwd=v_ext_trj_bwd,
@@ -152,29 +152,36 @@ def sample_slip_jax(i_exp, n_samples,
                                         v_Kfb_ref_ext_bwd=v_Kfb_ref_ext_bwd, 
                                         v_kff_ref_ext_bwd=v_kff_ref_ext_bwd)
         
-        # carry = (v_xt, v_current_mode, v_St, v_cnt_MM, v_index)
-        # inputs = (uref_mode0, uref_mode1, Kfb, kff, randN_mode0, randN_mode1, xref, ref_modes, reset_args)
+        
+        # --------------------
+        #    Update one row
+        # --------------------
         def feedbackcost_onerow(carrys, inputs):
             initial_carry = (carrys[0], carrys[1], carrys[2], carrys[3], carrys[4], carrys[5])
             _, updated_row = jax.lax.scan(feedback_cost_scan_fun, initial_carry, inputs)
-            return updated_row
+            return updated_row   
         
-        
+        # --------------------
+        #       jax.vmap
+        # --------------------   
         feedbackcost_vmap = jax.vmap(feedbackcost_onerow, in_axes=(0,0))
+        
+        # ------------------------ 
+        #  Call sampling function 
+        # ------------------------
         v_sample_results = feedbackcost_vmap(v_initial_carry, v_inputs)
         
+        # Terminal costs
         args_terminal_cost = (x_target, Q_T)
         terminal_cost_xQrx_vmap = jax.vmap(partial(quadratic_terminal_cost_jit, args=args_terminal_cost), in_axes=0)
 
         # --------------------------
         # results and terminal loss 
         # --------------------------
-        Ksample_modes_jax, Ksamples_jax, PathCosts_jax, Ksamples_ut, actual_ref_jax, Ksamples_Kfb_mode, Ksamples_kff_mode, Ksamples_reset_args = v_sample_results
-        
-        # Move the samples forward by 1 place and add xt to the front, to keep the same with numpy results.
-        # Ksample_modes_jax = jnp.concatenate((v_current_mode.reshape((n_samples, -1)), Ksample_modes_jax[:,0:-1]), axis=1)
-        # Ksamples_jax = jnp.concatenate((v_x0.reshape((n_samples, 1, -1)), Ksamples_jax[:,0:-1,:]), axis=1)
-        # PathCosts_jax = PathCosts_jax[:,-2,1]
+        (Ksamples_ts, Ksample_modes_jax, Ksamples_jax, 
+         PathCosts_jax, 
+         Ksamples_ut, 
+         actual_ref_jax, Ksamples_Kfb_mode, Ksamples_kff_mode, Ksamples_reset_args) = v_sample_results
         
         # ------------ Terminal cost ------------
         xT_samples = Ksamples_jax[:,-1,:]
@@ -182,7 +189,7 @@ def sample_slip_jax(i_exp, n_samples,
         PathCosts_jax = PathCosts_jax[:, -1].flatten()
         PathCosts_jax = PathCosts_jax + v_S_xT
     
-    return Ksample_modes_jax, Ksamples_jax, PathCosts_jax, Ksamples_ut, actual_ref_jax, Ksamples_Kfb_mode, Ksamples_kff_mode, Ksamples_reset_args
+    return Ksamples_ts, Ksample_modes_jax, Ksamples_jax, PathCosts_jax, Ksamples_ut, actual_ref_jax, Ksamples_Kfb_mode, Ksamples_kff_mode, Ksamples_reset_args
     
     # =================================== / jax parallel sampling ====================================
     

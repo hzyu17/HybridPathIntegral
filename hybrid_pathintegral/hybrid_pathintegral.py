@@ -1,5 +1,4 @@
 import numpy as np
-from numba import njit, float64, int32, prange
 import jax.numpy as jnp
 import jax
 
@@ -61,14 +60,14 @@ def update_u0_pathintegral(u0, PathCosts, GaussianNoise, epsilon, dt):
     
     # ------- Compute the update to control -------
     U_update = np.zeros(nu)
-    for k in prange(n_samples):
+    for k in range(n_samples):
         U_update += exp_PathCosts[k]*GaussianNoise[k]
     U_update = np.sqrt(epsilon/dt) * U_update / sum_expPathCosts 
     
     return u0 + U_update
 
 
-def update_u0_pathintegral_jax(u0, PathCosts, GaussianNoise, epsilon, delta_t):
+def update_u0_pathintegral_jax(u0, PathCosts, GaussianNoise, epsilon, Ksamples_delta_t, delta_t):
     # ------- numerical processing -------
     PathCosts = PathCosts - jnp.min(PathCosts)
     exp_PathCosts = jnp.exp(-PathCosts/epsilon)
@@ -80,40 +79,19 @@ def update_u0_pathintegral_jax(u0, PathCosts, GaussianNoise, epsilon, delta_t):
     
     # ------- Compute the update to control -------
     
-    def Cost_Noise_mult(exp_PathCosts_k, GaussianNoise_k):
-        return exp_PathCosts_k*GaussianNoise_k
+    def Cost_Noise_mult(exp_PathCosts_k, GaussianNoise_k, delta_t_k):
+        return exp_PathCosts_k*GaussianNoise_k*jnp.sqrt(delta_t_k)
     
-    Cost_Noise_vmap = jax.vmap(Cost_Noise_mult, in_axes=(0,0))
-    Cost_Noise_prod = Cost_Noise_vmap(exp_PathCosts, GaussianNoise)
-    U_update_jax = jnp.sum(Cost_Noise_prod)
-        
-    U_update_jax = jnp.sqrt(epsilon/delta_t) * U_update_jax / sum_expPathCosts 
+    Cost_Noise_vmap = jax.vmap(Cost_Noise_mult, in_axes=(0,0,0))
+    Cost_Noise_prod = Cost_Noise_vmap(exp_PathCosts, GaussianNoise, Ksamples_delta_t)
     
+    U_update_jax = jnp.sqrt(epsilon) * jnp.sum(Cost_Noise_prod) / sum_expPathCosts / delta_t
+            
     return u0 + U_update_jax, weights
 
 
-# Hybrid path integral control
-def update_control_pathintegral(ut, PathCosts, epsilon, dt):
-    nt, nu = ut.shape
-    n_samples = len(PathCosts)
-    
-    GaussianNoises = np.random.randn(n_samples, nt, nu)
-    
-    # ------- numerical processing -------
-    PathCosts = PathCosts - np.min(PathCosts)
-    exp_PathCosts = np.exp(-PathCosts/epsilon)
-    sum_expPathCosts = np.sum(exp_PathCosts)
-    
-    # ------- Compute the update to control -------
-    U_update = np.zeros((nt, nu), dtype=np.float64)
-    for k in range(n_samples):
-        U_update += exp_PathCosts[k]*GaussianNoises[k]
-    U_update = np.sqrt(epsilon/dt) * U_update / sum_expPathCosts 
-    
-    return ut + U_update
-
-
 def compute_weights(PathCosts, epsilon):
+    import matplotlib.pyplot as plt
     plot_weights = False
     if plot_weights:
         fig6, ax11 = plt.subplots(figsize=(8,6))
@@ -148,21 +126,12 @@ def compute_weights(PathCosts, epsilon):
 
 def variance_usefulportion(pathcosts, epsilon):
     """Compute variance and useful pertentage of the samples.
-    """
-    # pathcosts = np.exp(-(pathcosts - np.min(pathcosts))/epsilon)
-    # weights = pathcosts / np.mean(pathcosts)
-    
-    # mean = np.mean(weights)
-    # variance = np.sum((weights-mean)*(weights-mean)) / len(weights)
-    
+    """   
     weights = compute_weights(pathcosts, epsilon)
     
     variance = np.var(weights)
 
     # ------- Fraction of effective samples -------
     lbda = 1.0 / np.mean(weights**2)
-    
-    # print("variance", variance)
-    # print("lbda", lbda)
     
     return variance, lbda*100.0

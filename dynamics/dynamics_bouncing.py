@@ -295,7 +295,7 @@ def plot_bouncingball_nexp(exp_indexes, exp_data, time_span, init_state,
     ax2.grid(True)
     ax3.grid(True)
     
-    (modes,states_ref,inputs, 
+    (timespan,modes,states_ref,inputs, 
     k_feedforward, K_feedback, current_cost, 
     states_iter, ref_modechanges,
     reference_extension_helper, ref_reset_args) = exp_data.get_nominal_data()
@@ -313,30 +313,30 @@ def plot_bouncingball_nexp(exp_indexes, exp_data, time_span, init_state,
         if i_exp == exp_indexes[-1]:
         
             ax1.plot(time_span[:], states_pi[:,0], color='r', alpha=0.8, label='H-PI', linewidth=0.7)
-            ax1.plot(time_span[:], states_ilqg[:,0], color='b', alpha=0.8, label='H-iLQG')
+            # ax1.plot(time_span[:], states_ilqg[:,0], color='b', alpha=0.8, label='H-iLQG')
             ax1.plot(time_span[:], states_ref[:,0], color='k', alpha=1.0, label='Nominal', linewidth=0.7)
             
             ax2.plot(time_span[:], states_pi[:,1], color='r', alpha=0.8, label='H-PI', linewidth=0.7)
-            ax2.plot(time_span[:], states_ilqg[:,1], color='b', alpha=0.8, label='H-iLQG')
+            # ax2.plot(time_span[:], states_ilqg[:,1], color='b', alpha=0.8, label='H-iLQG')
             ax2.plot(time_span[:], states_ref[:,1], color='k', alpha=1.0, label='Nominal', linewidth=0.7)
             
             # ------------- Plot the z-\dot_z figure -------------
             ax3.plot(states_pi[:,0], states_pi[:,1],color='r', alpha=0.8, label='H-PI', linewidth=0.7)
-            ax3.plot(states_ilqg[:,0], states_ilqg[:,1],color='b', alpha=0.8, label='H-iLQG')
+            # ax3.plot(states_ilqg[:,0], states_ilqg[:,1],color='b', alpha=0.8, label='H-iLQG')
             ax3.plot(states_ref[:,0], states_ref[:,1],color='k', alpha=1.0, label='Nominal', linewidth=0.7)
             
         else:
             
             ax1.plot(time_span[:], states_pi[:,0], color='r', alpha=0.8, linewidth=0.7)
-            ax1.plot(time_span[:], states_ilqg[:,0], color='b', alpha=0.8, linewidth=0.7)
+            # ax1.plot(time_span[:], states_ilqg[:,0], color='b', alpha=0.8, linewidth=0.7)
             ax1.plot(time_span[:], states_ref[:,0], color='k', alpha=1.0, linewidth=0.7)
             
             ax2.plot(time_span[:], states_pi[:,1], color='r', alpha=0.8, linewidth=0.7)
-            ax2.plot(time_span[:], states_ilqg[:,1], color='b', alpha=0.8, linewidth=0.7)
+            # ax2.plot(time_span[:], states_ilqg[:,1], color='b', alpha=0.8, linewidth=0.7)
             ax2.plot(time_span[:], states_ref[:,1], color='k', alpha=1.0, linewidth=0.7)
             
             ax3.plot(states_pi[:,0], states_pi[:,1],color='r', alpha=0.8, linewidth=0.7)
-            ax3.plot(states_ilqg[:,0], states_ilqg[:,1],color='b', alpha=0.8)
+            # ax3.plot(states_ilqg[:,0], states_ilqg[:,1],color='b', alpha=0.8)
             ax3.plot(states_ref[:,0], states_ref[:,1],color='k', alpha=1.0, linewidth=0.7)
     
     # ----------- Plot the start and goal states -----------

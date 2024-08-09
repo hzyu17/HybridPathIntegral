@@ -47,17 +47,31 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
     u_trj_ilqr = [np.zeros((nt, n_inputs[0])), np.zeros((nt, n_inputs[1]))]
     xt_trj_ilqr[0] = init_state
     
+    
+    # ------------------------------- zero control -------------------------------------
+    inputs_zero = [np.zeros_like(inputs[0]), np.zeros_like(inputs[1])]
+    states_zero = [np.zeros_like(states[i]) for i in range(len(states))]
+    K_feedback_zero = [np.zeros_like(K_feedback[i]) for i in range(len(K_feedback))]
+    k_feedforward_zero = [np.zeros_like(k_feedforward[i]) for i in range(len(K_feedback))]
+    
+    reference_extension_helper_zero = reference_extension_helper
+    mc = reference_extension_helper_zero[0]["Mode Change"]
+    reference_extension_helper_zero[0]["Feedback gains"][mc[0]] = np.zeros_like(reference_extension_helper_zero[0]["Feedback gains"][mc[0]])
+    reference_extension_helper_zero[0]["Feedback gains"][mc[1]] = np.zeros_like(reference_extension_helper_zero[0]["Feedback gains"][mc[1]])
+    reference_extension_helper_zero[0]["Feedforward gains"][mc[0]] = np.zeros_like(reference_extension_helper_zero[0]["Feedforward gains"][mc[0]])
+    reference_extension_helper_zero[0]["Feedforward gains"][mc[1]] = np.zeros_like(reference_extension_helper_zero[0]["Feedforward gains"][mc[1]])
+    
     (mode_trj_ilqr, 
      xt_trj_ilqr, 
      u_trj_ilqr, 
      cost_ilqr, _, _) = hybrid_stochastic_feedback_rollout_discrete_bouncing(init_mode, 
                                                                             init_state, n_inputs, 
-                                                                            states, modes, 
-                                                                            inputs, K_feedback, k_feedforward, 
+                                                                            states_zero, modes, 
+                                                                            inputs_zero, K_feedback_zero, k_feedforward_zero, 
                                                                             target_state, Q_T,
                                                                             start_time, dt, 
                                                                             epsilon, RndN_actual, dt_shrinkingrate, 
-                                                                            reference_extension_helper,
+                                                                            reference_extension_helper_zero,
                                                                             init_reset_args)
     
     show_hilqr_results = False
@@ -245,14 +259,14 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         v_kff_ref_ext_bwd_i_zero = [np.zeros_like(v_kff_ref_ext_bwd_i[0])]
         
         # ====================
-        # Sampling using jax 
+        #  Sampling using jax 
         # ====================
                 
         # ---------------------------------------------------------------------------------------
         #                               Sample future trajectories
         # ---------------------------------------------------------------------------------------
         
-        (Kmodes_jax_i, Ksamples_jax_i, PathCosts_jax_i, 
+        (Ksamples_ts_i, Kmodes_jax_i, Ksamples_jax_i, PathCosts_jax_i, 
         Ksamples_ut, Ksamples_xref, Ksamples_Kfb_mode, 
         Ksamples_kff_mode, Ksamples_reset_args) = sample_bouncing_jax(n_samples, xt, 
                                                                         current_mode_actual, 
@@ -277,27 +291,11 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         # --------------------------------------------------------
         # Compute proposal control, possibly with early arrival
         ubar_i = inputs_i[current_mode_actual][0]
-        # K_fb = K_feedback_i_zero[current_mode_actual][0]
-        # k_ff = k_feedforward_i_zero[current_mode_actual][0]
-        # xref_i = states_i[current_mode_actual][0]
-        
-        # if cond_mode_mismatch_bouncing(current_mode_actual, ref_current_mode):
-        #     print("--------------- mode mismatch happened ---------------")
-        #     xref_i, K_fb, k_ff, cnt_mismatch = reaction_mode_mismatch(i_t, 
-        #                                                               current_mode_actual, ref_current_mode, 
-        #                                                               v_ref_ext_fwd[0], v_ref_ext_bwd[0], 
-        #                                                               v_mode_change_ref[0],
-        #                                                               v_Kfb_ref_ext_fwd[0], v_kff_ref_ext_fwd[0], 
-        #                                                               v_Kfb_ref_ext_bwd[0], v_kff_ref_ext_bwd[0], 
-        #                                                               cnt_mismatch,
-        #                                                               cond_early_arrival=cond_early_arrival_bouncing)
-        
-        # u0_proposal = ubar_i + K_fb@(xt - xref_i) + k_ff
-        
         u0_proposal = np.zeros_like(ubar_i)
         
         GaussianNoises_ustar_jax = GaussianNoise_i[current_mode_actual][:,0,:]
-        u0_star_jax, weights_jax = update_u0_pathintegral_jax(u0_proposal, PathCosts_jax_i, GaussianNoises_ustar_jax, epsilon, dt)
+        Ksamples_delta_t0 = Ksamples_ts_i[:,1] - Ksamples_ts_i[:,0]
+        u0_star_jax, weights_jax = update_u0_pathintegral_jax(u0_proposal, PathCosts_jax_i, GaussianNoises_ustar_jax, epsilon, Ksamples_delta_t0, dt)
         
         u_star_pi_jax[current_mode_actual][i_t] = u0_star_jax
         allPathCosts_jax[i_t] = PathCosts_jax_i
@@ -449,7 +447,7 @@ def main(epsilon, n_samples, dt):
     # ---------------------------- Set the terminal cost ----------------------------
     target_mode = 0
     Q_T = 200*np.eye(n_states[0], dtype=np.float64)
-    Q_T[0,0] = 2000.0
+    Q_T[0,0] = 500.0
     
     init_reset_args = [np.array([0.0]) for _ in range(nt)]
     target_reset_args = [np.array([0.0]) for _ in range(nt)]

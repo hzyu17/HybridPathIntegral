@@ -300,9 +300,9 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         #                               Sample future trajectories
         # ---------------------------------------------------------------------------------------                    
         
-        (Kmodes_jax_i, Ksamples_jax_i, PathCosts_jax_i, 
-        Ksamples_ut, Ksamples_xref, Ksamples_Kfb_mode, 
-        Ksamples_kff_mode, Ksamples_reset_args) = sample_slip_jax(i_exp, n_samples, xt, 
+        (Ksamples_ts_i, Kmodes_jax_i, Ksamples_jax_i, PathCosts_jax_i, 
+         Ksamples_ut, Ksamples_xref, Ksamples_Kfb_mode, 
+         Ksamples_kff_mode, Ksamples_reset_args) = sample_slip_jax(i_exp, n_samples, xt, 
                                                                     current_mode_actual, 
                                                                     states_0_i, states_1_i, 
                                                                     modes_i, 
@@ -367,18 +367,18 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
             xref_actual_i = xref_actual_i[:4]
         
         u0_proposal = ubar_actual_i + K_fb_actual@(xt_actual - xref_actual_i) + k_ff_actual      
-        
-        u0_star_jax, weights_jax = update_u0_pathintegral_jax(u0_proposal, PathCosts_jax_i, GaussianNoises_ustar_jax, epsilon, dt)
-        
+        Ksamples_delta_t0 = Ksamples_ts_i[:,1] - Ksamples_ts_i[:,0]
+        u0_star_jax, weights_jax = update_u0_pathintegral_jax(u0_proposal, PathCosts_jax_i, GaussianNoises_ustar_jax, epsilon, Ksamples_delta_t0, dt)
+                
         u_star_pi_jax[current_mode_actual][i_t] = u0_star_jax
         allPathCosts_jax[i_t] = PathCosts_jax_i
         
         print("*** Var weight_jax", jnp.var(weights_jax))
         print("*** lambda_jax", 1.0 / jnp.mean(weights_jax**2))
         
-        # ---------------------------------
+        # ----------------------------------
         #   Visualize sampled trajectories
-        # ---------------------------------
+        # ----------------------------------
         show_samples = True
         if show_samples and (i_t==0):
             print(f"Plotting trajectory samples.")
@@ -438,10 +438,10 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
             u0_star_jax = np.append(u0_star_jax, 0.0)
             actual_noise_i = np.append(actual_noise_i, 0.0)
         
-        xt_next, next_mode_actual, _, new_reset_arg = hybrid_stochastic_integration_slip_padding(xt, current_mode_actual,
-                                                                                                u0_star_jax, actual_noise_i, 
-                                                                                                epsilon, dt, dt_shrink, start_time_i, 
-                                                                                                reset_args_actual[i_t])
+        _, xt_next, next_mode_actual, _, new_reset_arg = hybrid_stochastic_integration_slip_padding(xt, current_mode_actual,
+                                                                                                    u0_star_jax, actual_noise_i, 
+                                                                                                    epsilon, dt, dt_shrink, start_time_i, 
+                                                                                                    reset_args_actual[i_t])
 
         next_mode_actual = int(next_mode_actual)
         # current_modechange = np.array([current_mode_actual, next_mode_actual])
@@ -545,7 +545,7 @@ def main(epsilon, n_samples, dt):
     
     # Terminal cost 
     target_mode = 0
-    Q_T = 200.0*np.eye(n_states[0])
+    Q_T = 50.0*np.eye(n_states[0])
     # Q_T[1,1] = 2000.0
     # Q_T[3,3] = 2000.0
     
@@ -645,9 +645,9 @@ def main(epsilon, n_samples, dt):
 import argparse
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="The epsilon parameter.")
-    parser.add_argument("--epsilon", type=float, default=0.001, help="The process noise intensity value, epsilon.")
+    parser.add_argument("--epsilon", type=float, default=0.00001, help="The process noise intensity value, epsilon.")
     parser.add_argument("--nsamples", type=int, default=500, help="The number of samples used in path integral control.")
-    parser.add_argument("--dt", type=int, default=0.0008, help="The time discretization.")
+    parser.add_argument("--dt", type=int, default=0.001, help="The time discretization.")
     
     args = parser.parse_args()
 

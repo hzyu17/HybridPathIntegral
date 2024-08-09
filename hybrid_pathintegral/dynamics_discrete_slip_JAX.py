@@ -10,6 +10,25 @@ import jax.numpy as jnp
 from dynamics.dynamics_slip import *
 from dynamics.dynamics_discrete import *
 
+
+def reset_map_slip_21_padding(t, x_event, current_mode, args_reset):
+    
+    print("Reset map from mode 2 to mode 1, with padding.")
+    
+    xp = args_reset[0]
+    r0 = 1
+    theta, theta_dot, r, r_dot = x_event[0], x_event[1], x_event[2], x_event[3]
+    
+    px_reset = xp + r0*jnp.cos(theta)
+    vx_reset = r_dot*jnp.cos(theta) - r*theta_dot*jnp.sin(theta)
+    pz_reset = r0*jnp.sin(theta)
+    vz_reset = r0*theta_dot*jnp.cos(theta) + r_dot*jnp.sin(theta)
+    theta_reset = theta
+
+    x_reset = jnp.array([px_reset, vx_reset, pz_reset, vz_reset, theta_reset])
+
+    return x_reset, 0, args_reset
+
 # @jax.jit
 def stochastic_integration_euler_SLIP_padding(mode, x0, u, dt, eps, dW):   
     def mode0_dynamics_true_func_slip_padding(args):
@@ -54,7 +73,8 @@ def stochastic_integration_euler_SLIP_padding(mode, x0, u, dt, eps, dW):
     
     cond_mode0 = (mode == 0)
     args_choose_dynamics = (x0, u, dW, eps)
-    xt_next = jax.lax.cond(cond_mode0, mode0_dynamics_true_func_slip_padding, 
+    xt_next = jax.lax.cond(cond_mode0, 
+                           mode0_dynamics_true_func_slip_padding, 
                            mode0_dynamics_false_func_slip_padding, args_choose_dynamics)
 
     return xt_next
@@ -93,33 +113,38 @@ def guard_true_func_slip_padding(args):
         
         return new_vars
     
+    # --------------------------
+    #       Shrinking dt
+    # --------------------------
     # init_vars = (xt_current, xt_next, u, t, dt_int, dt_shrinkrate, RandN, eps, 0, True)
     # final_vars = jax.lax.while_loop(while_cond, while_loop_body, init_val=init_vars)
     
     # # (_, xt_shrinked, _, _, dt_shrinked, _, RandN, _, _, _) = final_vars
-    # xt_next, next_mode, new_reset_arg = reset_map_slip_21_padding(t, xt_shrinked, current_mode, reset_arg)
+    # t_event = t + dt_shrinked
+    # x_event = xt_shrinked
+    # xt_reset, next_mode, new_reset_arg = reset_map_slip_21_padding(t_event, xt_shrinked, current_mode, reset_arg)
     # dW_new = jnp.sqrt(dt_shrinked)*RandN
     
-    xt_next, next_mode, new_reset_arg = reset_map_slip_21_padding(t, xt_next, current_mode, reset_arg)
+    # --------------------------
+    #     Direct reset map
+    # --------------------------
+    t_event = t + dt_int
+    x_event = xt_next
+    xt_reset, next_mode, new_reset_arg = reset_map_slip_21_padding(t, xt_next, current_mode, reset_arg)
     dW_new = jnp.sqrt(dt_int)*RandN
     
-    return xt_next, next_mode, dW_new, new_reset_arg
+    return t_event, x_event, xt_reset, next_mode, dW_new, new_reset_arg
 
 
 @jax.jit
 def guard_false_func_slip_padding(args):
-    (_, current_mode, _, _, xt_next, dt_int, _, RandN, _, reset_arg) = args
+    (_, current_mode, _, t, xt_next, dt_int, _, RandN, eps, reset_arg) = args
+    
+    t_next = t + dt_int
     dW = jnp.sqrt(dt_int)*RandN
-    return xt_next, current_mode, dW, reset_arg
+    
+    return t_next, xt_next, xt_next, current_mode, dW, reset_arg
 
 # ===============================================================================================================
 #                                       // End of SLIP guard condition handling //
 # ===============================================================================================================
-
-from functools import partial
-
-hybrid_stochastic_integration_slip_padding = partial(hybrid_stochastic_integration_euler_JAX, 
-                                                    stochastic_integration_euler_func = stochastic_integration_euler_SLIP_padding, 
-                                                    guard_condition_func = guard_condition_slip_padding, 
-                                                    guard_condition_true_fun = guard_true_func_slip_padding, 
-                                                    guard_condition_false_fun = guard_false_func_slip_padding)

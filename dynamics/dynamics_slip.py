@@ -400,6 +400,38 @@ def event_detect_slip(x0, u, t0, tf, current_mode, reset_args, detection=True, b
                                 reset_args, detection, backwards)
     
 
+def plot_slip_nexp(n_exp_indexs, exp_data, time_span, init_state, target_state, args=None):
+    fig, axes = plt.subplots(2, 6, figsize=(15, 10))
+    
+    for i_exp in n_exp_indexs:
+        modes_pi = exp_data.get_data(i_exp).mode_trj_pi()
+        states_pi = exp_data.get_data(i_exp).x_trj_pi()
+        inputs_pi = exp_data.get_data(i_exp).u_trj_pi()
+        # reset_args_pi = exp_data.get_data(i).reset_args()
+        states_pi = exp_data.get_data(i_exp).x_trj_pi()
+        states_pi = np.array(states_pi)
+        
+        modes_ilqg = exp_data.get_data(i_exp).mode_trj_ilqr()
+        states_ilqg = exp_data.get_data(i_exp).x_trj_ilqr()
+        inputs_ilqg = exp_data.get_data(i_exp).u_trj_ilqr()
+        # reset_args_ilqg = exp_data.get_data(i).reset_args()
+                
+        nt = len(time_span)
+        reset_args = [np.array([0.0]) for _ in range(nt)]
+        states_pi = unpad_state_slip(modes_pi, states_pi)
+        
+        # h-pi
+        time_span_discrete = np.arange(0, nt)
+        fig, axes = plot_slip(time_span_discrete, modes_pi, states_pi, 
+                                inputs_pi, init_state, target_state, 
+                                nt, reset_args, fig, axes, 'r', alpha=0.9, step=1)
+    
+        # hilqr 
+        fig, axes = plot_slip(time_span_discrete, modes_ilqg, states_ilqg, 
+                                inputs_ilqg, init_state, target_state, 
+                                nt, reset_args, fig, axes, 'b', step=1)
+
+
 def plot_sample_trajectory_slip(nsamples_plot, nt_i, time_span,
                                 Kmodes_jax_i, Ksamples_jax_i, Ksamples_ut, 
                                 Ksamples_reset_args, 

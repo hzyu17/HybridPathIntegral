@@ -43,6 +43,22 @@ def main(epsilon, n_samples, dt):
     print(f"The value of epsilon input is: {epsilon}")
     print(f"The value of number of samples input is: {n_samples}")
     print(f"The value of time discretization dt is: {dt}")
+    
+    # =========== save data ===========
+    save_root = '/home/hzyu/git/HybridPathIntegral/experiments'
+    # save_root = '/hddscratch/hyu419/hybrid_pathintegral/exp_200'
+    # save_root = '/hddscratch/hyu419/hybrid_pathintegral/new_exp'
+    
+    file_path = f"{save_root}/data/new_exp/bouncing"
+    
+    from pathlib import Path
+    if not Path(file_path).exists():
+        print(f"File {file_path} does not exist.")
+        sys.exit(1)  # Exit the program with a non-zero status code
+    else:
+        print(f"File {file_path} exists.")
+        
+    
     # === ilqr parameters ===
     # Initialize timings
     
@@ -177,19 +193,14 @@ def main(epsilon, n_samples, dt):
     print("E[cost_pi]: ", np.mean(cost_pi_exp))
     print("E[cost_ilqr_exp]: ", np.mean(cost_ilqr_exp))
 
-    # =========== save data ===========
+    # --------------- save data ----------------
     from datetime import datetime
     current_datetime = datetime.now()
     formatted_datetime = current_datetime.strftime("%Y-%m-%d_%H-%M-%S")
     filename = f"data_{formatted_datetime}_{script_filename}_{n_samples}samples_eps_{epsilon}_coupling_zero_control.pickle"
-    # filename = f"data_{n_samples}samples_eps_{epsilon}_coupling.pickle"
-    # save_root = '/hddscratch/hyu419/hybrid_pathintegral/exp_200'
-    save_root = '/hddscratch/hyu419/hybrid_pathintegral/new_exp'
+    file = file_path+'/'+filename
     
-    # save_root = '/home/hzyu/git/HybridPathIntegral/experiments'
-    file_path = f"{save_root}/data/bouncing/{filename}"
-    print("Saving data to: ", file_path)
-    exp_data.dump(file_path)
+    exp_data.dump(file)
 
 import argparse
 if __name__ == '__main__':

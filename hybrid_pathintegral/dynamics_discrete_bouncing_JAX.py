@@ -50,28 +50,22 @@ def guard_true_func_bouncing_JAX(args):
     
     final_vars = jax.lax.while_loop(while_cond, while_loop_body, init_val=init_vars)
     (xt_current, xt_shrink_final, _, t, dt_final, dt_shrinkrate, RandN, eps, final_cnt, reset_arg, _) = final_vars
-
-    xt_reset, next_mode, reset_arg = reset_map_bouncing_12_jax(t, xt_shrink_final, current_mode, reset_arg)
+    
+    t_event = t+dt_final
+    xt_reset, next_mode, new_reset_arg = reset_map_bouncing_12_jax(t_event, xt_shrink_final, current_mode, reset_arg)
     
     dW_new = jnp.sqrt(dt_final)*RandN
     
-    return xt_reset, next_mode, dW_new, reset_arg
+    return t_event, xt_shrink_final, xt_reset, next_mode, dW_new, new_reset_arg
 
 
 # @jax.jit
 def guard_false_func_bouncing_JAX(args):
-    (_, current_mode, _, _, xt_next, dt_int, _, RandN, _, reset_arg) = args
+    (xt_current, current_mode, u, t, xt_next, dt_int, dt_shrinkrate, RandN, eps, reset_arg) = args
+    t_event = t+dt_int
     dW = jnp.sqrt(dt_int)*RandN
-    return xt_next, current_mode, dW, reset_arg
+    return t_event, xt_next, xt_next, current_mode, dW, reset_arg
 
 # ===============================================================================================================
 #                                      // End of Bouncing condition handling //
 # ===============================================================================================================
-
-from functools import partial
-
-hybrid_stochastic_integration_bouncing_JAX = partial(hybrid_stochastic_integration_euler_JAX, 
-                                                    stochastic_integration_euler_func = stochastic_integration_euler_bouncing_JAX, 
-                                                    guard_condition_func = guard_condition_bouncing_JAX, 
-                                                    guard_condition_true_fun = guard_true_func_bouncing_JAX, 
-                                                    guard_condition_false_fun = guard_false_func_bouncing_JAX)

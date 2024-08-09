@@ -22,7 +22,7 @@ if __name__ == '__main__':
     exp_data = ExpData(exp_params)
 
     # filename = root_dir+"/data/bouncing/ablation_study_nsamples/data_5000samples_eps_15.0_coupling.pickle"
-    filename = root_dir+"/experiments/data/new_exp/bouncing/data_2024-08-07_18-46-25_example_bouncingball_jax_threading_5000samples_eps_10.0_coupling.pickle"
+    filename = root_dir+"/experiments/data/new_exp/bouncing/data_2024-08-08_23-32-58_example_bouncingball_jax_threading_zero_control_5000samples_eps_10.0_coupling_zero_control.pickle"
     print("loading data: ", filename)
     exp_data.load(filename)
     
@@ -37,12 +37,12 @@ if __name__ == '__main__':
     target_state = exp_params._target_state
     
     if exp_data.get_nominal_data():
-        (modes,states,inputs, 
+        (timespan, modes,states,inputs, 
          k_feedforward, K_feedback, current_cost, 
          states_iter, ref_modechanges,
          reference_extension_helper, ref_reset_args) = exp_data.get_nominal_data()
     else:
-        (modes,states,inputs, 
+        (timespan, modes,states,inputs, 
          k_feedforward, K_feedback, current_cost, 
          states_iter, ref_modechanges,
          reference_extension_helper, ref_reset_args) = solve_ilqr(exp_params)
@@ -61,10 +61,6 @@ if __name__ == '__main__':
     variances, lbdas = np.zeros((n_exp, nt-1)), np.zeros((n_exp, nt-1))
     
     for i in range(n_exp):
-        trj_ilqr = exp_data.get_data(i).x_trj_ilqr()
-        trj_pi = exp_data.get_data(i).x_trj_pi()
-        u_star_pi = exp_data.get_data(i).u_trj_pi()
-        u_trj_ilqr = exp_data.get_data(i).u_trj_ilqr()
         allPathCosts = exp_data.get_data(i).allPathCosts()
         
         for j in range(nt -1):
