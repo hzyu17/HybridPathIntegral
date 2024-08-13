@@ -35,11 +35,8 @@ def main(epsilon, n_samples, dt):
     n_exp = 5
     
     # save_root = '/hddscratch/hyu419/hybrid_pathintegral/exp_200'
-    # save_root = '/ssdscratch/hyu419/hybrid_pathintegral/new_exp'
-    save_root = '/home/hzyu/git/HybridPathIntegral/experiments/data/new_exp'
-    
-    # save_root = '/home/hzyu/git/HybridPathIntegral/experiments'
-    file_path = f"{save_root}/slip"
+    # save_root = '/ssdscratch/hyu419/hybrid_pathintegral/new_exp/data/slip'
+    file_path = '/home/hzyu/git/HybridPathIntegral/experiments/data/new_exp/slip'
     
     if os.path.exists(file_path):
         print("The directory exists.")
@@ -171,7 +168,7 @@ def main(epsilon, n_samples, dt):
     mp.set_start_method('spawn', force=True)
 
     # Pool of workers
-    num_process = max(1, min(mp.cpu_count()-10, 5))
+    num_process = max(1, min(mp.cpu_count()-10, 2))
     with mp.Pool(processes=num_process) as pool:
         # Prepare the arguments for each experiment
         args = [(i_exp, nt, n_samples, n_states, n_inputs, 
