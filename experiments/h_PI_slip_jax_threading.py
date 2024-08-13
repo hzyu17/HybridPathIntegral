@@ -34,6 +34,20 @@ def main(epsilon, n_samples, dt):
     
     n_exp = 5
     
+    # save_root = '/hddscratch/hyu419/hybrid_pathintegral/exp_200'
+    # save_root = '/ssdscratch/hyu419/hybrid_pathintegral/new_exp'
+    save_root = '/home/hzyu/git/HybridPathIntegral/experiments/data/new_exp'
+    
+    # save_root = '/home/hzyu/git/HybridPathIntegral/experiments'
+    file_path = f"{save_root}/slip"
+    
+    if os.path.exists(file_path):
+        print("The directory exists.")
+    else:
+        print("The directory does not exist.")
+        sys.exit(1)
+    
+    
     # ---------------- bouncing example -----------------
     dt_shrink = 0.9
     r0 = 1
@@ -51,7 +65,7 @@ def main(epsilon, n_samples, dt):
     
     # For the slip dynamics, mode 1 has 1 input, and mode 2 has 2 inputs. 
     n_states = [5, 4]
-    n_inputs = [1, 2]
+    n_inputs = [3, 2]
     
     # ----------------------------
     # Case 1: vertical bouncing
@@ -92,7 +106,7 @@ def main(epsilon, n_samples, dt):
     
     # Terminal cost 
     target_mode = 0
-    Q_T = 200.0*np.eye(n_states[0])
+    Q_T = 60.0*np.eye(n_states[0])
     # Q_T[1,1] = 2000.0
     # Q_T[3,3] = 2000.0
     
@@ -131,7 +145,7 @@ def main(epsilon, n_samples, dt):
     print("===================== Solving for h-iLQG proposal controller =====================")
     hybrid_ilqr_result = solve_ilqr(exp_params, detect=True, verbose=False)
     
-    (modes,states,inputs,
+    (time_span,modes,states,inputs,
      k_feedforward,K_feedback,
      current_cost,states_iter,
      ref_modechanges,reference_extension_helper, ref_reset_args) = hybrid_ilqr_result
@@ -187,23 +201,18 @@ def main(epsilon, n_samples, dt):
     current_datetime = datetime.now()
     formatted_datetime = current_datetime.strftime("%Y-%m-%d_%H-%M-%S")
     filename = f"data_{formatted_datetime}_{script_filename}_{n_exp}exp_{n_samples}samples_eps_{epsilon}_coupling.pickle"
-    # filename = f"data_{n_samples}samples_eps_{epsilon}_coupling.pickle"
-    # save_root = '/hddscratch/hyu419/hybrid_pathintegral/exp_200'
-    save_root = '/ssdscratch/hyu419/hybrid_pathintegral/new_exp'
-    
-    # save_root = '/home/hzyu/git/HybridPathIntegral/experiments'
-    file_path = f"{save_root}/data/slip/{filename}"
-    print("Saving data to: ", file_path)
-    exp_data.dump(file_path)
+    filename = file_path+"/"+filename
+    print("Saving data to: ", filename)
+    exp_data.dump(filename)
 
 
 import argparse
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="The epsilon parameter.")
     
-    parser.add_argument("--epsilon", type=float, default=0.005, help="The process noise intensity value, epsilon.")
+    parser.add_argument("--epsilon", type=float, default=0.001, help="The process noise intensity value, epsilon.")
     parser.add_argument("--nsamples", type=int, default=5000, help="The number of samples used in path integral control.")
-    parser.add_argument("--dt", type=int, default=0.0005, help="The time discretization.")
+    parser.add_argument("--dt", type=int, default=0.0008, help="The time discretization.")
     
     args = parser.parse_args()
 
