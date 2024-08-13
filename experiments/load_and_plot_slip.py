@@ -55,18 +55,8 @@ if __name__ == '__main__':
     # # compute the costs and variances
     cost_pi_exp = np.zeros(n_exp)
     cost_ilqr_exp = np.zeros(n_exp)
-    variances, lbdas = np.zeros((n_exp, nt-1)), np.zeros((n_exp, nt-1))
     
-    for i in range(n_exp):
-        trj_ilqr = exp_data.get_data(i).x_trj_ilqr()
-        trj_pi = exp_data.get_data(i).x_trj_pi()
-        u_star_pi = exp_data.get_data(i).u_trj_pi()
-        u_trj_ilqr = exp_data.get_data(i).u_trj_ilqr()
-        allPathCosts = exp_data.get_data(i).allPathCosts()
-        
-        for j in range(nt -1):
-            variances[i, j], lbdas[i, j] = variance_usefulportion(allPathCosts[j], epsilon)
-        
+    for i in range(n_exp):        
         cost_pi = exp_data.get_data(i).cost_pi()
         cost_ilqr = exp_data.get_data(i).cost_ilqr()
         
@@ -171,12 +161,8 @@ if __name__ == '__main__':
     fig3.savefig(root_dir+'/data/figures/bouncing/bouncing_1D_costs.pdf', dpi=2000)
 
     #--- plot the variances and useful portion
-    # Calculating the mean and standard deviation along the repetitions
-    avg_variances = np.mean(variances, axis=0)
-    std_variances = np.std(avg_variances, axis=0)
     
-    avg_lbdas = np.mean(lbdas, axis=0)
-    std_lbdas = np.std(avg_lbdas, axis=0)
+    avg_variances, std_variances, avg_lbdas, std_lbdas = compute_var_lbd_nexp(n_exp, nt, exp_data)
     
     # Plotting
     fig4, ax9 = plt.subplots(figsize=(8,6))
@@ -209,15 +195,7 @@ if __name__ == '__main__':
     
     fig4.savefig(root_dir+'/data/figures/bouncing/bouncing_1D_var.pdf', format='pdf', dpi=2000)
     fig5.savefig(root_dir+'/data/figures/bouncing/bouncing_1D_lbda.pdf', format='pdf', dpi=2000)
-    
-    # plot step one cost distribution
-    fig6, ax11 = plt.subplots(figsize=(8,6))
-    ax11.grid(True)
-    ax11.bar(range(allPathCosts.shape[1]), allPathCosts[-1])
-    ax11.set_title("Path Cost distribution")
-    ax11.set_xlabel("Sample Number", fontproperties=font_props)
-    ax11.set_ylabel("Costs", fontproperties=font_props)
-    
+        
     
     # # ----------------------------------------------------
     # # Plot the samples for the i-lqr tail performances

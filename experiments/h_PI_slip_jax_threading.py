@@ -16,7 +16,7 @@ from dynamics.dynamics_discrete_slip import *
 from hybrid_pathintegral.hybrid_pathintegral import *
 # Import experiment parameter class
 from experiments.exp_params import *
-from experiments.h_pathintegral_example_slip_jax import run_experiment
+from experiments.h_PI_slip_jax import run_experiment
 
 from jax import pmap
 
@@ -123,7 +123,7 @@ def main(epsilon, n_samples, dt):
                              initial_guess, 
                              epsilon, n_exp, n_samples, 
                              Q_k, R_k, Q_T, smooth_dynamics, 
-                             event_detect_slip_discrete, 
+                             event_detect_discrete_slip, 
                              plot_slip, convert_state_21_slip, 
                              init_reset_args, target_reset_args)
     exp_data = ExpData(exp_params)

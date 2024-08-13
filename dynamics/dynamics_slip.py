@@ -14,20 +14,46 @@ font_props = FontProperties(family='serif', size=16, weight='normal')
 # =================================
 # Flight dynamics Definitions
 # =================================
+# def symbolic_flight_dynamics_slip_continuoustime():
+#     g = 9.81
+#     x,x_dot,z,z_dot,theta,u = sp.symbols('x x_dot z z_dot theta u')
+
+#     # Define the states and inputs
+#     inputs = Matrix([u])
+#     states = Matrix([x, x_dot, z, z_dot, theta])
+    
+#     # Defining the dynamics of the system
+#     f_cont = Matrix([x_dot, 
+#                     0,
+#                     z_dot,
+#                     -g,
+#                     u])
+    
+#     # Take the jacobian with respect to states and inputs
+#     A_disc = f_cont.jacobian(states)
+#     B_disc = f_cont.jacobian(inputs)
+
+#     f_cont_func = sp.lambdify((states,inputs),f_cont)
+#     A_cont_func = sp.lambdify((states,inputs),A_disc)
+#     B_cont_func = sp.lambdify((states,inputs),B_disc)
+#     return (f_cont_func,A_cont_func,B_cont_func)
+
+
+# Debug: flight dynamics, two inputs
 def symbolic_flight_dynamics_slip_continuoustime():
     g = 9.81
-    x,x_dot,z,z_dot,theta,u = sp.symbols('x x_dot z z_dot theta u')
+    x,x_dot,z,z_dot,theta,u1,u2,u3 = sp.symbols('x x_dot z z_dot theta u1 u2 u3')
 
     # Define the states and inputs
-    inputs = Matrix([u])
+    inputs = Matrix([u1,u2,u3])
     states = Matrix([x, x_dot, z, z_dot, theta])
     
     # Defining the dynamics of the system
     f_cont = Matrix([x_dot, 
-                    0,
+                    u1,
                     z_dot,
-                    -g,
-                    u])
+                    u2-g,
+                    u3])
     
     # Take the jacobian with respect to states and inputs
     A_disc = f_cont.jacobian(states)
@@ -52,33 +78,41 @@ def dyn_flight_slip(t, x, *args):
     """
    
     if len(args) == 0:
-        u = np.array([0.0])
+        # debug: two inputs
+        u = np.array([0.0, 0.0, 0.0])
+        # u = np.array([0.0])
     else:
         u = args[0]
     
     return f_flight_cont_func(x, u).flatten()
 
+# debug: two inputs
 def gdWt_flight_slip(x0, dWt, eps):
-    B = np.array([[0],[0],[0],[0],[1.0]], dtype=np.float64)
+    B = np.array([[0, 0, 0],[1, 0, 0],[0, 0, 0],[0, 1, 0],[0, 0, 1.0]], dtype=np.float64)
     return np.sqrt(eps) * B@dWt
 
+# def gdWt_flight_slip(x0, dWt, eps):
+#     B = np.array([[0],[0],[0],[0],[1.0]], dtype=np.float64)
+#     return np.sqrt(eps) * B@dWt
+
 # ---------------------------
-# Discrete-time definition
+#  Discrete-time definition
 # ---------------------------
+# Debug: two inputs
 def symbolic_flight_dynamics_slip():
     g = 9.81
-    x,x_dot,z,z_dot,theta,u,dt = sp.symbols('x x_dot z z_dot theta u dt')
+    x,x_dot,z,z_dot,theta,u1,u2,u3,dt = sp.symbols('x x_dot z z_dot theta u1 u2 u3 dt')
 
     # Define the states and inputs
-    inputs = Matrix([u])
+    inputs = Matrix([u1,u2,u3])
     states = Matrix([x, x_dot, z, z_dot, theta])
     
     # Defining the dynamics of the system
     f = Matrix([x_dot, 
-                0,
+                u1,
                 z_dot,
-                -g,
-                u])
+                u2-g,
+                u3])
 
     # Discretize the dynamics usp.sing euler integration
     f_disc = states+f*dt
@@ -92,6 +126,35 @@ def symbolic_flight_dynamics_slip():
     B_disc_func = sp.lambdify((states,inputs,dt),B_disc)
     
     return (f_disc_func,A_disc_func,B_disc_func)
+
+
+# def symbolic_flight_dynamics_slip():
+#     g = 9.81
+#     x,x_dot,z,z_dot,theta,u,dt = sp.symbols('x x_dot z z_dot theta u dt')
+
+#     # Define the states and inputs
+#     inputs = Matrix([u])
+#     states = Matrix([x, x_dot, z, z_dot, theta])
+    
+#     # Defining the dynamics of the system
+#     f = Matrix([x_dot, 
+#                 0,
+#                 z_dot,
+#                 -g,
+#                 u])
+
+#     # Discretize the dynamics usp.sing euler integration
+#     f_disc = states+f*dt
+    
+#     # Take the jacobian with respect to states and inputs
+#     A_disc = f_disc.jacobian(states)
+#     B_disc = f_disc.jacobian(inputs)
+
+#     f_disc_func = sp.lambdify((states,inputs,dt),f_disc)
+#     A_disc_func = sp.lambdify((states,inputs,dt),A_disc)
+#     B_disc_func = sp.lambdify((states,inputs,dt),B_disc)
+    
+#     return (f_disc_func,A_disc_func,B_disc_func)
 
 
 # =================================
@@ -113,6 +176,14 @@ def symbolic_stance_dynamics_slip_continuoustimes():
     states = Matrix([theta, theta_dot, r, r_dot])
     
     # Defining the stance dynamics of the system
+        
+    # # debug: linear system
+    # f_stance_cont = Matrix([theta_dot, 
+    #                         u1,
+    #                         r_dot,
+    #                         k/m*(r0-r)+u2
+    #                         ])
+    
     f_stance_cont = Matrix([theta_dot, 
                             -2*theta_dot*r_dot/r-g*sp.cos(theta)/r,
                             r_dot + u2/m/r/r,
@@ -160,7 +231,7 @@ def gdWt_stance_slip(xt, dWt, eps):
 
 
 # ---------------------------
-# Discrete-time definition
+#  Discrete-time definition
 # ---------------------------
 def symbolic_stance_dynamics_slip():
     g = 9.81
@@ -172,6 +243,13 @@ def symbolic_stance_dynamics_slip():
     # Define the states and inputs
     inputs = Matrix([u1, u2])
     states = Matrix([theta, theta_dot, r, r_dot])
+    
+    # # debug: linear system
+    # f = Matrix([theta_dot, 
+    #             u1,
+    #             r_dot,
+    #             k/m*(r0-r)+u2
+    #             ])
     
     # Defining the stance dynamics of the system
     f = Matrix([theta_dot, 
@@ -394,7 +472,7 @@ def event_detect_slip(x0, u, t0, tf, current_mode, reset_args, detection=True, b
                                 gxs_slip,
                                 gts_slip,
                                 reset_maps_slip,
-                                reset_controls_slip,
+                                # reset_controls_slip,
                                 Rxs_slip,
                                 Rts_slip,
                                 reset_args, detection, backwards)
@@ -432,7 +510,7 @@ def plot_slip_nexp(n_exp_indexs, exp_data, time_span, init_state, target_state, 
                                 nt, reset_args, fig, axes, 'b', step=1)
 
 
-def plot_sample_trajectory_slip(nsamples_plot, nt_i, time_span,
+def plot_sample_trajectory_slip(nsamples_indexes, nt_i, time_span,
                                 Kmodes_jax_i, Ksamples_jax_i, Ksamples_ut, 
                                 Ksamples_reset_args, 
                                 mode_trj_ilqr, xt_trj_ilqr, ut_trj_ilqr, reset_args_ilqr,
@@ -451,12 +529,12 @@ def plot_sample_trajectory_slip(nsamples_plot, nt_i, time_span,
                             inputs, init_state, target_state, 
                             nt_i, ref_reset_args, fig, axes, 'k', step=1)
         
-    for i_s in range(nsamples_plot):
+    for i_s in nsamples_indexes:
         sample_modes_i = Kmodes_jax_i[i_s]
         sample_states_i = Ksamples_jax_i[i_s]
         sample_inputs_i = Ksamples_ut[i_s]
         sample_states_i = unpad_state_slip(sample_modes_i, sample_states_i)
-        sample_inputs_i = unpad_control_slip(sample_modes_i, sample_inputs_i)
+        sample_inputs_i = unpad_control_slip(sample_modes_i, sample_inputs_i, n_inputs=[3,2])
         
         sample_reset_args_i = Ksamples_reset_args[i_s]
         
@@ -494,6 +572,7 @@ ball_radius = 0.015
 def plot_slip(time_span, modes, states, inputs, 
               init_state, target_state, nt, reset_args, 
               fig=None, axes=None, color='k', alpha=1.0, step=2):
+    
     # =============== plotting ===============
     if (fig is None) and (axes is None):
         fig, axes = plt.subplots(2, 6, figsize=(20, 10))
@@ -770,16 +849,16 @@ def plot_slip_stance_animate(state_stance, xp, ax=None, spring_color='b-'):
     plt.tight_layout()
     
 
-def unpad_control_slip(modes, inputs_padded):
+def unpad_control_slip(modes, inputs_padded, n_inputs):
     nt = modes.shape[0]
-    inputs = [np.zeros((nt, 1)), np.zeros((nt, 2))]
+    inputs = [np.zeros((nt, 3)), np.zeros((nt, 2))]
     
     for i in range(nt):
         
         if modes[i] == 0:
-            input_i = inputs_padded[i, :1]
+            input_i = inputs_padded[i, :n_inputs[0]]
         elif modes[i] == 1:
-            input_i = inputs_padded[i]
+            input_i = inputs_padded[i, :n_inputs[1]]
             
         inputs[modes[i]][i] = input_i
     

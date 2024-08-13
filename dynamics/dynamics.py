@@ -250,7 +250,7 @@ def event_detect_onestep(x0, u, t0, tf, current_mode,
                          gxs,
                          gts,
                          reset_maps,
-                         reset_controls,
+                        #  reset_controls,
                          Rxs,
                          Rts,
                          reset_args, detection=True, backwards=False):
@@ -283,7 +283,7 @@ def event_detect_onestep(x0, u, t0, tf, current_mode,
     
     current_guard = guards[current_mode]
     current_resetmap = reset_maps[current_mode]
-    current_resetcontrl = reset_controls[current_mode]
+    # current_resetcontrl = reset_controls[current_mode]
     
     current_Rx = Rxs[current_mode]
     current_Rt = Rts[current_mode]
@@ -322,7 +322,6 @@ def event_detect_onestep(x0, u, t0, tf, current_mode,
             t_event = solution.t_events[0][0]
             x_event = solution.y_events[0][0]
             x_reset, next_mode, reset_byproduct = current_resetmap(t_event, x_event, current_mode, reset_args)
-            u_reset = current_resetcontrl(t_event, u)
             x0 = x_reset
             
             # ---------- Compute saltation matrix ---------- 

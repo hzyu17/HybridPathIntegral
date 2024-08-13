@@ -36,13 +36,22 @@ def stochastic_integration_euler_SLIP_padding(mode, x0, u, dt, eps, dW):
         # flight mode
         # [x, x_dot, z, z_dot, theta] = x0
         
-        B = jnp.array([[0.0, 0.0],
-                        [0.0, 0.0],
-                        [0.0, 0.0],
-                        [0.0, 0.0],
-                        [1.0, 0.0]], dtype=jnp.float64)
+        # debug: two inputs
+        B = jnp.array([[0.0, 0.0, 0.0],
+                        [1.0, 0.0, 0.0],
+                        [0.0, 0.0, 0.0],
+                        [0.0, 1.0, 0.0],
+                        [0.0, 0.0, 1.0]], dtype=jnp.float64)
         
-        return x0 + jnp.array([x0[1], 0, x0[3], -9.81, u[0]], dtype=jnp.float64) * dt + jnp.sqrt(eps) * B@dW
+        return x0 + jnp.array([x0[1], u[0], x0[3], u[1]-9.81, u[2]], dtype=jnp.float64) * dt + jnp.sqrt(eps) * B@dW
+        
+        # B = jnp.array([[0.0, 0.0],
+        #                 [0.0, 0.0],
+        #                 [0.0, 0.0],
+        #                 [0.0, 0.0],
+        #                 [1.0, 0.0]], dtype=jnp.float64)
+        
+        # return x0 + jnp.array([x0[1], 0, x0[3], -9.81, u[0]], dtype=jnp.float64) * dt + jnp.sqrt(eps) * B@dW
     
     def mode0_dynamics_false_func_slip_padding(args):
         (x0, u, dW, eps) = args
@@ -57,11 +66,18 @@ def stochastic_integration_euler_SLIP_padding(mode, x0, u, dt, eps, dW):
         theta, theta_dot, r, r_dot = x0[0], x0[1], x0[2], x0[3]
         
         # Defining the stance dynamics of the system
-        B = jnp.array([[0.0, 0.0], 
-                        [0.0, 0.0], 
-                        [0.0, 1/m/r/r], 
-                        [k/m, 0.0],
-                        [0.0, 0.0]], dtype=jnp.float64)
+        B = jnp.array([[0.0, 0.0, 0.0], 
+                        [0.0, 0.0, 0.0], 
+                        [0.0, 1/m/r/r, 0.0], 
+                        [k/m, 0.0, 0.0],
+                        [0.0, 0.0, 0.0]], dtype=jnp.float64)
+        
+        # # debug: linear dynamics
+        # xt_next = x0 + jnp.array([theta_dot, 
+        #                             0.0, 
+        #                             r_dot + u[1]/m/r/r, 
+        #                             k*u[0]/m,
+        #                             0.0], dtype=jnp.float64) * dt + jnp.sqrt(eps) * B@dW
     
         xt_next = x0 + jnp.array([theta_dot, 
                                 -2*theta_dot*r_dot/r-g*jnp.cos(theta)/r, 

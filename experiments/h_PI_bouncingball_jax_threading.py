@@ -16,7 +16,7 @@ from dynamics.dynamics_discrete_bouncing import *
 from hybrid_pathintegral.hybrid_pathintegral import *
 # Import experiment parameter class
 from experiments.exp_params import *
-from experiments.h_pathintegral_example_bouncingball_jax import run_experiment
+from experiments.h_PI_bouncingball_jax import run_experiment
 import multiprocessing as mp
 
 

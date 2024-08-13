@@ -16,13 +16,22 @@ def stochastic_integration_euler_SLIP(mode, x0, u, dt, eps, dW):
         # flight mode
         # [x, x_dot, z, z_dot, theta] = x0
         
-        B = np.array([[0.0],
-                        [0.0],
-                        [0.0],
-                        [0.0],
-                        [1.0]], dtype=np.float64)
+        # debug: two inputs
+        B = np.array([[0.0, 0.0, 0.0],
+                    [1.0, 0.0, 0.0],
+                    [0.0, 0.0, 0.0],
+                    [0.0, 1.0, 0.0],
+                    [0.0, 0.0, 1.0]], dtype=np.float64)
         
-        return x0 + np.array([x0[1], 0, x0[3], -9.81, u[0]], dtype=np.float64) * dt + np.sqrt(eps) * B@dW
+        return x0 + np.array([x0[1], u[0], x0[3], u[1]-9.81, u[2]], dtype=np.float64) * dt + np.sqrt(eps) * B@dW
+    
+        # B = np.array([[0.0],
+        #             [0.0],
+        #             [0.0],
+        #             [0.0],
+        #             [1.0]], dtype=np.float64)
+        
+        # return x0 + np.array([x0[1], 0, x0[3], -9.81, u[0]], dtype=np.float64) * dt + np.sqrt(eps) * B@dW
     
     def mode0_dynamics_false_func_slip(args):
         (x0, u, dW, eps) = args
@@ -41,6 +50,11 @@ def stochastic_integration_euler_SLIP(mode, x0, u, dt, eps, dW):
                         [0.0, 0.0], 
                         [0.0, 1/m/r/r], 
                         [k/m, 0.0]], dtype=np.float64)
+        
+        # xt_next = x0 + np.array([theta_dot, 
+        #                         u[0], 
+        #                         r_dot, 
+        #                         k/m*(r0-r)+u[1]], dtype=np.float64) * dt + np.sqrt(eps) * B@dW 
     
         xt_next = x0 + np.array([theta_dot, 
                                 -2*theta_dot*r_dot/r-g*np.cos(theta)/r, 
@@ -186,7 +200,7 @@ hybrid_stochastic_feedback_rollout_discrete_slip = partial(hybrid_stochastic_fee
                                                             hybrid_stochastic_integration_func=hybrid_stochastic_integration_slip)    
     
     
-def event_detect_slip_discrete(current_mode, x0, u, 
+def event_detect_discrete_slip(current_mode, x0, u, 
                                 t0, dt, dt_shrinkrate, 
                                 reset_args, 
                                 detection=True, backwards=False):

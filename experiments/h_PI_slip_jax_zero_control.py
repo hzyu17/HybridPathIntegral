@@ -25,38 +25,8 @@ from experiments.exp_params import *
 from dynamics.dynamics_discrete_slip import *
 
 
-
 import gc
 gc.collect()
-
-# ====================================== Path Integral Control ====================================== 
-def compute_cost(modes,states,inputs,randN,target_state,trj_ref, Qk, Rk, QT, epsilon, dt):
-    
-    n_timestamps = len(states)
-    
-    # Initialize cost
-    total_cost = 0.0
-    # current_cost = 0.0
-    for ii in range(n_timestamps-1):
-        mode_i = modes[ii]
-        current_u = inputs[mode_i][ii]
-        randN_i = randN[mode_i][ii]
-        Rk_i = Rk[mode_i]
-        
-        total_cost += current_u.T@Rk_i@current_u/2.0*dt + np.sqrt(epsilon*dt) * np.dot(current_u.T, randN_i)
-        # total_cost = total_cost+current_cost
-        
-    # Compute terminal cost
-    terminal_difference = (target_state-states[-1]).flatten()
-    terminal_cost = terminal_difference.T@QT@terminal_difference/2.0
-
-    total_cost = total_cost+terminal_cost
-
-    return total_cost
-
-def process_compute_costs(sample_i, inputs, dWs, target_state, ref_states, index, Q_k, R_k, Q_T, epsilon, dt):
-    costs_i = compute_cost(sample_i, inputs, dWs, target_state, ref_states, Q_k, R_k, Q_T, epsilon, dt)
-    return costs_i, index
 
 
 def run_experiment(i_exp, nt, n_samples, n_states, n_inputs, 
@@ -106,7 +76,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         time_span = np.arange(start_time, end_time, dt).flatten()
         plot_slip(time_span, mode_trj_ilqr, xt_trj_ilqr, ut_trj_ilqr, init_state, target_state, nt, reset_args_ilqr, step=1)
         plt.show()
-        
+    
     # mode-dependent reference states. Assuming 2 modes
     # States with padded dimensions
     states_0 = np.zeros((nt, 5))
@@ -141,7 +111,6 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
     k_feedforward_1 = np.array(k_feedforward_1)
     K_feedback_0 = np.array(K_feedback_0)
     K_feedback_1 = np.array(K_feedback_1)
-    
     ref_reset_args = np.array(ref_reset_args)
     
     print(f"=================== The experiment index: {i_exp} ===================" )
@@ -310,7 +279,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
                                                                     K_feedback_0_i, k_feedforward_0_i, 
                                                                     K_feedback_1_i, k_feedforward_1_i, 
                                                                     target_state, Q_T, 
-                                                                    start_time_i, dt, dt_shrink, 
+                                                                    dt, dt_shrink, 
                                                                     epsilon, 
                                                                     GaussianNoise_i[0], GaussianNoise_i[1], 
                                                                     v_mode_change_ref_i, 
@@ -438,10 +407,14 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
             u0_star_jax = np.append(u0_star_jax, 0.0)
             actual_noise_i = np.append(actual_noise_i, 0.0)
         
-        _, xt_next, next_mode_actual, _, new_reset_arg = hybrid_stochastic_integration_slip_padding(xt, current_mode_actual,
-                                                                                                    u0_star_jax, actual_noise_i, 
-                                                                                                    epsilon, dt, dt_shrink, start_time_i, 
-                                                                                                    reset_args_actual[i_t])
+        (_, 
+         xt_next, 
+         next_mode_actual, 
+         _, 
+         new_reset_arg) = hybrid_stochastic_integration_slip_padding(xt, current_mode_actual,
+                                                                    u0_star_jax, actual_noise_i, 
+                                                                    epsilon, dt, dt_shrink, start_time_i, 
+                                                                    reset_args_actual[i_t])
 
         next_mode_actual = int(next_mode_actual)
         # current_modechange = np.array([current_mode_actual, next_mode_actual])
@@ -576,7 +549,7 @@ def main(epsilon, n_samples, dt):
                              initial_guess, 
                              epsilon, n_exp, n_samples, 
                              Q_k, R_k, Q_T, smooth_dynamics, 
-                             event_detect_slip_discrete, 
+                             event_detect_discrete_slip, 
                              plot_slip, convert_state_21_slip, 
                              init_reset_args, target_reset_args)
     exp_data = ExpData(exp_params)

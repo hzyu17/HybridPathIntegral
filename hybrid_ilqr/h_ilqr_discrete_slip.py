@@ -110,7 +110,7 @@ if __name__ == '__main__':
     exp_params.update_params(n_modes, init_mode, target_mode, n_states, init_state, target_state, 
                              start_time, end_time, dt, dt_shrink, initial_guess, 
                              epsilon, n_exp, n_samples, Q_k, R_k, Q_T, symbolic_dynamics, 
-                             event_detect_slip_discrete, plot_slip, convert_state_21_slip, 
+                             event_detect_discrete_slip, plot_slip, convert_state_21_slip, 
                              init_reset_args, target_reset_args, 
                              animate_slip)
     

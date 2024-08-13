@@ -261,7 +261,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         # ====================
         #  Sampling using jax 
         # ====================
-                
+        
         # ---------------------------------------------------------------------------------------
         #                               Sample future trajectories
         # ---------------------------------------------------------------------------------------
@@ -276,7 +276,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
                                                                         K_feedback_0_i_zero, k_feedforward_0_i_zero, 
                                                                         K_feedback_1_i_zero, k_feedforward_1_i_zero, 
                                                                         target_state, Q_T, 
-                                                                        start_time_i, dt, dt_shrinkingrate, 
+                                                                        dt, dt_shrinkingrate, 
                                                                         epsilon, 
                                                                         GaussianNoise_i[0], GaussianNoise_i[1], 
                                                                         v_mode_change_ref_i_zero, 

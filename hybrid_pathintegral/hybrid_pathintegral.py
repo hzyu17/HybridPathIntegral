@@ -134,4 +134,22 @@ def variance_usefulportion(pathcosts, epsilon):
     # ------- Fraction of effective samples -------
     lbda = 1.0 / np.mean(weights**2)
     
-    return variance, lbda*100.0
+    return variance, lbda
+
+
+def compute_var_lbd_nexp(n_exp, nt, exp_data):
+    variances, lbdas = np.zeros((n_exp, nt-1)), np.zeros((n_exp, nt-1))
+    epsilon = exp_params = exp_data.get_params()._epsilon
+    for i in range(n_exp):
+        allPathCosts = exp_data.get_data(i).allPathCosts()
+        for j in range(nt -1):
+            variances[i, j], lbdas[i, j] = variance_usefulportion(allPathCosts[j], epsilon)
+    
+    # Calculating the mean and standard deviation along the repetitions
+    avg_variances = np.mean(variances, axis=0)
+    std_variances = np.std(variances, axis=0)
+    
+    avg_lbdas = np.mean(lbdas, axis=0)
+    std_lbdas = np.std(lbdas, axis=0)
+    
+    return avg_variances, std_variances, avg_lbdas, std_lbdas

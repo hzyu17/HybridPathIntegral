@@ -22,7 +22,7 @@ if __name__ == '__main__':
     exp_data = ExpData(exp_params)
 
     # filename = root_dir+"/data/bouncing/ablation_study_nsamples/data_5000samples_eps_15.0_coupling.pickle"
-    filename = root_dir+"/experiments/data/new_exp/bouncing/data_2024-08-08_23-32-58_example_bouncingball_jax_threading_zero_control_5000samples_eps_10.0_coupling_zero_control.pickle"
+    filename = root_dir+"/experiments/data/new_exp/bouncing/data_2024-08-07_18-46-25_example_bouncingball_jax_threading_5000samples_eps_10.0_coupling.pickle"
     print("loading data: ", filename)
     exp_data.load(filename)
     
@@ -37,12 +37,12 @@ if __name__ == '__main__':
     target_state = exp_params._target_state
     
     if exp_data.get_nominal_data():
-        (timespan, modes,states,inputs, 
+        (modes,states,inputs, 
          k_feedforward, K_feedback, current_cost, 
          states_iter, ref_modechanges,
          reference_extension_helper, ref_reset_args) = exp_data.get_nominal_data()
     else:
-        (timespan, modes,states,inputs, 
+        (modes,states,inputs, 
          k_feedforward, K_feedback, current_cost, 
          states_iter, ref_modechanges,
          reference_extension_helper, ref_reset_args) = solve_ilqr(exp_params)
@@ -58,14 +58,8 @@ if __name__ == '__main__':
     # # compute the costs and variances
     cost_pi_exp = np.zeros(n_exp)
     cost_ilqr_exp = np.zeros(n_exp)
-    variances, lbdas = np.zeros((n_exp, nt-1)), np.zeros((n_exp, nt-1))
     
     for i in range(n_exp):
-        allPathCosts = exp_data.get_data(i).allPathCosts()
-        
-        for j in range(nt -1):
-            variances[i, j], lbdas[i, j] = variance_usefulportion(allPathCosts[j], epsilon)
-        
         cost_pi = exp_data.get_data(i).cost_pi()
         cost_ilqr = exp_data.get_data(i).cost_ilqr()
         
@@ -109,24 +103,26 @@ if __name__ == '__main__':
     from matplotlib.font_manager import FontProperties
     font_props = FontProperties(family='serif', size=16, weight='normal')
     
-    # --------------------------------------------
-    # plot the path integral controlled trajectory
-    # -------------------------------------------- 
+    # ------------------------------------------------
+    #   Plot the path integral controlled trajectory
+    # ------------------------------------------------ 
     
     # plot the best 10%
-    fig1, axes_12 = plt.subplots(1, 2, figsize=(8,8))
-    fig2, ax3 = plt.subplots()
+    fig1, axes_12 = plt.subplots(1, 2, figsize=(10,6))
+    fig2, ax3 = plt.subplots(figsize=(8,8))
+    args = (fig1, axes_12, fig2, ax3)
     fig1, axes_12, fig2, ax3 =  plot_bouncingball_nexp(ilqr_best_index, exp_data, time_span, init_state, 
-                                                        target_state, args=None)
+                                                        target_state, args=args)
     
     fig1.tight_layout()
     fig2.tight_layout()
         
     # plot the tail 10%
-    fig3, axes_34 = plt.subplots(1, 2, figsize=(8,8))
-    fig4, ax5 = plt.subplots()
+    fig3, axes_34 = plt.subplots(1, 2, figsize=(10,6))
+    fig4, ax5 = plt.subplots(figsize=(8,8))
+    args = (fig3, axes_34, fig4, ax5)
     fig3, axes_34, fig4, ax5 =  plot_bouncingball_nexp(ilqr_tail_index, exp_data, time_span, init_state, 
-                                                        target_state, args=None)
+                                                        target_state, args=args)
     
     fig3.tight_layout()
     fig4.tight_layout()
@@ -139,7 +135,7 @@ if __name__ == '__main__':
     fig4.savefig(root_dir+'/data/figures/bouncing/bouncing_1D_zdotz_tail10.pdf', format='pdf', dpi=2000)
 
     # ------------------------------------------ 
-    # Bar Plot PathCosts for all experiments
+    #   Bar Plot PathCosts for all experiments
     # ------------------------------------------
     fig3, ax8 = plt.subplots(figsize=(18,6))
     ax8.grid(True)
@@ -147,11 +143,10 @@ if __name__ == '__main__':
     # Set the bar width
     bar_width = 0.35
     # Set the opacity
-    opacity = 0.8
-
+    opacity = 0.
     index = np.arange(n_exp)
 
-    bars1 = ax8.bar(index, cost_ilqr_exp, bar_width, alpha=opacity, color='b', label='Hybrid iLQR')
+    bars1 = ax8.bar(index, cost_ilqr_exp, bar_width, alpha=opacity, color='b', label='Hybrid iLQG')
     bars2 = ax8.bar(index + bar_width, cost_pi_exp, bar_width, alpha=opacity, color='r', label='Hybrid Path Integral')
 
     # Add some labels, title and axes ticks
@@ -162,18 +157,15 @@ if __name__ == '__main__':
     ax8.set_xticklabels(index)
 
     # Adding a legend
-    ax8.legend(loc='best', prop={'family': 'serif', 'size': 15})
+    ax8.legend(loc='best', prop={'family': 'serif', 'size': 12})
 
     fig3.tight_layout()
     fig3.savefig(root_dir+'/data/figures/bouncing/bouncing_1D_costs.pdf', dpi=2000)
 
-    #--- plot the variances and useful portion
-    # Calculating the mean and standard deviation along the repetitions
-    avg_variances = np.mean(variances, axis=0)
-    std_variances = np.std(avg_variances, axis=0)
-    
-    avg_lbdas = np.mean(lbdas, axis=0)
-    std_lbdas = np.std(avg_lbdas, axis=0)
+    #-----------------------------------------
+    #  Plot the variances and useful portion
+    #-----------------------------------------
+    avg_variances, std_variances, avg_lbdas, std_lbdas = compute_var_lbd_nexp(n_exp, nt, exp_data)
     
     # Plotting
     fig4, ax9 = plt.subplots(figsize=(8,6))
@@ -183,37 +175,37 @@ if __name__ == '__main__':
     ax10.grid(True)
     
     # Mean as a solid line
-    ax9.plot(time_span[:-1], avg_variances, 'r-', label='Weight Distribution Variance')
-    ax10.plot(time_span[:-1], avg_lbdas, 'r-', label=r'Effective Samples $\lambda (\%)$')
+    ax9.plot(time_span[:-1], avg_variances, 'r-', label=r'Weight Distribution Variance')
+    ax9.fill_between(time_span[:-1], avg_variances - std_variances, avg_variances + std_variances, color='gray', alpha=0.5, label='±1 Std. across experiments')
     
     # Shaded area for variability (e.g., ±1 standard deviation)
-    ax9.fill_between(time_span[:-1], avg_variances - std_variances, avg_variances + std_variances, color='gray', alpha=0.5, label='±1 Std. across experiments')
+    ax10.plot(time_span[:-1], avg_lbdas, 'r-', label=r'Effective Samples $(\%)$')
     ax10.fill_between(time_span[:-1], avg_lbdas - std_lbdas, avg_lbdas + std_lbdas, color='gray', alpha=0.5, label='±1 Std. across experiments')
 
     # ax9.set_title('Weight Variance')
-    ax9.set_xlabel('Time', fontproperties=font_props)
-    ax9.set_ylabel(r'Var($\alpha$)', fontproperties=font_props)
+    ax9.set_xlabel(r'Time', fontproperties=font_props)
+    ax9.set_ylabel(r'Var (t)', fontproperties=font_props)
     fig4.tight_layout()
     
     # ax10.set_title('Effective Weights')
-    ax10.set_xlabel('Time', fontproperties=font_props)
-    ax10.set_ylabel(r'$\lambda^u (\%)$', fontproperties=font_props)
+    ax10.set_xlabel(r'Time', fontproperties=font_props)
+    ax10.set_ylabel(r'$\lambda$ (t) (\%)$', fontproperties=font_props)
     ax10.set_ylim(0, 110)
     fig5.tight_layout()
     
-    ax9.legend(loc='best', prop={'family': 'serif', 'size': 15})
-    ax10.legend(loc='best', prop={'family': 'serif', 'size': 15})
+    ax9.legend(loc='best', prop={'family': 'serif', 'size': 12})
+    ax10.legend(loc='best', prop={'family': 'serif', 'size': 12})
     
     fig4.savefig(root_dir+'/data/figures/bouncing/bouncing_1D_var.pdf', format='pdf', dpi=2000)
     fig5.savefig(root_dir+'/data/figures/bouncing/bouncing_1D_lbda.pdf', format='pdf', dpi=2000)
     
-    # plot step one cost distribution
-    fig6, ax11 = plt.subplots(figsize=(8,6))
-    ax11.grid(True)
-    ax11.bar(range(allPathCosts.shape[1]), allPathCosts[-1])
-    ax11.set_title("Path Cost distribution")
-    ax11.set_xlabel("Sample Number", fontproperties=font_props)
-    ax11.set_ylabel("Costs", fontproperties=font_props)
+    # # Plot step one cost distribution
+    # fig6, ax11 = plt.subplots(figsize=(8,6))
+    # ax11.grid(True)
+    # ax11.bar(range(allPathCosts.shape[1]), allPathCosts[-1])
+    # ax11.set_title("Path Cost distribution")
+    # ax11.set_xlabel("Sample Number", fontproperties=font_props)
+    # ax11.set_ylabel("Costs", fontproperties=font_props)
     
     
     # # ----------------------------------------------------
