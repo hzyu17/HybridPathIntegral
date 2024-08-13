@@ -32,13 +32,13 @@ def main(epsilon, n_samples, dt):
     # === ilqr parameters ===
     # Initialize timings
     
-    n_exp = 5
+    n_exp = 10
     
     # save_root = '/hddscratch/hyu419/hybrid_pathintegral/exp_200'
     # save_root = '/ssdscratch/hyu419/hybrid_pathintegral/new_exp/data/slip'
-    file_path = '/home/hzyu/git/HybridPathIntegral/experiments/data/new_exp/slip'
+    save_file_path = '/home/hzyu/git/HybridPathIntegral/experiments/data/new_exp/slip'
     
-    if os.path.exists(file_path):
+    if os.path.exists(save_file_path):
         print("The directory exists.")
     else:
         print("The directory does not exist.")
@@ -168,7 +168,7 @@ def main(epsilon, n_samples, dt):
     mp.set_start_method('spawn', force=True)
 
     # Pool of workers
-    num_process = max(1, min(mp.cpu_count()-10, 2))
+    num_process = max(1, min(mp.cpu_count()-10, 1))
     with mp.Pool(processes=num_process) as pool:
         # Prepare the arguments for each experiment
         args = [(i_exp, nt, n_samples, n_states, n_inputs, 
@@ -198,7 +198,7 @@ def main(epsilon, n_samples, dt):
     current_datetime = datetime.now()
     formatted_datetime = current_datetime.strftime("%Y-%m-%d_%H-%M-%S")
     filename = f"data_{formatted_datetime}_{script_filename}_{n_exp}exp_{n_samples}samples_eps_{epsilon}_coupling.pickle"
-    filename = file_path+"/"+filename
+    filename = save_file_path+"/"+filename
     print("Saving data to: ", filename)
     exp_data.dump(filename)
 
@@ -208,7 +208,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="The epsilon parameter.")
     
     parser.add_argument("--epsilon", type=float, default=0.001, help="The process noise intensity value, epsilon.")
-    parser.add_argument("--nsamples", type=int, default=5000, help="The number of samples used in path integral control.")
+    parser.add_argument("--nsamples", type=int, default=1000, help="The number of samples used in path integral control.")
     parser.add_argument("--dt", type=int, default=0.0008, help="The time discretization.")
     
     args = parser.parse_args()

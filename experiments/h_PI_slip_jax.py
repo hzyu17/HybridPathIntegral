@@ -456,6 +456,18 @@ def main(epsilon, n_samples, dt):
     
     n_exp = 20
     
+    n_exp = 10
+    
+    # save_root = '/hddscratch/hyu419/hybrid_pathintegral/exp_200'
+    # save_root = '/ssdscratch/hyu419/hybrid_pathintegral/new_exp/data/slip'
+    save_file_path = '/home/hzyu/git/HybridPathIntegral/experiments/data/new_exp/slip'
+    
+    if os.path.exists(save_file_path):
+        print("The directory exists.")
+    else:
+        print("The directory does not exist.")
+        sys.exit(1)
+    
     # === ilqr parameters ===
     # Initialize timings
     
@@ -606,13 +618,10 @@ def main(epsilon, n_samples, dt):
     from datetime import datetime
     current_datetime = datetime.now()
     formatted_datetime = current_datetime.strftime("%Y-%m-%d_%H-%M-%S")
-    filename = f"data_{formatted_datetime}_{script_filename}_{n_exp}experiments_{n_samples}samples_eps_{epsilon}_coupling_dt_{dt}.pickle"
-    
-    # save_root = '/hddscratch/hyu419/hybrid_pathintegral/exp_200'
-    # save_root = '/home/hzyu/git/HybridPathIntegral/experiments'
-    save_root = '/ssdscratch/hyu419/hybrid_pathintegral/new_exp'
-    save_path = f"{save_root}/data/slip/{filename}"
-    exp_data.dump(save_path)
+    filename = f"data_{formatted_datetime}_{script_filename}_{n_exp}exp_{n_samples}samples_eps_{epsilon}_coupling.pickle"
+    filename = save_file_path+"/"+filename
+    print("Saving data to: ", filename)
+    exp_data.dump(filename)
     
     print(" =================== Saved data to: =================== \n", save_path)
     
@@ -620,7 +629,7 @@ def main(epsilon, n_samples, dt):
 import argparse
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="The epsilon parameter.")
-    parser.add_argument("--epsilon", type=float, default=0.0008, help="The process noise intensity value, epsilon.")
+    parser.add_argument("--epsilon", type=float, default=0.001, help="The process noise intensity value, epsilon.")
     parser.add_argument("--nsamples", type=int, default=1000, help="The number of samples used in path integral control.")
     parser.add_argument("--dt", type=int, default=0.0008, help="The time discretization.")
     
