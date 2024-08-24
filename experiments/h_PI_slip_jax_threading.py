@@ -32,7 +32,7 @@ def main(epsilon, n_samples, dt):
     # === ilqr parameters ===
     # Initialize timings
     
-    n_exp = 10
+    n_exp = 100
     
     # save_root = '/hddscratch/hyu419/hybrid_pathintegral/exp_200'
     # save_root = '/ssdscratch/hyu419/hybrid_pathintegral/new_exp/data/slip'
@@ -207,7 +207,7 @@ import argparse
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="The epsilon parameter.")
     
-    parser.add_argument("--epsilon", type=float, default=0.001, help="The process noise intensity value, epsilon.")
+    parser.add_argument("--epsilon", type=float, default=0.005, help="The process noise intensity value, epsilon.")
     parser.add_argument("--nsamples", type=int, default=1000, help="The number of samples used in path integral control.")
     parser.add_argument("--dt", type=int, default=0.0008, help="The time discretization.")
     

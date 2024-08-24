@@ -27,19 +27,14 @@ terminal_cost_jit = jax.jit(terminal_cost_jax)
 
 # ------------------------------------- / terminal loss ------------------------------------- 
 
-
-
 # @jax.jit
 def hybrid_stochastic_integration_euler_JAX(xt, current_mode, ut, 
                                             randN, eps, 
                                             dt, dt_shrink, t0, reset_arg, 
                                             stochastic_integration_euler_func=None,
-                                            guard_func_0=None,
-                                            guard_true_func_0=None,
-                                            guard_false_func_0=None,
-                                            guard_func_1=None,
-                                            guard_true_func_1=None,
-                                            guard_false_func_1=None):
+                                            guard_func=None,
+                                            guard_true_func=None,
+                                            guard_false_func=None):
     
     dW = jnp.sqrt(dt)*randN
     xt_next = stochastic_integration_euler_func(current_mode, xt, ut, dt, eps, dW)
@@ -48,28 +43,11 @@ def hybrid_stochastic_integration_euler_JAX(xt, current_mode, ut,
     # change mode
     # ------------
     # next_mode = current_mode
-    
-    def guard_reset_mode0(args_cond_mode):
-        (xt, xt_next, current_mode) = args_cond_mode
-        guard_hit = guard_func_0(xt, xt_next, current_mode)
-        
-        args_guard = (xt, current_mode, ut, t0, xt_next, dt, dt_shrink, randN, eps, reset_arg)
-        t_next, _, xt_next, next_mode, dW_new, new_reset_arg = jax.lax.cond(guard_hit, guard_true_func_0, guard_false_func_0, args_guard)
-        return t_next, xt_next, next_mode, dW_new, new_reset_arg
-    
-    def guard_reset_mode1(args_cond_mode):
-        (xt, xt_next, current_mode) = args_cond_mode
-        guard_hit = guard_func_1(xt, xt_next, current_mode)
-        
-        args_guard = (xt, current_mode, ut, t0, xt_next, dt, dt_shrink, randN, eps, reset_arg)
-        t_next, _, xt_next, next_mode, dW_new, new_reset_arg = jax.lax.cond(guard_hit, guard_true_func_1, guard_false_func_1, args_guard)
-        return t_next, xt_next, next_mode, dW_new, new_reset_arg
-    
-    cond_mode_0 = (current_mode==0)
-    args_cond_mode0 = (xt, xt_next, current_mode)
-    
-    (t_next, xt_next, next_mode, dW_new, new_reset_arg) = jax.lax.cond(cond_mode_0, guard_reset_mode0, guard_reset_mode1, args_cond_mode0)
-        
+    args_guard = (xt, current_mode, ut, t0, xt_next, dt, dt_shrink, randN, eps, reset_arg)
+
+    guard_hit = guard_func(xt, xt_next, current_mode)
+    t_next, _, xt_next, next_mode, dW_new, new_reset_arg = jax.lax.cond(guard_hit, guard_true_func, guard_false_func, args_guard)
+
     return t_next, xt_next, next_mode, dW_new, new_reset_arg
 
 

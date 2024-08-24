@@ -9,28 +9,40 @@ def hybrid_stochastic_integration_euler(xt, current_mode, ut,
                                         randN, eps, 
                                         dt, dt_shrink, t0, reset_arg, 
                                         stochastic_integration_euler_func=None,
-                                        guard_condition_func=None,
-                                        guard_condition_true_fun=None,
-                                        guard_condition_false_fun=None):
+                                        guard_func_0=None,
+                                        guard_true_func_0=None,
+                                        guard_false_func_0=None,
+                                        guard_func_1=None,
+                                        guard_true_func_1=None,
+                                        guard_false_func_1=None):
     dW = np.sqrt(dt) * randN
     
     xt_next = stochastic_integration_euler_func(current_mode, xt, ut, dt, eps, dW)
     
     args_guard = (xt, current_mode, ut, t0, xt_next, dt, dt_shrink, randN, eps, reset_arg)
     
-    guard_hit = guard_condition_func(xt, xt_next, current_mode)
+    if (current_mode==0):
+        guard_hit = guard_func_0(xt, xt_next, current_mode)
     
-    if guard_hit:
-        xt_next, next_mode, dW, new_reset_arg = guard_condition_true_fun(args_guard)
-    else:
-        xt_next, next_mode, dW, new_reset_arg = guard_condition_false_fun(args_guard)
+        if guard_hit:
+            xt_next, next_mode, dW, new_reset_arg = guard_true_func_0(args_guard)
+        else:
+            xt_next, next_mode, dW, new_reset_arg = guard_false_func_0(args_guard)
+            
+    elif (current_mode==1):
+        guard_hit = guard_func_1(xt, xt_next, current_mode)
+    
+        if guard_hit:
+            xt_next, next_mode, dW, new_reset_arg = guard_true_func_1(args_guard)
+        else:
+            xt_next, next_mode, dW, new_reset_arg = guard_false_func_1(args_guard)
 
     return xt_next, next_mode, dW, new_reset_arg
 
 
 
 def guard_true_func_deterministic(args):
-    (xt_current, current_mode, u_current, t, xt_next, dt_int, dt_shrinkrate, smooth_dyn, guard, resetmap, reset_arg) = args
+    (xt_current, current_mode, u_current, t, xt_next, dt_int, _, smooth_dyn, guard, resetmap, reset_arg) = args
     
     def while_loop_body(xt, u, t, dt_int, dt_shrink, cnt_shrink):
         # Too far from the guard, shrink the step size
@@ -93,7 +105,7 @@ def guard_true_func_deterministic(args):
             t_left = t_mid  # The root is in the right half
             x_left = x_mid
             
-    print(f"guard left: {guard(t, xt_current)}, t_right: {guard(t+dt_int, xt_next)}, midpoint: {guard(t_mid, x_mid)}")  # Debug statement
+    # print(f"guard left: {guard(t, xt_current)}, t_right: {guard(t+dt_int, xt_next)}, midpoint: {guard(t_mid, x_mid)}")  # Debug statement
     
     # t_event = (t_left + t_right) / 2.0
     # x_event = (x_left + x_right) / 2.0
@@ -121,7 +133,8 @@ def event_detect_onestep_discrete(xt, ut,
                                     reset_maps,
                                     Rxs, Rts,
                                     reset_args, 
-                                    guard_condition_func=None,
+                                    guard_condition_func_0=None,
+                                    guard_condition_func_1=None,
                                     detection=True, backwards=False):
     
     current_dyn = smooth_dynamics[current_mode]
@@ -155,14 +168,20 @@ def event_detect_onestep_discrete(xt, ut,
     # detection
     if detection:
         
-        guard_hit = guard_condition_func(xt, xt_next, current_mode)
-        
+        if current_mode == 0:
+            guard_hit = guard_condition_func_0(xt, xt_next, current_mode)
+        elif current_mode == 1:
+            guard_hit = guard_condition_func_1(xt, xt_next, current_mode)
+            
         if guard_hit:
             args_guard = (xt, current_mode, ut, t0, xt_next, dt, dt_shrink, 
                           current_dyn, current_guard, current_resetmap, reset_args)
+            
             t_event, x_event, x_reset, next_mode, reset_byproduct = guard_true_func_deterministic(args_guard)
             
-            # ---------- Compute saltation matrix ---------- 
+            # ------------------------------ 
+            #    Compute saltation matrix 
+            # ------------------------------ 
             R_x = current_Rx(t_event, x_event, current_mode, reset_args)[0]
             R_t = current_Rt(t_event, x_event, current_mode, reset_args)[0]
             

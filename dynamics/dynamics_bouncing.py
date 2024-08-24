@@ -295,7 +295,7 @@ def plot_bouncingball_nexp(exp_indexes, exp_data, time_span, init_state,
     ax2.grid(True)
     ax3.grid(True)
     
-    (modes,states_ref,inputs, 
+    (timespan, modes,states_ref,inputs, 
     k_feedforward, K_feedback, current_cost, 
     states_iter, ref_modechanges,
     reference_extension_helper, ref_reset_args) = exp_data.get_nominal_data()

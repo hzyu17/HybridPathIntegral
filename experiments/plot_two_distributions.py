@@ -25,7 +25,7 @@ from dynamics.dynamics_bouncing import *
 from dynamics.dynamics_discrete_bouncing import *
 
 from matplotlib.font_manager import FontProperties
-font_props = FontProperties(family='serif', size=12, weight='normal')
+font_props = FontProperties(family='serif', size=18, weight='normal')
 
 
 import gc
@@ -36,9 +36,9 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
                     init_mode, init_state, target_state, hybrid_ilqr_result, 
                     start_time, end_time, dt, dt_shrinkingrate, 
                     Q_k, Q_T, R_k, epsilon, init_reset_args):
-    (modes,states,inputs,
+    (_,modes,states,inputs,
         k_feedforward,K_feedback,
-        current_cost,states_iter,
+        _,_,
         ref_modechanges,reference_extension_helper, ref_reset_args) = hybrid_ilqr_result
 
     RndN_actual = [np.random.randn(nt, 1), np.random.randn(nt, 1)]
@@ -258,7 +258,8 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         # ---------------------------------------------------------------------------------------
         
         # timer_start_tic = time.perf_counter()
-        (Kmodes_jax_i, Ksamples_jax_i, PathCosts_jax_i, 
+        
+        (Ksamples_ts_i, Kmodes_jax_i, Ksamples_jax_i, PathCosts_jax_i, 
         Ksamples_ut, Ksamples_xref, Ksamples_Kfb_mode, 
         Ksamples_kff_mode, Ksamples_reset_args) = sample_bouncing_jax(n_samples, xt, 
                                                                     current_mode_actual, 
@@ -268,7 +269,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
                                                                     K_feedback_0_i, k_feedforward_0_i, 
                                                                     K_feedback_1_i, k_feedforward_1_i, 
                                                                     target_state, Q_T, 
-                                                                    start_time_i, dt, dt_shrinkingrate, 
+                                                                    dt, dt_shrinkingrate, 
                                                                     epsilon, 
                                                                     GaussianNoise_i[0], GaussianNoise_i[1], 
                                                                     v_mode_change_ref_i, 
@@ -292,7 +293,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         v_kff_ref_ext_bwd_i_zero = [np.zeros_like(v_kff_ref_ext_bwd_i[0])]
         
         
-        (_, Ksamples_jax_i_zero, _, 
+        (_, _, Ksamples_jax_i_zero, _, 
         _, _, _, 
         _, _) = sample_bouncing_jax(n_samples, xt, 
                                     current_mode_actual, 
@@ -302,7 +303,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
                                     K_feedback_0_i_zero, k_feedforward_0_i_zero, 
                                     K_feedback_1_i_zero, k_feedforward_1_i_zero, 
                                     target_state, Q_T, 
-                                    start_time_i, dt, dt_shrinkingrate, 
+                                    dt, dt_shrinkingrate, 
                                     epsilon, 
                                     GaussianNoise_i[0], GaussianNoise_i[1], 
                                     v_mode_change_ref_i, 
@@ -334,7 +335,8 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         u0_proposal = ubar_i + K_fb@(xt - xref_i) + k_ff
         
         GaussianNoises_ustar_jax = GaussianNoise_i[current_mode_actual][:,0,:]
-        u0_star_jax, weights_jax = update_u0_pathintegral_jax(u0_proposal, PathCosts_jax_i, GaussianNoises_ustar_jax, epsilon, dt)
+        Ksamples_delta_t0 = Ksamples_ts_i[:,1] - Ksamples_ts_i[:,0]
+        u0_star_jax, weights_jax = update_u0_pathintegral_jax(u0_proposal, PathCosts_jax_i, GaussianNoises_ustar_jax, epsilon, Ksamples_delta_t0, dt)
         
         u_star_pi_jax[current_mode_actual][i_t] = u0_star_jax
         allPathCosts_jax[i_t] = PathCosts_jax_i
@@ -542,7 +544,7 @@ if __name__ == '__main__':
     print("===================== Solving for h-iLQG proposal controller =====================")
     hybrid_ilqr_result = solve_ilqr(exp_params, detect=True, verbose=False)
     
-    (modes,states,inputs,
+    (timespan,modes,states,inputs,
      k_feedforward,K_feedback,
      current_cost,states_iter,
      ref_modechanges,reference_extension_helper, ref_reset_args) = hybrid_ilqr_result

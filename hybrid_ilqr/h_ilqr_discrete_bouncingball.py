@@ -18,22 +18,54 @@ from experiments.exp_params import *
 
 
 if __name__ == '__main__':
-    # ---------------- bouncing example -----------------
-    dt = 0.005
+    
+    # Set desired state
+    n_modes = 2
+    
+    # the state and control dimensions, mode-dependent
+    n_states = [2, 2]
+    n_inputs = [1, 1]
+    
+    # ---------------- multiple bouncing example -----------------
+    dt = 0.0015
     epsilon = 2.0
     dt_shrink = 0.95
     
     start_time = 0
-    end_time = 2.0
+    end_time = 3.0
     time_span = np.arange(start_time, end_time, dt).flatten()
     nt = len(time_span)
 
     init_state = np.array([5, 1.5])    # Define the initial state to be the origin with no velocity
-    target_state = np.array([2.5, 0])  # Swing pendulum upright
-    
+    target_state = np.array([1.2, 0.0])  # Swing pendulum upright
+     
     init_mode = 0
+    target_mode = 0
+    Q_T = 60*np.eye(n_states[0])
+    # Q_T[0,0] = 2000.0
 
-    # ---------------- / bouncing example -----------------
+    # ---------------- / multiple bouncing example -----------------
+    
+    # # ---------------- bouncing example -----------------
+    # dt = 0.005
+    # epsilon = 2.0
+    # dt_shrink = 0.95
+    
+    # start_time = 0
+    # end_time = 2.0
+    # time_span = np.arange(start_time, end_time, dt).flatten()
+    # nt = len(time_span)
+
+    # init_state = np.array([5, 1.5])    # Define the initial state to be the origin with no velocity
+    # target_state = np.array([2.5, 0])  # Swing pendulum upright
+    
+    # init_mode = 0
+    
+    # target_mode = 0
+    # Q_T = 200*np.eye(n_states[0])
+    # Q_T[0,0] = 2000.0
+
+    # # ---------------- / bouncing example -----------------
 
     # ===== OR =====
     # dt = 5e-5
@@ -48,13 +80,6 @@ if __name__ == '__main__':
 
     # # ------------- /verification with no contact ------------- 
 
-    # Set desired state
-    n_modes = 2
-    
-    # the state and control dimensions, mode-dependent
-    n_states = [2, 2]
-    n_inputs = [1, 1]
-
     # ---------------------------- 
     # Define weighting matrices
     # ----------------------------
@@ -62,9 +87,6 @@ if __name__ == '__main__':
     R_k = [np.eye(n_inputs[0]), np.eye(n_inputs[1])]
 
     # ---------------------------- Set the terminal cost ----------------------------
-    target_mode = 0
-    Q_T = 200*np.eye(n_states[0])
-    Q_T[0,0] = 2000.0
 
     n_exp = 1
     n_samples = 10
@@ -77,7 +99,7 @@ if __name__ == '__main__':
     # ====================================
     exp_params = ExpParams()
     
-    initial_guess = [0.5*np.ones((np.shape(time_span)[0],n_inputs[0])), 0.5*np.ones((np.shape(time_span)[0],n_inputs[1]))]
+    initial_guess = [1.0*np.ones((np.shape(time_span)[0],n_inputs[0])), 1.0*np.ones((np.shape(time_span)[0],n_inputs[1]))]
     
     flow_dynamics = [symbolic_dynamics_bouncing, symbolic_dynamics_bouncing]
     
@@ -91,9 +113,9 @@ if __name__ == '__main__':
                              init_reset_args, target_reset_args)
     exp_data = ExpData(exp_params)
     
-    hybrid_ilqr_result = solve_ilqr(exp_params, detect=True)
+    hybrid_ilqr_result = solve_ilqr(exp_params, detect=True, verbose=False)
     
-    (modes,states,inputs,
+    (timespan, modes,states,inputs,
      k_feedforward,K_feedback,
      current_cost,states_iter,
      ref_modechanges,reference_extension_helper, ref_reset_args) = hybrid_ilqr_result

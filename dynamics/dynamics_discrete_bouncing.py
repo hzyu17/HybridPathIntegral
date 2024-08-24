@@ -17,13 +17,16 @@ def stochastic_integration_euler_bouncing(mode, x0, u, dt, eps, dW):
 
 
 # ===============================================================================================================
-#                                        SLIP Guard condition handling 
+#                                        Bouncing Guard condition handling 
 # ===============================================================================================================
-def guard_condition_bouncing(xt, xt_next, current_mode):
+# -------------------------------- 
+#       From mode 1 to mode 2 
+# --------------------------------
+def guard_cond_bouncing_12(xt, xt_next, current_mode):
     # assume time invariant guard for now
     return (current_mode==0) and ((guard_bouncing_12(0.0,xt)>0) and (guard_bouncing_12(0.0,xt_next)<=0))
 
-def guard_true_func_bouncing(args):
+def guard_true_func_bouncing_12(args):
     (xt_current, current_mode, u_current, t, xt_next, dt_int, dt_shrinkrate, RandN, eps, reset_arg) = args
     
     def while_loop_body(xt, u, dt, dt_shrinkrate, RandN, eps, cnt_shrink):
@@ -33,7 +36,7 @@ def guard_true_func_bouncing(args):
         
         xt_shrinked = stochastic_integration_euler_bouncing(current_mode, xt, u, dt_shrinked, eps, dW_shrink)
         
-        new_condition = ((guard_condition_bouncing(xt, xt_shrinked, current_mode)) and (cnt_shrink < 20))
+        new_condition = ((guard_cond_bouncing_12(xt, xt_shrinked, current_mode)) and (cnt_shrink < 20))
         cnt_shrink += 1
         
         return xt_shrinked, dt_shrinked, cnt_shrink, new_condition
@@ -48,8 +51,6 @@ def guard_true_func_bouncing(args):
             xt_current, u_current, dt_int, dt_shrinkrate, RandN, eps, cnt_shrink
         )
     
-    # print("final dt_int CPU: ", dt_int)
-    
     # Execute the reset map after the loop
     xt_next, next_mode, new_reset_arg = reset_map_bouncing_12(t, xt_shrinked, current_mode, reset_arg)
     dW_new = np.sqrt(dt_int) * RandN
@@ -57,11 +58,54 @@ def guard_true_func_bouncing(args):
     return xt_next, next_mode, dW_new, new_reset_arg
 
 
-def guard_false_func_bouncing(args):
+def guard_false_func_bouncing_12(args):
     (_, current_mode, _, _, xt_next, dt_int, _, RandN, _, reset_arg) = args
     dW = np.sqrt(dt_int)*RandN
     return xt_next, current_mode, dW, reset_arg
 
+# --------------------------------
+#       From mode 2 to mode 1 
+# --------------------------------
+def guard_cond_bouncing_21(xt, xt_next, current_mode):
+    # assume time invariant guard for now
+    return (current_mode==1) and ((guard_bouncing_21(0.0,xt)>0) and (guard_bouncing_21(0.0,xt_next)<=0))
+
+def guard_true_func_bouncing_21(args):
+    (xt_current, current_mode, u_current, t, xt_next, dt_int, dt_shrinkrate, RandN, eps, reset_arg) = args
+    
+    def while_loop_body(xt, u, dt, dt_shrinkrate, RandN, eps, cnt_shrink):
+        # Too far from the guard, shrink the step size
+        dt_shrinked = dt * dt_shrinkrate
+        dW_shrink = np.sqrt(dt_shrinked) * RandN
+        
+        xt_shrinked = stochastic_integration_euler_bouncing(current_mode, xt, u, dt_shrinked, eps, dW_shrink)
+        
+        new_condition = ((guard_cond_bouncing_21(xt, xt_shrinked, current_mode)) and (cnt_shrink < 20))
+        cnt_shrink += 1
+        
+        return xt_shrinked, dt_shrinked, cnt_shrink, new_condition
+    
+    cnt_shrink = 0
+    can_continue = True
+    xt_shrinked = xt_next
+    
+    # Implementing the loop with Python's while
+    while can_continue:
+        xt_shrinked, dt_int, cnt_shrink, can_continue = while_loop_body(
+            xt_current, u_current, dt_int, dt_shrinkrate, RandN, eps, cnt_shrink
+        )
+    
+    # Execute the reset map after the loop
+    xt_next, next_mode, new_reset_arg = reset_map_bouncing_21(t, xt_shrinked, current_mode, reset_arg)
+    dW_new = np.sqrt(dt_int) * RandN
+    
+    return xt_next, next_mode, dW_new, new_reset_arg
+
+
+def guard_false_func_bouncing_21(args):
+    (_, current_mode, _, _, xt_next, dt_int, _, RandN, _, reset_arg) = args
+    dW = np.sqrt(dt_int)*RandN
+    return xt_next, current_mode, dW, reset_arg
 
 
 # ===============================================================================================================
@@ -73,16 +117,19 @@ from functools import partial
 reaction_mode_mismatch_bouncing = partial(reaction_mode_mismatch, cond_early_arrival=cond_early_arrival_bouncing)
 hybrid_stochastic_integration_bouncing = partial(hybrid_stochastic_integration_euler, 
                                                 stochastic_integration_euler_func = stochastic_integration_euler_bouncing, 
-                                                guard_condition_func = guard_condition_bouncing, 
-                                                guard_condition_true_fun = guard_true_func_bouncing, 
-                                                guard_condition_false_fun = guard_false_func_bouncing)
+                                                guard_func_0=guard_cond_bouncing_12,
+                                                guard_true_func_0=guard_true_func_bouncing_12,
+                                                guard_false_func_0=guard_false_func_bouncing_12,
+                                                guard_func_1=guard_cond_bouncing_21,
+                                                guard_true_func_1=guard_true_func_bouncing_21,
+                                                guard_false_func_1=guard_false_func_bouncing_21)
 
 
 hybrid_stochastic_feedback_rollout_discrete_bouncing = partial(hybrid_stochastic_feedback_rollout_discrete, 
                                                             cond_mode_mismatch_func=cond_mode_mismatch_bouncing,
                                                             reaction_mode_mismatch_func=reaction_mode_mismatch_bouncing,
                                                             hybrid_stochastic_integration_func=hybrid_stochastic_integration_bouncing)    
-    
+
     
 
 def event_detect_bouncing_discrete(current_mode, x0, u, 
@@ -112,7 +159,8 @@ def event_detect_bouncing_discrete(current_mode, x0, u,
                                         reset_maps_bouncing_bouncing,
                                         Rxs_bouncing, Rts_bouncing,
                                         reset_args, 
-                                        guard_condition_bouncing,
+                                        guard_cond_bouncing_12,
+                                        guard_cond_bouncing_21,
                                         detection, backwards)
     
     

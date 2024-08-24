@@ -159,7 +159,7 @@ def guard_true_func_slip(args):
         t_left, t_mid, t_right, x_left, x_mid, x_right, u, tol, RandN, continue_bisection = bisection_while_body(args)
     
     # Debug statement
-    print(f"guard left: {guard_slip_21(t_left, x_left)}, guard right: {guard_slip_21(t_right, x_right)}, guard mid: {guard_slip_21(t_mid, x_mid)}")  
+    # print(f"guard left: {guard_slip_21(t_left, x_left)}, guard right: {guard_slip_21(t_right, x_right)}, guard mid: {guard_slip_21(t_mid, x_mid)}")  
     
     xt_next, next_mode, new_reset_arg = reset_map_slip_21(t_left, x_left, current_mode, reset_arg)
     dt_final = t_left - t

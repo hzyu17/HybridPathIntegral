@@ -14,7 +14,7 @@ import jax.numpy as jnp
 
 import jax
 from jax import jacfwd 
-
+jax.config.update('jax_enable_x64', True)
 
 m = 1
 
@@ -46,25 +46,12 @@ def reset_map_control_21(t, u_minus):
 
 def reset_map_bouncing_21(t, x_minus, current_mode, args_reset):
     x_plus = x_minus
-    if (x_minus[1] < 0) and (current_mode==1):
-        x_plus = x_minus
-        current_mode = 0
-    return x_plus, current_mode, args_reset
+    new_mode = 0
+    return x_plus, new_mode, args_reset
 
 def reset_map_bouncing_21_jax(t, x_minus, current_mode, args_reset):
-    bouncing_cond = jax.numpy.logical_and(x_minus[1] < 0, current_mode==1)
-    def bouncing_true_fun(args):
-        x_plus = x_minus
-        new_mode = 0
-        return x_plus, new_mode
-    
-    def bouncing_false_fun(args):
-        x_minus, current_mode = args
-        return x_minus, current_mode
-    
-    args = (x_minus, current_mode)
-    x_plus, new_mode = jax.lax.cond(bouncing_cond, bouncing_true_fun, bouncing_false_fun, args)
-        
+    x_plus = x_minus
+    new_mode = 0
     return x_plus, new_mode, args_reset
 
 @jax.jit

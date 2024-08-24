@@ -137,9 +137,54 @@ def variance_usefulportion(pathcosts, epsilon):
     return variance, lbda
 
 
+def compute_var_lbd_nexp_ablation_coupling(n_exp, nt, exp_data):
+    variances, lbdas = np.zeros((n_exp, nt-1)), np.zeros((n_exp, nt-1))
+    variances_uncoupled, lbdas_uncoupled = np.zeros((n_exp, nt-1)), np.zeros((n_exp, nt-1))
+    epsilon = exp_data.get_params()._epsilon
+    for i in range(n_exp):
+        allPathCosts = exp_data.get_data(i).allPathCosts()
+        allPathCosts_uncoupled = exp_data.get_data(i).allPathCosts_uncoupled()
+        for j in range(nt -1):
+            variances[i, j], lbdas[i, j] = variance_usefulportion(allPathCosts[j], epsilon)
+            variances_uncoupled[i, j], lbdas_uncoupled[i, j] = variance_usefulportion(allPathCosts_uncoupled[j], epsilon)
+
+    # Calculating the mean and standard deviation along the repetitions
+    avg_variances = np.mean(variances, axis=0)
+    std_variances = np.std(variances, axis=0)
+    lowerbound_variances = np.min(variances, axis=0)
+    upperbound_variances = np.max(variances, axis=0)
+    
+    lbdas = lbdas*100.0
+    
+    avg_lbdas = np.mean(lbdas, axis=0)
+    std_lbdas = np.std(lbdas, axis=0)
+    lowerbound_lbdas = np.min(lbdas, axis=0)
+    upperbound_lbdas = np.max(lbdas, axis=0)
+    
+    
+    # un-coupled 
+    avg_variances_uncoupled = np.mean(variances_uncoupled, axis=0)
+    std_variances_uncoupled = np.std(variances_uncoupled, axis=0)
+    lowerbound_variances_uncoupled = np.min(variances_uncoupled, axis=0)
+    upperbound_variances_uncoupled = np.max(variances_uncoupled, axis=0)
+    
+    lbdas_uncoupled = lbdas_uncoupled*100.0
+    
+    avg_lbdas_uncoupled = np.mean(lbdas_uncoupled, axis=0)
+    std_lbdas_uncoupled = np.std(lbdas_uncoupled, axis=0)
+    lowerbound_lbdas_uncoupled = np.min(lbdas_uncoupled, axis=0)
+    upperbound_lbdas_uncoupled = np.max(lbdas_uncoupled, axis=0)
+    
+    return [(avg_variances, std_variances, lowerbound_variances, upperbound_variances, 
+            avg_lbdas, std_lbdas, lowerbound_lbdas, upperbound_lbdas), 
+            
+            (avg_variances_uncoupled, std_variances_uncoupled, lowerbound_variances_uncoupled, upperbound_variances_uncoupled, 
+            avg_lbdas_uncoupled, std_lbdas_uncoupled, lowerbound_lbdas_uncoupled, upperbound_lbdas_uncoupled)]
+    
+
 def compute_var_lbd_nexp(n_exp, nt, exp_data):
     variances, lbdas = np.zeros((n_exp, nt-1)), np.zeros((n_exp, nt-1))
-    epsilon = exp_params = exp_data.get_params()._epsilon
+    epsilon = exp_data.get_params()._epsilon
     for i in range(n_exp):
         allPathCosts = exp_data.get_data(i).allPathCosts()
         for j in range(nt -1):
@@ -148,8 +193,15 @@ def compute_var_lbd_nexp(n_exp, nt, exp_data):
     # Calculating the mean and standard deviation along the repetitions
     avg_variances = np.mean(variances, axis=0)
     std_variances = np.std(variances, axis=0)
+    lowerbound_variances = np.min(variances, axis=0)
+    upperbound_variances = np.max(variances, axis=0)
+    
+    lbdas = lbdas*100.0
     
     avg_lbdas = np.mean(lbdas, axis=0)
     std_lbdas = np.std(lbdas, axis=0)
+    lowerbound_lbdas = np.min(lbdas, axis=0)
+    upperbound_lbdas = np.max(lbdas, axis=0)
     
-    return avg_variances, std_variances, avg_lbdas, std_lbdas
+    return (avg_variances, std_variances, lowerbound_variances, upperbound_variances, 
+            avg_lbdas, std_lbdas, lowerbound_lbdas, upperbound_lbdas)

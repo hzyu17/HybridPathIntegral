@@ -395,7 +395,7 @@ class hybrid_ilqr:
     def solve(self):
         # ------ collect the iteration data ------
         states_iter = []
-        
+        # plot_slip_flight_animate
         # ------------------------------------
         #  First rollout using initial guess
         # ------------------------------------
@@ -403,12 +403,12 @@ class hybrid_ilqr:
         
         print("===================== Finished initial rollout =====================")
         
-        show_rollout = False
+        show_rollout = True
         r0 = 1
         if show_rollout:
             self._plot_states_func(self._timespan, modes, states, inputs, 
-                                    self._init_state, self._target_state, 
-                                    self._n_timesteps, reset_args=self._reset_args)
+                                            self._init_state, self._target_state, 
+                                            self._n_timesteps, reset_args=self._reset_args)
             
             if self._animate_func:
                 fig, ax = self._animate_func(self._modes, self._states, self._init_mode, 
@@ -781,7 +781,7 @@ def solve_ilqr(params, detect=True, verbose=True):
     parameters = np.array([mass,gravity])
 
     # Specify max number of iterations
-    n_iterations = 20
+    n_iterations = 50
     
     init_mode = params.current_mode()
     target_mode = params._target_mode

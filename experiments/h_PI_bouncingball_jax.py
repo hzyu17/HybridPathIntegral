@@ -389,7 +389,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
     print("cost_ilqr:", cost_ilqr)
     
     # -------------
-    # Record data
+    #  Record data
     # -------------
     data_i = DataOneSample(modes_pi_jax, trj_pi_jax, u_star_pi_jax, 
                            mode_trj_ilqr, xt_trj_ilqr, u_trj_ilqr, 
@@ -408,20 +408,64 @@ def main(epsilon, n_samples, dt):
     # === ilqr parameters ===
     # Initialize timings
     
+    
+    # =========== save data ===========
+    # save_root = '/hddscratch/hyu419/hybrid_pathintegral/exp_200'
+    save_root = '/home/hzyu/git/HybridPathIntegral/experiments'
+    # save_root = '/hddscratch/hyu419/hybrid_pathintegral/new_exp'
+    
+    save_path = f"{save_root}/data/new_exp/bouncing"
+    
+    from pathlib import Path
+    if not Path(save_path).exists():
+        print(f"File {save_path} does not exist.")
+        sys.exit(1)  # Exit the program with a non-zero status code
+    else:
+        print(f"File {save_path} exists.")
+        
     n_exp = 1
     
-    # ---------------- bouncing example -----------------
-    # dt = 0.005
-    dt_shrink = 0.9
+    # Set desired state
+    n_modes = 2
+    
+    # the state and control dimensions, mode-dependent
+    n_states = [2, 2]
+    n_inputs = [1, 1]
+    
+    # ---------------- multiple bouncing example -----------------
+    dt = 0.0015
+    epsilon = 2.0
+    dt_shrink = 0.95
+    
     start_time = 0
-    end_time = 2.0
+    end_time = 3.0
     time_span = np.arange(start_time, end_time, dt).flatten()
     nt = len(time_span)
-
-    init_state = np.array([5, 1.5], dtype=np.float64)    # Define the initial state to be the origin with no velocity
-    target_state = np.array([2.5, 0], dtype=np.float64)  # Swing pendulum upright
     
+    print(f"Number of time discretizations: {nt}")
+
+    init_state = np.array([5, 1.5])    # Define the initial state to be the origin with no velocity
+    target_state = np.array([1.2, 0.0])  # Swing pendulum upright
+     
     init_mode = 0
+    target_mode = 0
+    Q_T = 60*np.eye(n_states[0])
+    
+    initial_guess = [1.0*np.ones((np.shape(time_span)[0],n_inputs[0])), 1.0*np.ones((np.shape(time_span)[0],n_inputs[1]))]
+    
+    # ------------------ one bounce --------------------
+    # # dt = 0.005
+    # dt_shrink = 0.9
+    # start_time = 0
+    # end_time = 2.0
+    # time_span = np.arange(start_time, end_time, dt).flatten()
+    # nt = len(time_span)
+
+    # init_state = np.array([5, 1.5], dtype=np.float64)    # Define the initial state to be the origin with no velocity
+    # target_state = np.array([2.5, 0], dtype=np.float64)  # Swing pendulum upright
+    
+    # init_mode = 0
+    # initial_guess = [0.5*np.ones((np.shape(time_span)[0],n_inputs[0])), 0.5*np.ones((np.shape(time_span)[0],n_inputs[1]))]
 
     # ---------------- / bouncing example -----------------
 
@@ -435,26 +479,18 @@ def main(epsilon, n_samples, dt):
 
     # init_state = np.array([5, 1.5])    # Define the initial state to be the origin with no velocity
     # target_state = np.array([1.0, 0.0])
+    
+    # target_mode = 0
+    # Q_T = 200*np.eye(n_states[0], dtype=np.float64)
+    # Q_T[0,0] = 2000.0
 
     # # ------------- /verification with no contact ------------- 
-
-    # Set desired state
-    n_modes = 2
-    
-    # the state and control dimensions, mode-dependent
-    n_states = [2, 2]
-    n_inputs = [1, 1]
 
     # ---------------------------- 
     # Define weighting matrices
     # ----------------------------
     Q_k = [np.zeros((n_states[0],n_states[0]), dtype=np.float64), np.zeros((n_states[1],n_states[1]), dtype=np.float64)] # zero weight to penalties along a strajectory since we are finding a trajectory
     R_k = [np.eye(n_inputs[0], dtype=np.float64), np.eye(n_inputs[1], dtype=np.float64)]
-
-    # ---------------------------- Set the terminal cost ----------------------------
-    target_mode = 0
-    Q_T = 200*np.eye(n_states[0], dtype=np.float64)
-    Q_T[0,0] = 2000.0
     
     init_reset_args = [np.array([0.0]) for _ in range(nt)]
     target_reset_args = [np.array([0.0]) for _ in range(nt)]
@@ -463,8 +499,6 @@ def main(epsilon, n_samples, dt):
     #                                       Solve for hybrid ilqg proposal
     # ============================================================================================================
     exp_params = ExpParams()
-    
-    initial_guess = [0.5*np.ones((np.shape(time_span)[0],n_inputs[0])), 0.5*np.ones((np.shape(time_span)[0],n_inputs[1]))]
     
     flow_dynamics = [symbolic_dynamics_bouncing, symbolic_dynamics_bouncing]
     
@@ -532,12 +566,10 @@ def main(epsilon, n_samples, dt):
     formatted_datetime = current_datetime.strftime("%Y-%m-%d_%H-%M-%S")
     filename = f"data_{formatted_datetime}_{script_filename}_{n_exp}experiments_{n_samples}samples_eps_{epsilon}_coupling_dt_{dt}.pickle"
     
-    # save_root = '/hddscratch/hyu419/hybrid_pathintegral/exp_200'
-    save_root = '/home/hzyu/git/HybridPathIntegral/experiments'
-    save_path = f"{save_root}/data/bouncing/{filename}"
-    exp_data.dump(save_path)
+    save_file = f"{save_path}/{filename}"
+    exp_data.dump(save_file)
     
-    print(" =================== Saved data to: =================== \n", save_path)
+    print(" =================== Saved data to: =================== \n", save_file)
     
     
     # ---------------------------------------------
@@ -560,7 +592,7 @@ import argparse
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="The epsilon parameter.")
     parser.add_argument("--epsilon", type=float, default=2.0, help="The process noise intensity value, epsilon.")
-    parser.add_argument("--nsamples", type=int, default=5000, help="The number of samples used in path integral control.")
+    parser.add_argument("--nsamples", type=int, default=500, help="The number of samples used in path integral control.")
     parser.add_argument("--dt", type=int, default=0.0025, help="The time discretization.")
     
     args = parser.parse_args()

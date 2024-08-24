@@ -6,12 +6,9 @@ from functools import partial
 
 hybrid_stochastic_integration_bouncing_JAX = partial(hybrid_stochastic_integration_euler_JAX, 
                                                     stochastic_integration_euler_func = stochastic_integration_euler_bouncing_JAX, 
-                                                    guard_func_0 = guard_bouncing_12_JAX, 
-                                                    guard_true_func_0 = guard_true_bouncing_12_JAX, 
-                                                    guard_false_func_0 = guard_false_bouncing_12_JAX,
-                                                    guard_func_1 = guard_bouncing_21_JAX,
-                                                    guard_true_func_1 = guard_true_bouncing_21_JAX,
-                                                    guard_false_func_1 = guard_false_bouncing_21_JAX)
+                                                    guard_func = guard_bouncing_12_JAX, 
+                                                    guard_true_func = guard_true_bouncing_12_JAX, 
+                                                    guard_false_func = guard_false_bouncing_12_JAX)
 
 cost_i_bouncing = partial(cost_i, hybrid_stochastic_integration_func=hybrid_stochastic_integration_bouncing_JAX)
 feedback_cost_bouncing_jax = partial(feedback_cost_jax, cost_i_func=cost_i_bouncing)

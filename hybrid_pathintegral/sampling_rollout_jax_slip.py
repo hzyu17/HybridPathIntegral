@@ -12,9 +12,9 @@ from functools import partial
 
 hybrid_stochastic_integration_slip_padding = partial(hybrid_stochastic_integration_euler_JAX, 
                                                     stochastic_integration_euler_func = stochastic_integration_euler_SLIP_padding, 
-                                                    guard_condition_func = guard_condition_slip_padding, 
-                                                    guard_condition_true_fun = guard_true_func_slip_padding, 
-                                                    guard_condition_false_fun = guard_false_func_slip_padding)
+                                                    guard_func = guard_condition_slip_padding, 
+                                                    guard_true_func = guard_true_func_slip_padding, 
+                                                    guard_false_func = guard_false_func_slip_padding)
 
 cost_i_slip = partial(cost_i, hybrid_stochastic_integration_func=hybrid_stochastic_integration_slip_padding)
 feedback_cost_slip_jax = partial(feedback_cost_jax, cost_i_func=cost_i_slip)
