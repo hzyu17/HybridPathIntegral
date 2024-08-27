@@ -76,11 +76,81 @@ def stochastic_integration_euler_SLIP(mode, x0, u, dt, eps, dW):
 # ===============================================================================================================
 #                                        SLIP Guard condition handling 
 # ===============================================================================================================
-def guard_condition_slip(xt, xt_next, current_mode):
+
+# -------------------------------- From mode 1 (flight) to mode 2 (stance) --------------------------------
+def guard_cond_slip_12(xt, xt_next, current_mode):
+    # assume time invariant guard for now
+    return (current_mode==0) and (guard_slip_12(0.0,xt)<0) and (guard_slip_12(0.0,xt_next)>=0)
+
+def guard_true_func_slip_12(args):
+    print("slip_cond_12: True")
+    (xt_current, current_mode, u, t, xt_next, dt_int, dt_shrinkrate, RandN, eps, reset_arg) = args
+    
+    # -----------------
+    #    Bi-section 
+    # -----------------    
+    def bisection_while_body(carry):
+        t_left, t_mid, t_right, x_left, x_mid, x_right, u_current, tol, randN, continue_cond = carry
+        
+        t_mid = (t_left + t_right) / 2.0
+        dt_new = t_mid - t_left
+        dW_new = np.sqrt(dt_new)*randN
+        
+        x_mid = stochastic_integration_euler_SLIP(current_mode, x_left, u_current, dt_new, eps, dW_new)
+
+        # Define conditions
+        guard_left = guard_slip_12(t_left, x_left)
+        guard_mid = guard_slip_12(t_mid, x_mid)
+        
+        # Check if guard condition at mid is zero
+        continue_cond = (guard_mid != 0) and ((t_right-t_left)/2.0 >= tol)
+        
+        if (guard_left * guard_mid < 0):
+            t_right = t_mid
+            x_right = x_mid
+        else:
+            t_left = t_mid
+            x_left = x_mid
+            
+        # print(f"t_left: {guard_left}, t_right: {t_right}, midpoint: {guard_left}, x_mid: {x_mid}")  # Debug statement
+
+        return t_left, t_mid, t_right, x_left, x_mid, x_right, u_current, tol, randN, continue_cond
+
+    tol = 1e-10
+    t_left = t
+    t_right = t+dt_int
+    t_mid = t
+    x_left = xt_current
+    x_mid = xt_next
+    x_right = xt_next
+    continue_bisection = True
+    
+    while (continue_bisection):
+        args = (t_left, t_mid, t_right, x_left, x_mid, x_right, u, tol, RandN, continue_bisection)
+        t_left, t_mid, t_right, x_left, x_mid, x_right, u, tol, RandN, continue_bisection = bisection_while_body(args)
+    
+    xt_next, next_mode, new_reset_arg = reset_map_slip_12(t_left, x_left, current_mode, reset_arg)
+    dt_final = t_left - t
+    dW_new = np.sqrt(dt_final) * RandN
+        
+    return xt_next, next_mode, dW_new, new_reset_arg
+
+
+def guard_false_func_slip_12(args):
+    (_, current_mode, _, _, xt_next, dt_int, _, RandN, _, reset_arg) = args
+    dW = np.sqrt(dt_int)*RandN
+    return xt_next, current_mode, dW, reset_arg
+
+
+
+# --------------------------------------------------  
+#       From mode 2 (stance) to mode 1 (flight)
+# --------------------------------------------------
+def guard_cond_slip_21(xt, xt_next, current_mode):
     # assume time invariant guard for now
     return (current_mode==1) and (guard_slip_21(0.0,xt)<0) and (guard_slip_21(0.0,xt_next)>=0)
 
-def guard_true_func_slip(args):
+def guard_true_func_slip_21(args):
     print("slip_cond: True")
     (xt_current, current_mode, u, t, xt_next, dt_int, dt_shrinkrate, RandN, eps, reset_arg) = args
     
@@ -174,7 +244,7 @@ def guard_true_func_slip(args):
     return xt_next, next_mode, dW_new, new_reset_arg
 
 
-def guard_false_func_slip(args):
+def guard_false_func_slip_21(args):
     (_, current_mode, _, _, xt_next, dt_int, _, RandN, _, reset_arg) = args
     dW = np.sqrt(dt_int)*RandN
     return xt_next, current_mode, dW, reset_arg
@@ -189,9 +259,9 @@ from functools import partial
 reaction_mode_mismatch_slip = partial(reaction_mode_mismatch, cond_early_arrival=cond_early_arrival_slip)
 hybrid_stochastic_integration_slip = partial(hybrid_stochastic_integration_euler, 
                                                 stochastic_integration_euler_func = stochastic_integration_euler_SLIP, 
-                                                guard_condition_func = guard_condition_slip, 
-                                                guard_condition_true_fun = guard_true_func_slip, 
-                                                guard_condition_false_fun = guard_false_func_slip)
+                                                guard_func_1 = guard_cond_slip_21, 
+                                                guard_true_func_1 = guard_true_func_slip_21, 
+                                                guard_false_func_1 = guard_false_func_slip_21)
 
 
 hybrid_stochastic_feedback_rollout_discrete_slip = partial(hybrid_stochastic_feedback_rollout_discrete, 
@@ -226,6 +296,7 @@ def event_detect_discrete_slip(current_mode, x0, u,
                                         reset_maps_slip_slip,
                                         Rxs_slip, Rts_slip,
                                         reset_args, 
-                                        guard_condition_slip,
-                                        detection, backwards)
+                                        guard_condition_func_0=guard_cond_slip_12,
+                                        guard_condition_func_1=guard_cond_slip_21,
+                                        detection=detection, backwards=backwards)
 

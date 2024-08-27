@@ -40,7 +40,7 @@ if __name__ == '__main__':
     
     # For the slip dynamics, mode 1 has 1 input, and mode 2 has 2 inputs. 
     n_states = [5, 4]
-    n_inputs = [1, 2]
+    n_inputs = [3, 2]
     
     # ----------------------------
     # Case 1: vertical bouncing
@@ -65,35 +65,58 @@ if __name__ == '__main__':
     # Q_k = [np.zeros((n_states[0],n_states[0])), np.zeros((n_states[1],n_states[1]))] # zero weight to penalties along a strajectory since we are finding a trajectory
     # R_k = [np.eye(n_inputs[0]), np.eye(n_inputs[1])]
     
-    # --------------------------
-    # Case 2: Running one step
-    # --------------------------
+    # # --------------------------
+    # # Case 2: Running one step
+    # # --------------------------
+    # init_mode = 1
+    
+    # # Time definitions
+    # start_time = 0
+    # end_time = 0.5
+    
+    # # Terminal cost 
+    # target_mode = 0
+    # Q_T = 60.0*np.eye(n_states[0])
+    
+    # # Running costs
+    # Q_k = [np.zeros((n_states[0],n_states[0])), np.zeros((n_states[1],n_states[1]))] # zero weight to penalties along a strajectory since we are finding a trajectory
+    # R_k = [np.eye(n_inputs[0]), np.eye(n_inputs[1])]
+    
+    # init_theta_deg = 100
+    # init_theta = init_theta_deg / 180 * np.pi
+    # init_state = np.array([init_theta, -4.0, 0.5*r0, 0.0], dtype=np.float64)
+    # target_state = np.array([1.1, 2.5, 1.5, 0.0, np.pi/3], dtype=np.float64)  # Swing pendulum upright
+    
+    
+    # --------------------------------
+    #  Case 3: Running multiple steps
+    # --------------------------------
     init_mode = 1
     
     # Time definitions
     start_time = 0
-    end_time = 0.4
-    
-    time_span = np.arange(start_time, end_time, dt).flatten()
-    nt = len(time_span)
-    
-    print("nt", nt)
+    end_time = 1.0
     
     # Terminal cost 
     target_mode = 0
-    Q_T = 200.0*np.eye(n_states[0])
+    Q_T = 60.0*np.eye(n_states[0])
     
     # Running costs
     Q_k = [np.zeros((n_states[0],n_states[0])), np.zeros((n_states[1],n_states[1]))] # zero weight to penalties along a strajectory since we are finding a trajectory
     R_k = [np.eye(n_inputs[0]), np.eye(n_inputs[1])]
+    
     init_theta_deg = 100
     init_theta = init_theta_deg / 180 * np.pi
     init_state = np.array([init_theta, -4.0, 0.5*r0, 0.0], dtype=np.float64)
-    target_state = np.array([0.85, 2.5, 1.15, 0.55, np.pi/3], dtype=np.float64)  # Swing pendulum upright
-    init_reset_args = [np.array([0.0]) for _ in range(nt)]
-    target_reset_args = [np.array([0.0]) for _ in range(nt)]
+    target_state = np.array([1.1, 2.5, 1.5, 0.0, np.pi/3], dtype=np.float64)  # Swing pendulum upright
     
     # ---------------- / slip example -----------------
+    
+    time_span = np.arange(start_time, end_time, dt).flatten()
+    nt = len(time_span)
+    print("nt: ", nt)
+    init_reset_args = [np.array([0.0]) for _ in range(nt)]
+    target_reset_args = [np.array([0.0]) for _ in range(nt)]
     
     # ================================
     #  Solve for hybrid ilqr proposal
@@ -117,7 +140,7 @@ if __name__ == '__main__':
     exp_data = ExpData(exp_params)
     hybrid_ilqr_result = solve_ilqr(exp_params, detect=True, verbose=False)
     
-    (modes,states,inputs,
+    (timespan, modes,states,inputs,
      k_feedforward,K_feedback,
      current_cost,states_iter,
      ref_modechanges,reference_extension_helper, ref_reset_args) = hybrid_ilqr_result

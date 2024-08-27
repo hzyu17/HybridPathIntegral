@@ -708,8 +708,9 @@ def plot_slip(time_span, modes, states, inputs,
     mode1_modes = np.array(mode1_modes)
     
     # plot mode 0 control input
-    ax3.plot(mode0_timestamps[0:-1:step], mode0_inputs[0:-1:step], color='b', label=r'$u$')
-    ax3.set_ylim(np.min(mode0_inputs)-1, np.max(mode0_inputs)+1)
+    if len(mode0_inputs)>0: 
+        ax3.plot(mode0_timestamps[0:-1:step], mode0_inputs[0:-1:step], color='b', label=r'$u$')
+        ax3.set_ylim(np.min(mode0_inputs)-1, np.max(mode0_inputs)+1)
     
     # plot mode 1
     ax21.plot(mode1_timestamps[::step], mode1_states[::step, 0], linewidth=0.8, color=color, alpha=alpha, label=trj_label)
