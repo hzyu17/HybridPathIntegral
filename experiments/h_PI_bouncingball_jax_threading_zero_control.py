@@ -398,18 +398,17 @@ def main(epsilon, n_samples, dt):
     print(f"The value of time discretization dt is: {dt}")
     
     # =========== save data ===========
-    save_root = '/home/hzyu/git/HybridPathIntegral/experiments'
-    # save_root = '/hddscratch/hyu419/hybrid_pathintegral/exp_200'
-    # save_root = '/hddscratch/hyu419/hybrid_pathintegral/new_exp'
-    
-    file_path = f"{save_root}/data/new_exp/bouncing"
+    # save_path = '/home/hzyu/git/HybridPathIntegral/experiments'
+    # save_path = '/hddscratch/hyu419/hybrid_pathintegral/exp_200'
+    # save_path = '/hddscratch/hyu419/hybrid_pathintegral/new_exp'
+    save_path = '/home/hyu419/git/HybridPathIntegral/data/new_exp/bouncing'
     
     from pathlib import Path
-    if not Path(file_path).exists():
-        print(f"File {file_path} does not exist.")
+    if not Path(save_path).exists():
+        print(f"File {save_path} does not exist.")
         sys.exit(1)  # Exit the program with a non-zero status code
     else:
-        print(f"File {file_path} exists.")
+        print(f"File {save_path} exists.")
         
     
     # === ilqr parameters ===
@@ -462,7 +461,7 @@ def main(epsilon, n_samples, dt):
     Q_T = 200*np.eye(n_states[0])
     Q_T[0,0] = 2000.0
 
-    n_exp = 5
+    n_exp = 100
     
     init_reset_args = [np.array([0.0]) for _ in range(nt)]
     target_reset_args = [np.array([0.0]) for _ in range(nt)]
@@ -521,7 +520,7 @@ def main(epsilon, n_samples, dt):
     mp.set_start_method('spawn', force=True)
         
     # Pool of workers
-    num_process = max(1, min(mp.cpu_count()-10, 1))
+    num_process = max(1, min(mp.cpu_count()-10, 3))
     with mp.Pool(processes=num_process) as pool:
         # Prepare the arguments for each experiment
         args = [(i, nt, n_samples, n_states, n_inputs, 
@@ -551,7 +550,7 @@ def main(epsilon, n_samples, dt):
     current_datetime = datetime.now()
     formatted_datetime = current_datetime.strftime("%Y-%m-%d_%H-%M-%S")
     filename = f"data_{formatted_datetime}_{script_filename}_{n_samples}samples_eps_{epsilon}_coupling_zero_control.pickle"
-    file = file_path+'/'+filename
+    file = save_path+'/'+filename
     
     exp_data.dump(file)
 

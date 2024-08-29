@@ -71,6 +71,10 @@ def dxdX_solve_ivp(t, z, *args):
     return np.concatenate([dx_dt, dX_dt.flatten()])
 
 
+def propagate_cov_discrete():
+    
+
+
 # constant flow example
 if __name__ == '__main__':
     x0 = np.array([0.0, 0.0], dtype=np.float64)

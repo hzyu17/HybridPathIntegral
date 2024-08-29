@@ -407,8 +407,8 @@ class hybrid_ilqr:
         r0 = 1
         if show_rollout:
             self._plot_states_func(self._timespan, modes, states, inputs, 
-                                            self._init_state, self._target_state, 
-                                            self._n_timesteps, reset_args=self._reset_args, step=1)
+                                    self._init_state, self._target_state, 
+                                    self._n_timesteps, reset_args=self._reset_args, step=1)
                         
             if self._animate_func:
                 fig, ax = self._animate_func(self._modes, self._states, self._init_mode, 

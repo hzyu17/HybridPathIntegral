@@ -370,7 +370,8 @@ def plot_bouncingball(time_span, modes, states, inputs, init_state,
                       color='k', 
                       args=None, 
                       plot_start_goal=True,
-                      trj_labels='iLQG-reference'):
+                      trj_labels='iLQG-reference',
+                      step=1):
     print("----------------- Plotting bouncing ball results -----------------")
     # =============== plotting ===============
     if args is not None:
