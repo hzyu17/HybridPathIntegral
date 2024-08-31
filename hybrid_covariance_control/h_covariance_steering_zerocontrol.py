@@ -3,9 +3,9 @@ import numpy as np
 import os
 import sys
 file_path = os.path.abspath(__file__)
-exp_dir = os.path.dirname(file_path)
+hilqr_dir = os.path.dirname(file_path)
 script_filename = os.path.splitext(os.path.basename(file_path))[0]
-root_dir = os.path.abspath(os.path.join(exp_dir, '..'))
+root_dir = os.path.abspath(os.path.join(hilqr_dir, '..'))
 sys.path.append(root_dir)
 
 import jax.numpy as jnp
@@ -16,6 +16,9 @@ from experiments.exp_params import *
 from dynamics.dynamics_bouncing import *
 from dynamics.dynamics_discrete_bouncing import *
 from tools.plot_ellipsoid import *
+
+from matplotlib.font_manager import FontProperties
+font_props = FontProperties(family='serif', size=16, weight='normal')
 
 
 if __name__=='__main__':
@@ -86,7 +89,7 @@ if __name__=='__main__':
      k_feedforward,K_feedback,
      current_cost,states_iter,
      ref_modechanges,reference_extension_helper, ref_reset_args) = hybrid_ilqr_result
-    
+
     show_hilqr_results = True
     if show_hilqr_results:
         time_span = np.arange(start_time, end_time, dt).flatten()
@@ -109,15 +112,15 @@ if __name__=='__main__':
 
     E_linear = np.array([[1.0, 0.0], [0.0, -0.6]], dtype=np.float64)
 
-    A = np.array([[0, 1], [0, 0]], dtype=np.float64)
-    B = np.array([[0],[1.0]], dtype=np.float64)
-    Q = np.zeros((2, 2))
+    A0 = np.array([[0, 1], [0, 0]], dtype=np.float64)
+    B0 = np.array([[0],[1.0]], dtype=np.float64)
+    Q0 = np.zeros((2, 2))
 
-    A = np.tile(A, (nt, 1, 1))
-    B = np.tile(B, (nt, 1, 1))
-    Q = np.tile(Q, (nt, 1, 1))
+    A = np.tile(A0, (nt, 1, 1))
+    B = np.tile(B0, (nt, 1, 1))
+    Q = np.tile(Q0, (nt, 1, 1))
 
-    print("A shape: ", A.shape)
+    print("A[20]: ", A[20])
 
     M = np.zeros((nt, 2*n_states[0], 2*n_states[0]), dtype=np.float64)
 
@@ -134,17 +137,18 @@ if __name__=='__main__':
     
     # integrate Phi
     Phi = np.eye(2*n_states[0])
+
     for i in range(0, t_event):
-        Phi_next = Phi + dt * (M[i] @ Phi)
-        Phi = Phi + (M[i] @ Phi + M[i+1] @ Phi_next) * (dt/2.0)
-        # Phi = Phi + dt * Phi@M
+        # Phi_next = Phi + dt * (M[i] @ Phi)
+        # Phi = Phi + (M[i] @ Phi + M[i+1] @ Phi_next) * (dt/2.0)
+        Phi = Phi + dt * (M[i] @ Phi)
 
     Phi = Phi_miuns@Phi
 
     for i in range(t_event+1, nt-1):
-        Phi_next = Phi + dt * (M[i] @ Phi)
-        Phi = Phi + (M[i] @ Phi + M[i+1] @ Phi_next) * (dt/2.0)
-        # Phi = Phi + dt * Phi@M
+        # Phi_next = Phi + dt * (M[i] @ Phi)
+        # Phi = Phi + (M[i] @ Phi + M[i+1] @ Phi_next) * (dt/2.0)
+        Phi = Phi + dt * (M[i] @ Phi)
 
     Phi_11 = Phi[0:n_states[0], 0:n_states[0]]
     Phi_12 = Phi[0:n_states[0], n_states[0]:]
@@ -173,11 +177,26 @@ if __name__=='__main__':
 
     Pi = np.zeros((nt, n_states[0], n_states[0]), dtype=np.float64)
     Pi[0] = (Pi0 + Pi0.T) / 2
+
     v_XY = np.zeros((nt, 2*n_states[0], n_states[0]), dtype=np.float64)
     v_XY[0, :n_states[0], :n_states[0]] = np.eye(n_states[0])
     v_XY[0, n_states[0]:, :n_states[0]] = Pi[0]
 
-    for i in range(nt - 1):
+    for i in range(t_event):
+        dXY = M[i]@v_XY[i]
+        next_XY = v_XY[i] + dXY*dt
+        dXY_next = M[i+1]@next_XY
+        
+        v_XY[i+1] = v_XY[i] + (dXY + dXY_next)*(dt/2.0) 
+        X_next = v_XY[i+1,:n_states[0],:n_states[0]]
+        Y_next = v_XY[i+1,n_states[0]:,:n_states[0]]
+        inv_X_next = np.linalg.solve(X_next, np.eye(n_states[0]))
+        Pi[i+1] = Y_next@inv_X_next
+
+    Pi[t_event+1] = np.linalg.inv(E_linear).T@Pi[t_event]@np.linalg.inv(E_linear)
+    v_XY[t_event+1] = Phi_miuns@v_XY[t_event]
+
+    for i in range(t_event+1, nt-1):
         dXY = M[i]@v_XY[i]
         next_XY = v_XY[i] + dXY*dt
         dXY_next = M[i+1]@next_XY
@@ -193,25 +212,43 @@ if __name__=='__main__':
     for i in range(nt):
         K[i] = -B[i].T @ Pi[i]
 
+
+    # ========================= compute the controlled covariances =========================
     cov_trj = np.zeros((nt, n_states[0], n_states[0]))
     cov_trj[0] = Sig0
+
     for i in range(0, t_event):
         Acl_i = A[i] + B[i]@K[i]
-        cov_trj[i+1] = (Acl_i@cov_trj[i] + cov_trj[i]@Acl_i.T + B[i]@B[i].T) * dt
+        # Acl_i = A[i]
+        cov_trj[i+1] = cov_trj[i] + (Acl_i@cov_trj[i] + cov_trj[i]@Acl_i.T + B[i]@B[i].T) * dt
     
     # hybrid time
-    cov_trj[t_event] = E_linear@cov_trj[t_event-1]@E_linear.T
+    cov_trj[t_event+1] = E_linear@cov_trj[t_event]@E_linear.T
 
-    for i in range(t_event, nt-1):
+    for i in range(t_event+1, nt-1):
         Acl_i = A[i] + B[i]@K[i]
-        cov_trj[i+1] = (Acl_i@cov_trj[i] + cov_trj[i]@Acl_i.T + B[i]@B[i].T) * dt
+        # Acl_i = A[i]
+        cov_trj[i+1] = cov_trj[i] + (Acl_i@cov_trj[i] + cov_trj[i]@Acl_i.T + B[i]@B[i].T) * dt
 
-    fig, ax = plt.subplots(1, 1)
+
+    fig1, axes_12, fig2, ax3 = plot_bouncingball(time_span, modes, 
+                                                 states, inputs, 
+                                                 init_state, target_state, 
+                                                 nt, ref_reset_args,
+                                                 trj_labels='Controlled Mean Trajectory')
     # plot covariance trajecotry
     for i in range(0, nt, 5):
-        ellipse_boundary, ax = plot_2d_ellipsoid_boundary(states[i], cov_trj[i], ax, 'r')
+        print("i: ", i)
+        ellipse_boundary, ax3 = plot_2d_ellipsoid_boundary(states[i], cov_trj[i], ax3, 'b')
 
-    ax.grid(True)
-    ax.set_xlabel(r'$z$')
-    ax.set_ylabel(r'$\dot z$')
+    init_ellipse_boundary, ax3 = plot_2d_ellipsoid_boundary(init_state, Sig0, ax3, 'r', linewidth=2.0)
+    target_ellipse_boundary, ax3 = plot_2d_ellipsoid_boundary(target_state, SigT, ax3, 'g', linewidth=2.0)
+
+    ax3.set_xlim(-5, 10)
+    ax3.set_ylim(-15, 10)
+
+    ax3.set_xlabel(r'$z$', fontproperties=font_props)
+    ax3.set_ylabel(r'$\dot z$', fontproperties=font_props)
+    plt.tight_layout()
+    fig2.savefig(hilqr_dir+'/covariance_steering_bouncing.pdf', dpi=2000)
     plt.show()

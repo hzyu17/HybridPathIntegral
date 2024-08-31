@@ -378,7 +378,7 @@ def plot_bouncingball(time_span, modes, states, inputs, init_state,
         fig1, axes_12, fig2, ax3 = args
     else:
         fig1, axes_12 = plt.subplots(1, 2)
-        fig2, ax3 = plt.subplots()
+        fig2, ax3 = plt.subplots(1, 1, figsize=(12,12))
         
     (ax1, ax2) = axes_12.flatten()
     ax1.grid(True)

@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Ellipse
 
-def plot_2d_ellipsoid_boundary(mean, covariance, ax=None, color='blue'):
+def plot_2d_ellipsoid_boundary(mean, covariance, ax=None, color='blue', linewidth=0.5):
     """
     Plot the boundary of a 2D ellipsoid given the mean and covariance matrix.
 
@@ -27,6 +27,7 @@ def plot_2d_ellipsoid_boundary(mean, covariance, ax=None, color='blue'):
     eigenvectors = eigenvectors[:, order]
     
     nstd = 3
+    print("eigenvalues: ", eigenvalues)
     width, height = 2 * nstd * np.sqrt(eigenvalues)
 
     # Calculate the angle of rotation
@@ -34,7 +35,7 @@ def plot_2d_ellipsoid_boundary(mean, covariance, ax=None, color='blue'):
 
     # Plot the ellipsoid boundary
     ellipse_boundary = Ellipse(xy=mean, width=width, height=height,
-                               angle=angle, fill=False, edgecolor=color, linewidth=0.5)
+                               angle=angle, fill=False, edgecolor=color, linewidth=linewidth)
 
     # Add the Ellipse boundary to the plot
     ax.add_patch(ellipse_boundary)
