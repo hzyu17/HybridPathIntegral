@@ -261,7 +261,7 @@ if __name__=='__main__':
                                         nt, ref_reset_args,
                                         trj_labels='LQG Mean',
                                         plot_start_goal=False)
-    
+
     # plot covariance trajecotry
     for i in range(0, nt, 10):
         print("i: ", i)
@@ -304,10 +304,11 @@ if __name__=='__main__':
                 init_ellipse_boundary, target_ellipse_boundary], [r'$3-\sigma$ H-Covariance Steering', 
                                                                   r'Initial Mean',
                                                                   r'Target Mean',
-                                                                    r'Initial covariance $\Sigma_0$', 
-                                                                    r'Target covariance $\Sigma_T$'], prop={'family': 'serif', 'size': 15})
+                                                                  r'Initial covariance $\Sigma_0$', 
+                                                                  r'Target covariance $\Sigma_T$'], prop={'family': 'serif', 'size': 15})
     
-    plt.tight_layout()
+    fig1.tight_layout()
+    fig2.tight_layout()
     fig1.savefig(hilqr_dir+'/covariance_steering_bouncing_hcovariancesteering.pdf', dpi=2000)
     fig2.savefig(hilqr_dir+'/covariance_steering_bouncing_hilqr.pdf', dpi=2000)
     plt.show()
