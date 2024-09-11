@@ -8,8 +8,6 @@ script_filename = os.path.splitext(os.path.basename(file_path))[0]
 root_dir = os.path.abspath(os.path.join(exp_dir, '..'))
 sys.path.append(root_dir)
 
-import jax.numpy as jnp
-
 # Import iLQR class and reference extension handler
 from hybrid_ilqr.h_ilqr_discrete import solve_ilqr, extract_extensions
 from experiments.exp_params import *
@@ -145,7 +143,7 @@ if __name__=='__main__':
         Phi_next = Phi + dt * (M[i] @ Phi)
         Phi = Phi + (M[i] @ Phi + M[i+1] @ Phi_next) * (dt/2.0)
         # Phi = Phi + dt * Phi@M
-
+    
     Phi_11 = Phi[0:n_states[0], 0:n_states[0]]
     Phi_12 = Phi[0:n_states[0], n_states[0]:]
     Phi_21 = Phi[n_states[0]:, 0:n_states[0]]
@@ -192,7 +190,8 @@ if __name__=='__main__':
     
     for i in range(nt):
         K[i] = -B[i].T @ Pi[i]
-
+    
+    # ==================== Propagate controlled Sigma(t) ====================
     cov_trj = np.zeros((nt, n_states[0], n_states[0]))
     cov_trj[0] = Sig0
     for i in range(0, t_event):
@@ -206,6 +205,7 @@ if __name__=='__main__':
         Acl_i = A[i] + B[i]@K[i]
         cov_trj[i+1] = (Acl_i@cov_trj[i] + cov_trj[i]@Acl_i.T + B[i]@B[i].T) * dt
 
+    # ----------------- plot -----------------
     fig, ax = plt.subplots(1, 1)
     # plot covariance trajecotry
     for i in range(0, nt, 5):
