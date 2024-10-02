@@ -122,18 +122,6 @@ def reset_control_slip_12(t, u_minus):
     return np.zeros(2)
 
 
-# # debug: linear reset map
-# def reset_map_slip_21(t, x_event, current_mode, args_reset):
-#     xp = args_reset[0]
-#     r0 = 1
-#     theta, theta_dot, r, r_dot = x_event
-    
-#     # # debug: linear system
-#     # x_reset = jnp.array([0.8*theta, 0.8*theta_dot, 0.8*r, 0.8*r_dot, 0.8*theta])
-    
-#     return x_reset, 0, args_reset
-
-
 # reset map from stance mode to flight mode
 def reset_map_slip_21(t, x_event, current_mode, args_reset):
     xp = args_reset[0]

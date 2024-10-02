@@ -27,7 +27,7 @@ def plot_2d_ellipsoid_boundary(mean, covariance, ax=None, color='blue', linewidt
     eigenvectors = eigenvectors[:, order]
     
     nstd = 3
-    print("eigenvalues: ", eigenvalues)
+    # print("eigenvalues: ", eigenvalues)
     width, height = 2 * nstd * np.sqrt(eigenvalues)
 
     # Calculate the angle of rotation

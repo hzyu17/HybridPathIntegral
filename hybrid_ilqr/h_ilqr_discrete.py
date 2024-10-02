@@ -66,7 +66,7 @@ class hybrid_ilqr:
         self.f_, self.A_, self.B_ = [None for _ in range(self.nmodes_)],[None for _ in range(self.nmodes_)],[None for _ in range(self.nmodes_)]
         for ii in range(self.nmodes_):
             self.f_[ii], self.A_[ii], self.B_[ii] = smooth_dynamics[ii]()
-                
+        
         # Weighting
         self.Q_k_ = Q_k
         self.R_k_ = R_k
@@ -403,7 +403,7 @@ class hybrid_ilqr:
         
         print("===================== Finished initial rollout =====================")
         
-        show_rollout = True
+        show_rollout = False
         r0 = 1
         if show_rollout:
             self._plot_states_func(self._timespan, modes, states, inputs, 
@@ -539,13 +539,14 @@ class hybrid_ilqr:
         modes = self._modes
         states = self._states
         inputs = self._inputs
+        saltations = self._saltations
         modechanges = self._modechanges
         hybrid_event_info = self._hybrid_event_info
         reset_args = self._reset_args
         
         reference_extension_helper = self.compute_trejactory_extension(timespan, states, hybrid_event_info)
 
-        return (timespan,modes,states,inputs,
+        return (timespan,modes,states,inputs,saltations,
                 k_feedforward,K_feedback,
                 current_cost,states_iter,
                 modechanges,reference_extension_helper,reset_args)

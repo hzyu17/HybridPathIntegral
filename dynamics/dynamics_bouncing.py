@@ -161,13 +161,13 @@ def stochastic_feedback_rollout_bouncing(init_mode, x0, n_inputs, xt_ref, ref_mo
         
         xref_i = xt_ref[ii_t] 
         if cond_mode_mismatch_bouncing(current_mode, ref_current_mode):
-            xref_i, K_fb_i, k_ff_i, cnt_mismatch = reaction_mode_mismatch(cond_early_arrival_bouncing, ii_t, 
+            xref_i, K_fb_i, k_ff_i, cnt_mismatch = reaction_mode_mismatch(ii_t, 
                                                                           current_mode, ref_current_mode, 
                                                                             v_ref_ext_fwd[0], v_ref_ext_bwd[0], 
                                                                             v_event_modechange[0],
                                                                             v_Kfb_ref_ext_fwd[0], v_kff_ref_ext_fwd[0],
                                                                             v_Kfb_ref_ext_bwd[0], v_kff_ref_ext_bwd[0],
-                                                                            cnt_mismatch)
+                                                                            cnt_mismatch, cond_early_arrival_bouncing)
             
         xt_ref_actual[ii_t] = xref_i
         

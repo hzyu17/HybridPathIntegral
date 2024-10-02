@@ -152,6 +152,8 @@ def event_detect_onestep_discrete(xt, ut,
             
             g_x = current_gx(t_event, x_event)
             g_t = current_gt(t_event, x_event)
+
+            next_mode = int(next_mode)
             
             next_dyn = smooth_dynamics[next_mode]
             

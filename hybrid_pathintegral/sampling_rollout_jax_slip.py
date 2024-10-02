@@ -138,7 +138,7 @@ def sample_slip_jax(i_exp, n_samples,
         
         # -------------------- // inputs // ------------------------- 
         
-        # --------------------------------
+        # -------------------------------- 
         #  Define scan and vmap functions
         # -------------------------------- 
         feedback_cost_scan_fun = partial(feedback_cost_slip_jax, 
@@ -181,7 +181,8 @@ def sample_slip_jax(i_exp, n_samples,
         (Ksamples_ts, Ksample_modes_jax, Ksamples_jax, 
          PathCosts_jax, 
          Ksamples_ut, 
-         actual_ref_jax, Ksamples_Kfb_mode, Ksamples_kff_mode, Ksamples_reset_args) = v_sample_results
+         actual_ref_jax, Ksamples_Kfb_mode, 
+         Ksamples_kff_mode, Ksamples_reset_args) = v_sample_results
         
         # ------------ Terminal cost ------------
         xT_samples = Ksamples_jax[:,-1,:]

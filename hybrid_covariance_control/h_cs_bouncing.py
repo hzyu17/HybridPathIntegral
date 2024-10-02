@@ -18,7 +18,8 @@ from dynamics.dynamics_discrete_bouncing import *
 from tools.plot_ellipsoid import *
 
 from matplotlib.font_manager import FontProperties
-font_props = FontProperties(family='serif', size=16, weight='normal')
+font_props = FontProperties(family='serif', size=20, weight='normal')
+from scipy.integrate import solve_ivp
 
 
 if __name__=='__main__':
@@ -35,7 +36,6 @@ if __name__=='__main__':
     # ------------------ one bounce --------------------
     dt = 0.0015
     epsilon = 1.0
-    dt_shrink = 0.95
 
     dt_shrink = 0.9
     start_time = 0
@@ -83,7 +83,7 @@ if __name__=='__main__':
     print("===================== Solving for h-iLQG proposal controller =====================")
     hybrid_ilqr_result = solve_ilqr(exp_params, detect=True, verbose=False)
     
-    (timespan,modes,states,inputs,
+    (timespan,modes,states,inputs, saltations,
      k_feedforward,K_feedback,
      current_cost,states_iter,
      ref_modechanges,reference_extension_helper, ref_reset_args) = hybrid_ilqr_result
@@ -117,9 +117,135 @@ if __name__=='__main__':
     A = np.tile(A0, (nt, 1, 1))
     B = np.tile(B0, (nt, 1, 1))
     Q = np.tile(Q0, (nt, 1, 1))
+    
+    # ======================================================
+    #           Convex Optimization Formulation
+    # ======================================================
+    import cvxpy as cp
 
-    print("A[20]: ", A[20])
+    nx1, nx2 = n_states[0], n_states[1]
+    nt1, nt2 = t_event, nt-t_event-2
+    A1, A2 = A[0:t_event], A[t_event+1:]
+    B1, B2 = B[0:t_event], B[t_event+1:]
+    
 
+    # --------------------- compute Phi^{A_j} --------------------
+
+    t_span1 = (0, dt * nt1)
+    t_span2 = (0, dt * nt2)
+
+    t_eval1 = np.linspace(0, dt*nt1, nt1+1)
+    t_eval2 = np.linspace(0, dt*nt2, nt2+1)
+
+    # --------------------- compute Phi^{A_j} --------------------
+    Phi_A1 = np.zeros((nt1+1, nx1, nx1))
+    Phi_A1_0 = np.eye(nx1).flatten()
+
+    def ode_Phi_A1(t, y):
+        i = min(int(t / dt), nt1-1)  
+        A1_i = A1[i]
+        Phi_reshaped = y.reshape((nx1, nx1))
+        dydt = A1_i @ Phi_reshaped
+        return dydt.flatten()  
+    
+    # Solve ODE
+    result_PhiA1 = solve_ivp(ode_Phi_A1, t_span1, Phi_A1_0, method='RK23', t_eval=t_eval1)
+
+    # Reshape the result to get the solution matrices at each time step
+    Phi_A1 = result_PhiA1.y.reshape((nx1, nx1, nt1+1))
+    Phi_A1 = np.moveaxis(Phi_A1, 2, 0)
+    Phi1 = Phi_A1[-1]
+
+    def ode_Phi_A2(t, y):
+        i = min(int(t / dt), nt2-1)  
+        A2_i = A2[i]
+        Phi_reshaped = y.reshape((nx2, nx2))
+        dydt = A2_i @ Phi_reshaped
+        return dydt.flatten()  
+    
+    Phi_A2 = np.zeros((nt2+1, nx2, nx2))
+    Phi_A2_0 = np.eye(nx2).flatten()
+    result_PhiA2 = solve_ivp(ode_Phi_A2, t_span2, Phi_A2_0, method='RK23', t_eval=t_eval2)
+
+    # Reshape the result to get the solution matrices at each time step
+    Phi_A2 = result_PhiA2.y.reshape((nx2, nx2, nt2+1))
+    Phi_A2 = np.moveaxis(Phi_A2, 2, 0)
+    Phi2 = Phi_A2[-1]
+
+    # --------------------- compute S_1, S_2 --------------------
+    def ode_Phi_S1(t, y):
+        i = min(int(t / dt), nt1-1)  
+        PhiA1_i = Phi_A1[i]
+        B1_i = B1[i]
+        dydt = PhiA1_i @ B1_i @ B1_i.T @ PhiA1_i.T
+        return dydt.flatten()  
+    
+    S1_0 = np.zeros((nx1, nx1)).flatten()
+
+    # Solve ODE
+    result_S1 = solve_ivp(ode_Phi_S1, t_span1, S1_0, method='RK23', t_eval=t_eval1)
+
+    # Reshape the result to get the solution matrices at each time step
+    S1_t = result_S1.y.reshape((nx1, nx1, nt1+1))
+    S1_t = np.moveaxis(S1_t, 2, 0)
+    S1 = S1_t[-1]
+
+    inv_S1 = np.linalg.inv(S1)
+
+    def ode_Phi_S2(t, y):
+        i = min(int(t / dt), nt2-1)  
+        PhiA2_i = Phi_A2[i]
+        B2_i = B2[i]
+        dydt = PhiA2_i @ B2_i @ B2_i.T @ PhiA2_i.T
+        return dydt.flatten()  
+    
+    S2_0 = np.zeros((nx2, nx2)).flatten()
+    # Solve ODE
+    result_S2 = solve_ivp(ode_Phi_S2, t_span2, S2_0, method='RK23', t_eval=t_eval2)
+
+    # Reshape the result to get the solution matrices at each time step
+    S2_t = result_S2.y.reshape((nx2, nx2, nt2+1))
+    S2_t = np.moveaxis(S2_t, 2, 0)
+    S2 = S2_t[-1]
+    inv_S2 = np.linalg.inv(S2)
+
+    # --------------------- optimization formulation ---------------------
+    # ---------- Declare variables ---------- 
+    Sighat_minus, Sighat_plus = cp.Variable((nx1,nx1), symmetric=True), cp.Variable((nx2,nx2), symmetric=True)
+    W1, W2  = cp.Variable((nx1,nx1)), cp.Variable((nx2,nx2))
+    Y1, Y2 = cp.Variable((2*nx1,2*nx1)), cp.Variable((nx2,nx2))
+
+    E = E_linear
+    I = np.eye(nx2)
+    
+    Y1 = cp.bmat([[Sig0, W1.T], [W1, Sighat_minus]])
+    slack_Y2 = cp.bmat([[Sighat_plus, W2.T], [W2, SigT-Y2]])
+    
+    obj_1 = cp.trace(inv_S1@Sighat_minus) - 2*cp.trace(Phi2.T@inv_S2@W2) - 2*cp.trace(Phi1.T@inv_S1@W1) + cp.trace(Phi2.T@inv_S2@Phi2@Sighat_plus)
+    obj_2 = - cp.log_det(Y1) - cp.log_det(Y2)
+
+    constraints = [Sighat_plus==E@Sighat_minus@E.T,
+                    Y1>>0,
+                    slack_Y2>>0,
+                    Sighat_minus>>0,
+                    Sighat_plus>>0
+                    ]
+    
+    problem = cp.Problem(cp.Minimize(obj_1+obj_2), constraints)
+    print("problem is DCP:", problem.is_dcp())
+
+    problem.solve()
+    Sig_minus_opt = Sighat_minus.value
+    Sig_plus_opt = Sighat_plus.value
+
+    print("Sig_minus_opt: ")
+    print(Sig_minus_opt)
+    print("Sig_plus_opt: ")
+    print(Sig_plus_opt)
+
+    # ======================================================
+    #         Closed-form solution for invertible E
+    # ======================================================
     M = np.zeros((nt, 2*n_states[0], 2*n_states[0]), dtype=np.float64)
 
     for i in range(nt):
@@ -133,19 +259,14 @@ if __name__=='__main__':
     Phi_miuns_bottom_row = np.concatenate((np.zeros((n_states[0], n_states[0])), np.linalg.inv(E_linear).T), axis=1)
     Phi_miuns = np.concatenate((Phi_miuns_top_row, Phi_miuns_bottom_row), axis=0)
     
-    # integrate Phi
+    # integrate Phi, corresponding to M
     Phi = np.eye(2*n_states[0])
-
     for i in range(0, t_event):
-        # Phi_next = Phi + dt * (M[i] @ Phi)
-        # Phi = Phi + (M[i] @ Phi + M[i+1] @ Phi_next) * (dt/2.0)
         Phi = Phi + dt * (M[i] @ Phi)
 
     Phi = Phi_miuns@Phi
 
     for i in range(t_event+1, nt-1):
-        # Phi_next = Phi + dt * (M[i] @ Phi)
-        # Phi = Phi + (M[i] @ Phi + M[i+1] @ Phi_next) * (dt/2.0)
         Phi = Phi + dt * (M[i] @ Phi)
 
     Phi_11 = Phi[0:n_states[0], 0:n_states[0]]
@@ -206,10 +327,17 @@ if __name__=='__main__':
         Pi[i+1] = Y_next@inv_X_next
 
     K = np.zeros((nt, n_inputs[0], n_states[0]), dtype=np.float64)
+
+    print("============== Pi results ==============")
+    print("Pi(t-): ")
+    print(Pi[t_event])
+    print("Pi(t+): ")
+    print(Pi[t_event+1])
+    print("E'@Pi(t+)@E")
+    print(E_linear.T@Pi[t_event+1]@E_linear)
     
     for i in range(nt):
         K[i] = -B[i].T @ Pi[i]
-
 
     # ========================= compute the controlled covariances =========================
     cov_trj = np.zeros((nt, n_states[0], n_states[0]))
@@ -217,17 +345,20 @@ if __name__=='__main__':
 
     for i in range(0, t_event):
         Acl_i = A[i] + B[i]@K[i]
-        # Acl_i = A[i]
         cov_trj[i+1] = cov_trj[i] + (Acl_i@cov_trj[i] + cov_trj[i]@Acl_i.T + B[i]@B[i].T) * dt
     
+    print("----------------- Sigma_minus computed -----------------")
+    print(cov_trj[t_event])
+
     # hybrid time
     cov_trj[t_event+1] = E_linear@cov_trj[t_event]@E_linear.T
 
+    print("----------------- Sigma_plus computed -----------------")
+    print(cov_trj[t_event+1])
+
     for i in range(t_event+1, nt-1):
         Acl_i = A[i] + B[i]@K[i]
-        # Acl_i = A[i]
         cov_trj[i+1] = cov_trj[i] + (Acl_i@cov_trj[i] + cov_trj[i]@Acl_i.T + B[i]@B[i].T) * dt
-
 
     # ========================= controlled covariances i-LQG =========================
     K_ilQG = np.asarray(K_feedback)
@@ -236,7 +367,6 @@ if __name__=='__main__':
 
     for i in range(0, t_event):
         Acl_i = A[i] + B[i]@K_ilQG[i]
-        # Acl_i = A[i]
         cov_trj_lqg[i+1] = cov_trj_lqg[i] + (Acl_i@cov_trj_lqg[i] + cov_trj_lqg[i]@Acl_i.T + B[i]@B[i].T) * dt
     
     # hybrid time
@@ -244,10 +374,12 @@ if __name__=='__main__':
 
     for i in range(t_event+1, nt-1):
         Acl_i = A[i] + B[i]@K_ilQG[i]
-        # Acl_i = A[i]
         cov_trj_lqg[i+1] = cov_trj_lqg[i] + (Acl_i@cov_trj_lqg[i] + cov_trj_lqg[i]@Acl_i.T + B[i]@B[i].T) * dt
 
 
+    # =======================================
+    #                Plotting
+    # =======================================
     _, _, fig1, ax1 = plot_bouncingball(time_span, modes, 
                                         states, inputs, 
                                         init_state, target_state, 
@@ -264,14 +396,12 @@ if __name__=='__main__':
 
     # plot covariance trajecotry
     for i in range(0, nt, 10):
-        print("i: ", i)
         ellipse_boundary_lqg, ax1 = plot_2d_ellipsoid_boundary(states[i], cov_trj_lqg[i], ax1, 'k')
 
     for i in range(0, nt, 10):
-        print("i: ", i)
         ellipse_boundary, ax2 = plot_2d_ellipsoid_boundary(states[i], cov_trj[i], ax2, 'b')
 
-    # ----------- Plot the start and goal states -----------
+    # ---------------------- Plot the start and goal states ----------------------
     scatter_init_ax1 = ax1.scatter(init_state[0], init_state[1], color='r', marker='x', s=50.0, linewidths=6)
     scatter_target_ax1 = ax1.scatter(target_state[0], target_state[1], color='g', marker='x', s=50.0, linewidths=6)
 
@@ -309,6 +439,43 @@ if __name__=='__main__':
     
     fig1.tight_layout()
     fig2.tight_layout()
-    fig1.savefig(hilqr_dir+'/covariance_steering_bouncing_hcovariancesteering.pdf', dpi=2000)
-    fig2.savefig(hilqr_dir+'/covariance_steering_bouncing_hilqr.pdf', dpi=2000)
+    fig2.savefig(hilqr_dir+'/covariance_steering_bouncing_hcovariancesteering.pdf', dpi=2000)
+    fig1.savefig(hilqr_dir+'/covariance_steering_bouncing_hilqr.pdf', dpi=2000)
+    plt.show()
+
+    # ---------------------- Plot the controlled trajectories ----------------------
+    eig_0 = np.sqrt(0.5)
+    eig_T = np.sqrt(0.1)
+
+    fig3, ax3 = plt.subplots()
+    fig4, ax4 = plt.subplots()
+
+    for i_sample in range(100):
+        x0_i = init_state + sqrtSig0@np.random.randn(nx1)
+
+        GaussianNoises = [np.random.randn(nt, n_inputs[0]), np.random.randn(nt, n_inputs[1])]
+        mode_trj, xt_trj, ut_cl_trj, Sk, xt_ref_actual = stochastic_feedback_rollout_bouncing(init_mode, x0_i, n_inputs, states, ref_modechanges, 
+                                                                                                inputs, K_ilQG, k_feedforward, target_state, Q_T, 0.0, end_time, 
+                                                                                                epsilon, GaussianNoises, dt_shrink, 
+                                                                                                reference_extension_helper, init_reset_args)
+
+        xt_trj_arr = np.asarray(xt_trj)
+        ax3.plot(time_span, xt_trj_arr[:, 0], 'b', alpha=0.5, linewidth=0.5)
+        ax4.plot(time_span, xt_trj_arr[:, 1], 'b', alpha=0.5, linewidth=0.5)
+
+    ax3.set_xlabel(r'Time $t$', fontproperties=font_props)
+    ax3.set_ylabel(r'Position $z(t)$', fontproperties=font_props)
+
+    ax4.set_xlabel(r'Time $t$', fontproperties=font_props)
+    ax4.set_ylabel(r'Velocity $\dot z(t)$', fontproperties=font_props)
+
+    ax3.grid(True)
+    ax4.grid(True)
+
+    ax3.plot([0.0, 0.0], [init_state[0] - eig_0, init_state[0] + eig_0], color='red', linewidth=6)
+    ax3.plot([time_span[-1], time_span[-1]], [target_state[0] - eig_T, target_state[0] + eig_T], color='green', linewidth=6)
+
+    ax4.plot([0.0, 0.0], [init_state[1] - eig_0, init_state[1] + eig_0], color='red', linewidth=6)
+    ax4.plot([time_span[-1], time_span[-1]], [target_state[1] - eig_T, target_state[1] + eig_T], color='green', linewidth=6)
+
     plt.show()
