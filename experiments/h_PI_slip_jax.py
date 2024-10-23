@@ -39,7 +39,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
     (time_span,modes,states,inputs,
      k_feedforward,K_feedback,
      current_cost,states_iter,
-     ref_modechanges,reference_extension_helper, ref_reset_args) = hybrid_ilqr_result
+     ref_modechanges,ref_ext_helper, ref_reset_args) = hybrid_ilqr_result
         
     show_ilqr_reference = False
     if show_ilqr_reference:
@@ -60,7 +60,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
     xt_trj_ilqr[0] = init_state
     (mode_trj_ilqr, xt_trj_ilqr, 
     ut_trj_ilqr, cost_ilqr, _, 
-    reset_args_ilqr) = hybrid_stochastic_feedback_rollout_discrete_slip(init_mode, init_state, 
+    reset_args_ilqr) = h_stoch_fb_rollout_slip(init_mode, init_state, 
                                                                         n_inputs, 
                                                                         states, modes, inputs, 
                                                                         K_feedback, k_feedforward, 
@@ -68,7 +68,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
                                                                         start_time, dt, 
                                                                         epsilon, RndN_actual, 
                                                                         dt_shrink, 
-                                                                        reference_extension_helper,
+                                                                        ref_ext_helper,
                                                                         init_reset_args)
 
     show_hilqr_noise_results = False
@@ -156,15 +156,15 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
     # ---------------------------------
     #  Extract the extended references 
     # ---------------------------------
-    (v_mode_change_ref, v_ref_ext_bwd, v_ref_ext_fwd, 
-    v_Kfb_ref_ext_bwd, v_Kfb_ref_ext_fwd, 
-    v_kff_ref_ext_bwd, v_kff_ref_ext_fwd, v_tevent) = extract_extensions(reference_extension_helper, start_index = 0)
+    (v_mode_change_ref, v_ext_bwd, v_ext_fwd, 
+    v_Kfb_ext_bwd, v_Kfb_ext_fwd, 
+    v_kff_ext_bwd, v_kff_ext_fwd, v_tevent) = extract_extensions(ref_ext_helper, start_index = 0)
     
     # Add the references to the start of the backward extensions
     n_extensions = len(v_tevent)
     for i_ext in range(n_extensions):
         t_event_i = v_tevent[i_ext]
-        v_ref_ext_bwd[i_ext][t_event_i+1:] = states[t_event_i+1:]
+        v_ext_bwd[i_ext][t_event_i+1:] = states[t_event_i+1:]
     
     show_trj_extensions = False
     if show_trj_extensions:
@@ -176,16 +176,16 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         ax_ext_2.grid(True)
         ax_ext_3.grid(True)
         
-        ax_ext_1.plot(time_span, v_ref_ext_bwd[0][:, 0], color='r', label='Backward extension')
-        ax_ext_1.plot(time_span, v_ref_ext_fwd[0][:, 0], color='b', label='Forward extension')
+        ax_ext_1.plot(time_span, v_ext_bwd[0][:, 0], color='r', label='Backward extension')
+        ax_ext_1.plot(time_span, v_ext_fwd[0][:, 0], color='b', label='Forward extension')
         ax_ext_1.plot(time_span, states[:, 0], color='k')
         
-        ax_ext_2.plot(time_span, v_ref_ext_bwd[0][:, 1], color='r', label='Backward extension')
-        ax_ext_2.plot(time_span, v_ref_ext_fwd[0][:, 1], color='b', label='Forward extension')
+        ax_ext_2.plot(time_span, v_ext_bwd[0][:, 1], color='r', label='Backward extension')
+        ax_ext_2.plot(time_span, v_ext_fwd[0][:, 1], color='b', label='Forward extension')
         ax_ext_2.plot(time_span, states[:, 1], color='k')
         
-        ax_ext_3.plot(v_ref_ext_bwd[0][:, 0], v_ref_ext_bwd[0][:, 1], color='r', label='Backward extension')
-        ax_ext_3.plot(v_ref_ext_fwd[0][:, 0], v_ref_ext_fwd[0][:, 1], color='b', label='Forward extension')
+        ax_ext_3.plot(v_ext_bwd[0][:, 0], v_ext_bwd[0][:, 1], color='r', label='Backward extension')
+        ax_ext_3.plot(v_ext_fwd[0][:, 0], v_ext_fwd[0][:, 1], color='b', label='Forward extension')
         ax_ext_3.plot(states[:, 0], states[:, 1], color='k')
         
         ax_ext_1.legend()
@@ -258,7 +258,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         # ----------------------------------------------------------
         (v_mode_change_ref_i, v_ref_ext_bwd_i, v_ref_ext_fwd_i, 
         v_Kfb_ref_ext_bwd_i, v_Kfb_ref_ext_fwd_i, 
-        v_kff_ref_ext_bwd_i, v_kff_ref_ext_fwd_i, v_tevent_i) = extract_extensions(reference_extension_helper, 
+        v_kff_ref_ext_bwd_i, v_kff_ref_ext_fwd_i, v_tevent_i) = extract_extensions(ref_ext_helper, 
                                                                                     start_index = i_t, 
                                                                                     padding=True) 
         
@@ -319,10 +319,10 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
              k_ff_actual, 
              cnt_mismatch) = reaction_mode_mismatch(i_t, 
                                                     current_mode_actual, ref_current_mode, 
-                                                    v_ref_ext_fwd[0], v_ref_ext_bwd[0], 
+                                                    v_ext_fwd[0], v_ext_bwd[0], 
                                                     v_mode_change_ref[0], 
-                                                    v_Kfb_ref_ext_fwd[0], v_kff_ref_ext_fwd[0], 
-                                                    v_Kfb_ref_ext_bwd[0], v_kff_ref_ext_bwd[0], 
+                                                    v_Kfb_ext_fwd[0], v_kff_ext_fwd[0], 
+                                                    v_Kfb_ext_bwd[0], v_kff_ext_bwd[0], 
                                                     cnt_mismatch, 
                                                     cond_early_arrival=cond_early_arrival_slip)
         
@@ -574,7 +574,7 @@ def main(epsilon, n_samples, dt):
     
     (timespan,modes,states,inputs,
      k_feedforward,K_feedback,current_cost,states_iter,
-     ref_modechanges,reference_extension_helper, ref_reset_args) = hybrid_ilqr_result
+     ref_modechanges,ref_ext_helper, ref_reset_args) = hybrid_ilqr_result
     
     exp_data.add_nominal_data(hybrid_ilqr_result)
     exp_data.add_plotting_function(plot_slip)

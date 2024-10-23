@@ -10,7 +10,7 @@ from dynamics.dynamics_slip import *
 from dynamics.dynamics_discrete import *
 
 # @jax.jit
-def stochastic_integration_euler_SLIP(mode, x0, u, dt, eps, dW):   
+def stoch_integr_slip(mode, x0, u, dt, eps, dW):   
     def mode0_dynamics_true_func_slip(args):
         (x0, u, dW, eps) = args
         # flight mode
@@ -82,7 +82,7 @@ def guard_cond_slip_12(xt, xt_next, current_mode):
     # assume time invariant guard for now
     return (current_mode==0) and (guard_slip_12(0.0,xt)<0) and (guard_slip_12(0.0,xt_next)>0)
 
-def guard_true_func_slip_12(args):
+def guard_true_slip_12(args):
     print("slip_cond_12: True")
     (xt_current, current_mode, u, t, xt_next, dt_int, dt_shrinkrate, RandN, eps, reset_arg) = args
     
@@ -96,7 +96,7 @@ def guard_true_func_slip_12(args):
         dt_new = t_mid - t_left
         dW_new = np.sqrt(dt_new)*randN
         
-        x_mid = stochastic_integration_euler_SLIP(current_mode, x_left, u_current, dt_new, eps, dW_new)
+        x_mid = stoch_integr_slip(current_mode, x_left, u_current, dt_new, eps, dW_new)
 
         # Define conditions
         guard_left = guard_slip_12(t_left, x_left)
@@ -136,7 +136,7 @@ def guard_true_func_slip_12(args):
     return xt_next, next_mode, dW_new, new_reset_arg
 
 
-def guard_false_func_slip_12(args):
+def guard_false_slip_12(args):
     (_, current_mode, _, _, xt_next, dt_int, _, RandN, _, reset_arg) = args
     dW = np.sqrt(dt_int)*RandN
     return xt_next, current_mode, dW, reset_arg
@@ -149,7 +149,7 @@ def guard_cond_slip_21(xt, xt_next, current_mode):
     # assume time invariant guard for now
     return (current_mode==1) and (guard_slip_21(0.0,xt)<=0) and (guard_slip_21(0.0,xt_next)>0)
 
-def guard_true_func_slip_21(args):
+def guard_true_slip_21(args):
     print("slip guard condition 21: True")
     (xt_current, current_mode, u, t, xt_next, dt_int, _, RandN, eps, reset_arg) = args
     
@@ -163,7 +163,7 @@ def guard_true_func_slip_21(args):
         dt_new = t_mid - t_left
         dW_new = np.sqrt(dt_new)*randN
         
-        x_mid = stochastic_integration_euler_SLIP(current_mode, x_left, u_current, dt_new, eps, dW_new)
+        x_mid = stoch_integr_slip(current_mode, x_left, u_current, dt_new, eps, dW_new)
 
         # Define conditions
         guard_left = guard_slip_21(t_left, x_left)
@@ -212,7 +212,7 @@ def guard_true_func_slip_21(args):
     return xt_next, next_mode, dW_new, new_reset_arg
 
 
-def guard_false_func_slip_21(args):
+def guard_false_slip_21(args):
     (_, current_mode, _, _, xt_next, dt_int, _, RandN, _, reset_arg) = args
     dW = np.sqrt(dt_int)*RandN
     return xt_next, current_mode, dW, reset_arg
@@ -225,20 +225,20 @@ def guard_false_func_slip_21(args):
 from functools import partial
 
 reaction_mode_mismatch_slip = partial(reaction_mode_mismatch, cond_early_arrival=cond_early_arrival_slip)
-hybrid_stochastic_integration_slip = partial(hybrid_stochastic_integration_euler, 
-                                                stochastic_integration_euler_func = stochastic_integration_euler_SLIP, 
-                                                guard_func_0=guard_cond_slip_12,
-                                                guard_true_func_0=guard_true_func_slip_12,
-                                                guard_false_func_0=guard_false_func_slip_12,
-                                                guard_func_1 = guard_cond_slip_21, 
-                                                guard_true_func_1 = guard_true_func_slip_21, 
-                                                guard_false_func_1 = guard_false_func_slip_21)
+h_stoch_integr_slip = partial(h_stoch_integr, 
+                                stoch_integr_func = stoch_integr_slip, 
+                                guard_0=guard_cond_slip_12,
+                                guard_true_func_0=guard_true_slip_12,
+                                guard_false_func_0=guard_false_slip_12,
+                                guard_1 = guard_cond_slip_21, 
+                                guard_true_func_1 = guard_true_slip_21, 
+                                guard_false_func_1 = guard_false_slip_21)
 
 
-hybrid_stochastic_feedback_rollout_discrete_slip = partial(hybrid_stochastic_feedback_rollout_discrete, 
-                                                           cond_mode_mismatch_func=cond_mode_mismatch_slip,
-                                                            reaction_mode_mismatch_func=reaction_mode_mismatch_slip,
-                                                            hybrid_stochastic_integration_func=hybrid_stochastic_integration_slip)    
+h_stoch_fb_rollout_slip = partial(h_stoch_fb_rollout, 
+                                cond_mismatch_func=cond_mode_mismatch_slip,
+                                reaction_mismatch_func=reaction_mode_mismatch_slip,
+                                hybrid_stochastic_integration_func=h_stoch_integr_slip)    
     
     
 def event_detect_discrete_slip(current_mode, x0, u, 
@@ -267,7 +267,7 @@ def event_detect_discrete_slip(current_mode, x0, u,
                                         reset_maps_slip_slip,
                                         Rxs_slip, Rts_slip,
                                         reset_args, 
-                                        guard_condition_func_0=guard_cond_slip_12,
-                                        guard_condition_func_1=guard_cond_slip_21,
+                                        guard_cond_func_0=guard_cond_slip_12,
+                                        guard_cond_func_1=guard_cond_slip_21,
                                         detection=detection, backwards=backwards)
 

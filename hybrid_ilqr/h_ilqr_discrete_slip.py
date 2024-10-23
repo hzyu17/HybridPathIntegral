@@ -143,13 +143,13 @@ if __name__ == '__main__':
     (timespan, modes,states,inputs,
      k_feedforward,K_feedback,
      current_cost,states_iter,
-     ref_modechanges,reference_extension_helper, ref_reset_args) = hybrid_ilqr_result
+     ref_modechanges,ref_ext_helper, ref_reset_args) = hybrid_ilqr_result
     
     exp_data.add_nominal_data(hybrid_ilqr_result)
     
-    (v_mode_change_ref, v_ref_ext_bwd, v_ref_ext_fwd, 
-    v_Kfb_ref_ext_bwd, v_Kfb_ref_ext_fwd, 
-    v_kff_ref_ext_bwd, v_kff_ref_ext_fwd, _) = extract_extensions(reference_extension_helper, start_index = 0)
+    (v_mode_change_ref, v_ext_bwd, v_ext_fwd, 
+    v_Kfb_ext_bwd, v_Kfb_ext_fwd, 
+    v_kff_ext_bwd, v_kff_ext_fwd, _) = extract_extensions(ref_ext_helper, start_index = 0)
 
 
     show_results = True

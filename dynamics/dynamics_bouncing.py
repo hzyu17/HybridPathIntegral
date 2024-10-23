@@ -109,11 +109,11 @@ def cond_guard_function_hit_bouncing(xt, xt_next, guard_func):
 def stochastic_feedback_rollout_bouncing(init_mode, x0, n_inputs, xt_ref, ref_modechanges, 
                                         ut, Kt, kt, target_state, Q_T, t0, tf, 
                                         epsilon, GaussianNoise, dt_shrinkingrate, 
-                                        reference_extension_helper, init_reset_args):
+                                        ref_ext_helper, init_reset_args):
 
-    (v_event_modechange, v_ref_ext_bwd, v_ref_ext_fwd, 
-    v_Kfb_ref_ext_bwd, v_Kfb_ref_ext_fwd, 
-    v_kff_ref_ext_bwd, v_kff_ref_ext_fwd, _) = extract_extensions(reference_extension_helper, start_index = 0)
+    (v_event_modechange, v_ext_bwd, v_ext_fwd, 
+    v_Kfb_ext_bwd, v_Kfb_ext_fwd, 
+    v_kff_ext_bwd, v_kff_ext_fwd, _) = extract_extensions(ref_ext_helper, start_index = 0)
     
     n_timestamps = len(xt_ref)
     
@@ -163,10 +163,10 @@ def stochastic_feedback_rollout_bouncing(init_mode, x0, n_inputs, xt_ref, ref_mo
         if cond_mode_mismatch_bouncing(current_mode, ref_current_mode):
             xref_i, K_fb_i, k_ff_i, cnt_mismatch = reaction_mode_mismatch(cond_early_arrival_bouncing, ii_t, 
                                                                           current_mode, ref_current_mode, 
-                                                                            v_ref_ext_fwd[0], v_ref_ext_bwd[0], 
+                                                                            v_ext_fwd[0], v_ext_bwd[0], 
                                                                             v_event_modechange[0],
-                                                                            v_Kfb_ref_ext_fwd[0], v_kff_ref_ext_fwd[0],
-                                                                            v_Kfb_ref_ext_bwd[0], v_kff_ref_ext_bwd[0],
+                                                                            v_Kfb_ext_fwd[0], v_kff_ext_fwd[0],
+                                                                            v_Kfb_ext_bwd[0], v_kff_ext_bwd[0],
                                                                             cnt_mismatch)
             
         xt_ref_actual[ii_t] = xref_i
@@ -298,7 +298,7 @@ def plot_bouncingball_nexp(exp_indexes, exp_data, time_span, init_state,
     (timespan, modes,states_ref,inputs, 
     k_feedforward, K_feedback, current_cost, 
     states_iter, ref_modechanges,
-    reference_extension_helper, ref_reset_args) = exp_data.get_nominal_data()
+    ref_ext_helper, ref_reset_args) = exp_data.get_nominal_data()
     
     states_ref = np.array(states_ref)
     

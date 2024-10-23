@@ -115,19 +115,19 @@ def guard_false_func_bouncing_21(args):
 from functools import partial
 
 reaction_mode_mismatch_bouncing = partial(reaction_mode_mismatch, cond_early_arrival=cond_early_arrival_bouncing)
-hybrid_stochastic_integration_bouncing = partial(hybrid_stochastic_integration_euler, 
-                                                stochastic_integration_euler_func = stochastic_integration_euler_bouncing, 
-                                                guard_func_0=guard_cond_bouncing_12,
+hybrid_stochastic_integration_bouncing = partial(h_stoch_integr, 
+                                                stoch_integr_func = stochastic_integration_euler_bouncing, 
+                                                guard_0=guard_cond_bouncing_12,
                                                 guard_true_func_0=guard_true_func_bouncing_12,
                                                 guard_false_func_0=guard_false_func_bouncing_12,
-                                                guard_func_1=guard_cond_bouncing_21,
+                                                guard_1=guard_cond_bouncing_21,
                                                 guard_true_func_1=guard_true_func_bouncing_21,
                                                 guard_false_func_1=guard_false_func_bouncing_21)
 
 
-hybrid_stochastic_feedback_rollout_discrete_bouncing = partial(hybrid_stochastic_feedback_rollout_discrete, 
-                                                            cond_mode_mismatch_func=cond_mode_mismatch_bouncing,
-                                                            reaction_mode_mismatch_func=reaction_mode_mismatch_bouncing,
+hybrid_stochastic_feedback_rollout_discrete_bouncing = partial(h_stoch_fb_rollout, 
+                                                            cond_mismatch_func=cond_mode_mismatch_bouncing,
+                                                            reaction_mismatch_func=reaction_mode_mismatch_bouncing,
                                                             hybrid_stochastic_integration_func=hybrid_stochastic_integration_bouncing)    
 
     

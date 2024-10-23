@@ -30,7 +30,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
                     Q_k, Q_T, R_k, epsilon, init_reset_args):
     
     (timespan,modes,states,inputs,k_feedforward,K_feedback, current_cost,states_iter,
-     ref_modechanges,reference_extension_helper, ref_reset_args) = hybrid_ilqr_result
+     ref_modechanges,ref_ext_helper, ref_reset_args) = hybrid_ilqr_result
     
     RndN_actual = [np.random.randn(nt, 1), np.random.randn(nt, 1)]
     
@@ -50,7 +50,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
     K_feedback_zero = [np.zeros_like(K_feedback[i]) for i in range(len(K_feedback))]
     k_feedforward_zero = [np.zeros_like(k_feedforward[i]) for i in range(len(K_feedback))]
     
-    reference_extension_helper_zero = reference_extension_helper
+    reference_extension_helper_zero = ref_ext_helper
     mc = reference_extension_helper_zero[0]["Mode Change"]
     reference_extension_helper_zero[0]["Feedback gains"][mc[0]] = np.zeros_like(reference_extension_helper_zero[0]["Feedback gains"][mc[0]])
     reference_extension_helper_zero[0]["Feedback gains"][mc[1]] = np.zeros_like(reference_extension_helper_zero[0]["Feedback gains"][mc[1]])
@@ -145,9 +145,9 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
     # ---------------------------------
     #  Extract the extended references 
     # ---------------------------------
-    (v_mode_change_ref, v_ref_ext_bwd, v_ref_ext_fwd, 
-    v_Kfb_ref_ext_bwd, v_Kfb_ref_ext_fwd, 
-    v_kff_ref_ext_bwd, v_kff_ref_ext_fwd, _) = extract_extensions(reference_extension_helper, start_index = 0)
+    (v_mode_change_ref, v_ext_bwd, v_ext_fwd, 
+    v_Kfb_ext_bwd, v_Kfb_ext_fwd, 
+    v_kff_ext_bwd, v_kff_ext_fwd, _) = extract_extensions(ref_ext_helper, start_index = 0)
     
     
     show_trj_extensions = False
@@ -161,16 +161,16 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         ax_ext_2.grid(True)
         ax_ext_3.grid(True)
         
-        ax_ext_1.plot(time_span, v_ref_ext_bwd[0][:-1, 0], color='r', label='Backward extension')
-        ax_ext_1.plot(time_span, v_ref_ext_fwd[0][:-1, 0], color='b', label='Forward extension')
+        ax_ext_1.plot(time_span, v_ext_bwd[0][:-1, 0], color='r', label='Backward extension')
+        ax_ext_1.plot(time_span, v_ext_fwd[0][:-1, 0], color='b', label='Forward extension')
         ax_ext_1.plot(time_span, states[:, 0], color='k')
         
-        ax_ext_2.plot(time_span, v_ref_ext_bwd[0][:-1, 1], color='r', label='Backward extension')
-        ax_ext_2.plot(time_span, v_ref_ext_fwd[0][:-1, 1], color='b', label='Forward extension')
+        ax_ext_2.plot(time_span, v_ext_bwd[0][:-1, 1], color='r', label='Backward extension')
+        ax_ext_2.plot(time_span, v_ext_fwd[0][:-1, 1], color='b', label='Forward extension')
         ax_ext_2.plot(time_span, states[:, 1], color='k')
         
-        ax_ext_3.plot(v_ref_ext_bwd[0][:, 0], v_ref_ext_bwd[0][:, 1], color='r', label='Backward extension')
-        ax_ext_3.plot(v_ref_ext_fwd[0][:, 0], v_ref_ext_fwd[0][:, 1], color='b', label='Forward extension')
+        ax_ext_3.plot(v_ext_bwd[0][:, 0], v_ext_bwd[0][:, 1], color='r', label='Backward extension')
+        ax_ext_3.plot(v_ext_fwd[0][:, 0], v_ext_fwd[0][:, 1], color='b', label='Forward extension')
         ax_ext_3.plot(states[:, 0], states[:, 1], color='k')
         
         ax_ext_1.legend()
@@ -244,7 +244,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         # ----------------------------------------------------------
         (v_mode_change_ref_i, v_ref_ext_bwd_i, v_ref_ext_fwd_i, 
         v_Kfb_ref_ext_bwd_i, v_Kfb_ref_ext_fwd_i, 
-        v_kff_ref_ext_bwd_i, v_kff_ref_ext_fwd_i, _) = extract_extensions(reference_extension_helper, start_index = i_t) 
+        v_kff_ref_ext_bwd_i, v_kff_ref_ext_fwd_i, _) = extract_extensions(ref_ext_helper, start_index = i_t) 
         
         v_mode_change_ref_i_zero = [np.zeros_like(v_mode_change_ref_i[0])]
         v_ref_ext_bwd_i_zero = [np.zeros_like(v_ref_ext_bwd_i[0])]
@@ -491,7 +491,7 @@ def main(epsilon, n_samples, dt):
     (timespan,modes,states,inputs,
      k_feedforward,K_feedback,
      current_cost,states_iter,
-     ref_modechanges,reference_extension_helper, ref_reset_args) = hybrid_ilqr_result
+     ref_modechanges,ref_ext_helper, ref_reset_args) = hybrid_ilqr_result
     
     exp_data.add_nominal_data(hybrid_ilqr_result)
     exp_data.add_plotting_function(plot_bouncingball)

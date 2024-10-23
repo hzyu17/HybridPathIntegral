@@ -396,7 +396,7 @@ class hybrid_ilqr:
         
         # hybrid_event_info:
         sorted_hybrid_index = sorted(hybrid_event_info.keys())
-        reference_extension_helper = []
+        ref_ext_helper = []
         
         i_events = []
         t_events = []
@@ -541,13 +541,13 @@ class hybrid_ilqr:
             xtrj_ext_bwd_i = np.vstack((xtrj_ext_bwd_i, xtrj_ext_padding_bwd_i))
             
             # ------------------------ collect the trajectory extensions ------------------------
-            reference_extension_helper.append((np.array([current_mode_i, next_mode_i]), 
+            ref_ext_helper.append((np.array([current_mode_i, next_mode_i]), 
                                       {current_mode_i:xtrj_ext_fwd_i, next_mode_i:xtrj_ext_bwd_i}, 
                                       {current_mode_i:K_feedback_ext_fwd_i, next_mode_i:K_feedback_ext_bwd_i}, 
                                       {current_mode_i:k_feedforward_ext_fwd_i, next_mode_i:k_feedforward_ext_bwd_i}, 
                                       i_event_i))
             
-        return reference_extension_helper
+        return ref_ext_helper
     
     
     def solve(self):
@@ -720,12 +720,12 @@ class hybrid_ilqr:
             self._plot_states_func(self.time_span_, self._modes, self._states, self._inputs, 
                                     self._init_state, self._target_state, self._n_timesteps, self._reset_args)
             
-        reference_extension_helper = self.compute_trejactory_extension(hybrid_event_info)
+        ref_ext_helper = self.compute_trejactory_extension(hybrid_event_info)
 
         return (modes,states,inputs,
                 k_feedforward,K_feedback,
                 current_cost,states_iter,
-                modechanges,reference_extension_helper,reset_args)
+                modechanges,ref_ext_helper,reset_args)
 
 
 def solve_ilqr(params, detect=True, verbose=False):
@@ -785,10 +785,10 @@ def solve_ilqr(params, detect=True, verbose=False):
     
     (modes,states,inputs,k_feedforward,K_feedback,
      current_cost,states_iter,
-     modechanges,reference_extension_helper,reset_args) = ilqr_.solve()
+     modechanges,ref_ext_helper,reset_args) = ilqr_.solve()
         
     return (modes,states,inputs,
             k_feedforward,K_feedback,
             current_cost,states_iter,
-            modechanges,reference_extension_helper,reset_args)
+            modechanges,ref_ext_helper,reset_args)
         

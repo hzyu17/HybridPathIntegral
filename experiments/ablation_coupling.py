@@ -41,7 +41,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
     (time_span,modes,states,inputs,
      k_feedforward,K_feedback,
      current_cost,states_iter,
-     ref_modechanges,reference_extension_helper, ref_reset_args) = hybrid_ilqr_result
+     ref_modechanges,ref_ext_helper, ref_reset_args) = hybrid_ilqr_result
         
     show_ilqr_reference = False
     if show_ilqr_reference:
@@ -62,16 +62,18 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
     xt_trj_ilqr[0] = init_state
     (mode_trj_ilqr, xt_trj_ilqr, 
     ut_trj_ilqr, cost_ilqr, _, 
-    reset_args_ilqr) = hybrid_stochastic_feedback_rollout_discrete_slip(init_mode, init_state, 
-                                                                        n_inputs, 
-                                                                        states, modes, inputs, 
-                                                                        K_feedback, k_feedforward, 
-                                                                        target_state, Q_T,
-                                                                        start_time, dt, 
-                                                                        epsilon, RndN_actual, 
-                                                                        dt_shrink, 
-                                                                        reference_extension_helper,
-                                                                        init_reset_args)
+    reset_args_ilqr) = h_stoch_fb_rollout_slip(init_mode, init_state, 
+                                                n_inputs, 
+                                                states, modes, inputs, 
+                                                K_feedback, k_feedforward, 
+                                                target_state, Q_T,
+                                                start_time, dt, 
+                                                epsilon, RndN_actual, 
+                                                dt_shrink, 
+                                                ref_ext_helper,
+                                                init_reset_args)
+    
+    print("------------------- finished rollout under h-ilqr ---------------------")
 
     show_hilqr_noise_results = False
     if show_hilqr_noise_results:
@@ -158,15 +160,15 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
     # ---------------------------------
     #  Extract the extended references 
     # ---------------------------------
-    (v_mode_change_ref, v_ref_ext_bwd, v_ref_ext_fwd, 
-    v_Kfb_ref_ext_bwd, v_Kfb_ref_ext_fwd, 
-    v_kff_ref_ext_bwd, v_kff_ref_ext_fwd, v_tevent) = extract_extensions(reference_extension_helper, start_index = 0)
+    (v_mode_change_ref, v_ext_bwd, v_ext_fwd, 
+    v_Kfb_ext_bwd, v_Kfb_ext_fwd, 
+    v_kff_ext_bwd, v_kff_ext_fwd, v_tevent) = extract_extensions(ref_ext_helper, start_index = 0)
     
     # Add the references to the start of the backward extensions
     n_extensions = len(v_tevent)
     for i_ext in range(n_extensions):
         t_event_i = v_tevent[i_ext]
-        v_ref_ext_bwd[i_ext][t_event_i+1:] = states[t_event_i+1:]
+        v_ext_bwd[i_ext][t_event_i+1:] = states[t_event_i+1:]
     
     show_trj_extensions = False
     if show_trj_extensions:
@@ -178,16 +180,16 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         ax_ext_2.grid(True)
         ax_ext_3.grid(True)
         
-        ax_ext_1.plot(time_span, v_ref_ext_bwd[0][:, 0], color='r', label='Backward extension')
-        ax_ext_1.plot(time_span, v_ref_ext_fwd[0][:, 0], color='b', label='Forward extension')
+        ax_ext_1.plot(time_span, v_ext_bwd[0][:, 0], color='r', label='Backward extension')
+        ax_ext_1.plot(time_span, v_ext_fwd[0][:, 0], color='b', label='Forward extension')
         ax_ext_1.plot(time_span, states[:, 0], color='k')
         
-        ax_ext_2.plot(time_span, v_ref_ext_bwd[0][:, 1], color='r', label='Backward extension')
-        ax_ext_2.plot(time_span, v_ref_ext_fwd[0][:, 1], color='b', label='Forward extension')
+        ax_ext_2.plot(time_span, v_ext_bwd[0][:, 1], color='r', label='Backward extension')
+        ax_ext_2.plot(time_span, v_ext_fwd[0][:, 1], color='b', label='Forward extension')
         ax_ext_2.plot(time_span, states[:, 1], color='k')
         
-        ax_ext_3.plot(v_ref_ext_bwd[0][:, 0], v_ref_ext_bwd[0][:, 1], color='r', label='Backward extension')
-        ax_ext_3.plot(v_ref_ext_fwd[0][:, 0], v_ref_ext_fwd[0][:, 1], color='b', label='Forward extension')
+        ax_ext_3.plot(v_ext_bwd[0][:, 0], v_ext_bwd[0][:, 1], color='r', label='Backward extension')
+        ax_ext_3.plot(v_ext_fwd[0][:, 0], v_ext_fwd[0][:, 1], color='b', label='Forward extension')
         ax_ext_3.plot(states[:, 0], states[:, 1], color='k')
         
         ax_ext_1.legend()
@@ -249,11 +251,11 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         init_reset_args_i = np.array(ref_reset_args[i_t])
         
         # ----------------------------------------------------------
-        # Extract the extended references for the future horizon
+        #   Extract the extended references for the future horizon
         # ----------------------------------------------------------
         (v_mode_change_ref_i, v_ref_ext_bwd_i, v_ref_ext_fwd_i, 
         v_Kfb_ref_ext_bwd_i, v_Kfb_ref_ext_fwd_i, 
-        v_kff_ref_ext_bwd_i, v_kff_ref_ext_fwd_i, v_tevent_i) = extract_extensions(reference_extension_helper, 
+        v_kff_ref_ext_bwd_i, v_kff_ref_ext_fwd_i, v_tevent_i) = extract_extensions(ref_ext_helper, 
                                                                                     start_index = i_t, 
                                                                                     padding=True) 
         
@@ -324,7 +326,6 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
                                                                     v_Kfb_ref_ext_fwd_i, v_kff_ref_ext_fwd_i, 
                                                                     v_Kfb_ref_ext_bwd_i, v_kff_ref_ext_bwd_i, 
                                                                     init_reset_args_i)
-         
         
         # ----------------------------------- 
         
@@ -348,10 +349,10 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
              K_fb_actual, 
              k_ff_actual, 
              cnt_mismatch) = reaction_mode_mismatch(i_t, current_mode_actual, ref_current_mode, 
-                                                    v_ref_ext_fwd[0], v_ref_ext_bwd[0], 
+                                                    v_ext_fwd[0], v_ext_bwd[0], 
                                                     v_mode_change_ref[0], 
-                                                    v_Kfb_ref_ext_fwd[0], v_kff_ref_ext_fwd[0], 
-                                                    v_Kfb_ref_ext_bwd[0], v_kff_ref_ext_bwd[0], 
+                                                    v_Kfb_ext_fwd[0], v_kff_ext_fwd[0], 
+                                                    v_Kfb_ext_bwd[0], v_kff_ext_bwd[0], 
                                                     cnt_mismatch, 
                                                     cond_early_arrival=cond_early_arrival_slip)
         
@@ -413,11 +414,12 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
             time_span_i = np.arange(start_time_i, end_time, dt).flatten()
             
             fig, axes = plot_sample_trajectory_slip(cost_tail_index, nt_i, time_span_i, 
-                                                    Kmodes_jax_i_coupled, Ksamples_jax_i_coupled, Ksamples_ut, Ksamples_reset_args, 
+                                                    Kmodes_jax_i_coupled, Ksamples_jax_i_coupled, 
+                                                    Ksamples_ut, Ksamples_reset_args, 
                                                     mode_trj_ilqr, xt_trj_ilqr, ut_trj_ilqr, reset_args_ilqr,
                                                     modes, states, inputs, ref_reset_args,
                                                     init_state, target_state)
-                
+            
             plt.tight_layout()
             plt.show()
             
@@ -453,10 +455,10 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
          xt_next, 
          next_mode_actual, 
          _, 
-         new_reset_arg) = h_stoch_integ_slip_padding(xt, current_mode_actual,
-                                                                    u0_star_jax, actual_noise_i_pad, 
-                                                                    epsilon, dt, dt_shrink, start_time_i, 
-                                                                    reset_args_actual[i_t])
+         new_reset_arg) = h_stoch_integr_slip_padding(xt, current_mode_actual,
+                                                    u0_star_jax, actual_noise_i_pad, 
+                                                    epsilon, dt, dt_shrink, start_time_i, 
+                                                    reset_args_actual[i_t])
 
         next_mode_actual = int(next_mode_actual)
         # current_modechange = np.array([current_mode_actual, next_mode_actual])
@@ -564,7 +566,8 @@ def main(epsilon, n_samples, dt):
     
     exp_params.update_params(n_modes, init_mode, target_mode, n_states, 
                              init_state, target_state, 
-                             start_time, end_time, dt, dt_shrink,
+                             start_time, end_time, 
+                             dt, dt_shrink,
                              initial_guess, 
                              epsilon, n_exp, n_samples, 
                              Q_k, R_k, Q_T, smooth_dynamics, 
@@ -578,7 +581,7 @@ def main(epsilon, n_samples, dt):
     
     (timespan,modes,states,inputs,
      k_feedforward,K_feedback,current_cost,states_iter,
-     ref_modechanges,reference_extension_helper, ref_reset_args) = hybrid_ilqr_result
+     ref_modechanges,ref_ext_helper, ref_reset_args) = hybrid_ilqr_result
     
     exp_data.add_nominal_data(hybrid_ilqr_result)
     exp_data.add_plotting_function(plot_slip)
@@ -632,7 +635,7 @@ import argparse
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="The epsilon parameter.")
     parser.add_argument("--epsilon", type=float, default=0.001, help="The process noise intensity value, epsilon.")
-    parser.add_argument("--nsamples", type=int, default=10, help="The number of samples used in path integral control.")
+    parser.add_argument("--nsamples", type=int, default=50, help="The number of samples used in path integral control.")
     parser.add_argument("--dt", type=int, default=0.001, help="The time discretization.")
     
     args = parser.parse_args()

@@ -14,11 +14,11 @@ import numpy as np
 
 
 # Helper function to handle reference trajectory extensions
-def extract_extensions(reference_extension_helper, start_index=0, padding=False):
+def extract_extensions(ref_ext_helper, start_index=0, padding=False):
     # ---------------------------------------------------
     #           Extract the extended references 
     # ---------------------------------------------------
-    num_events = len(reference_extension_helper)
+    num_events = len(ref_ext_helper)
     
     if num_events == 0: # reference has no hybrid events
         return None, None, None, None, None, None, None, None
@@ -34,11 +34,11 @@ def extract_extensions(reference_extension_helper, start_index=0, padding=False)
     
     for i_event in range(num_events):
         # find out the mode changes
-        MC_i = reference_extension_helper[i_event]["Mode Change"]
-        Ext_Trjs_i = reference_extension_helper[i_event]["Trajectory Extensions"]
-        Ext_Kfb_i = reference_extension_helper[i_event]["Feedback gains"]
-        Ext_kff_i = reference_extension_helper[i_event]["Feedforward gains"]
-        tevent_i = reference_extension_helper[i_event]["event index"]
+        MC_i = ref_ext_helper[i_event]["Mode Change"]
+        Ext_Trjs_i = ref_ext_helper[i_event]["Trajectory Extensions"]
+        Ext_Kfb_i = ref_ext_helper[i_event]["Feedback gains"]
+        Ext_kff_i = ref_ext_helper[i_event]["Feedforward gains"]
+        tevent_i = ref_ext_helper[i_event]["event index"]
         
         cur_mode_i = MC_i[0]
         next_mode_i = MC_i[1]

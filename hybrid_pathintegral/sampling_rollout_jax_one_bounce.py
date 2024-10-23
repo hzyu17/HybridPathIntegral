@@ -31,13 +31,13 @@ terminal_cost_jit = jax.jit(terminal_cost_jax)
 def h_stoch_integr_euler_JAX(xt, current_mode, ut, 
                                             randN, eps, 
                                             dt, dt_shrink, t0, reset_arg, 
-                                            stochastic_integration_euler_func=None,
+                                            stoch_integr_func=None,
                                             guard_func=None,
                                             guard_true_func=None,
                                             guard_false_func=None):
     
     dW = jnp.sqrt(dt)*randN
-    xt_next = stochastic_integration_euler_func(current_mode, xt, ut, dt, eps, dW)
+    xt_next = stoch_integr_func(current_mode, xt, ut, dt, eps, dW)
     
     # ------------
     # change mode
@@ -164,8 +164,8 @@ def feedback_cost_jax(carry, inputs, eps,
                       dt, dt_shrink, 
                       v_ext_ref_mode_change, 
                       v_ext_trj_fwd, v_ext_trj_bwd,
-                      v_Kfb_ref_ext_fwd, v_kff_ref_ext_fwd,
-                      v_Kfb_ref_ext_bwd, v_kff_ref_ext_bwd,
+                      v_Kfb_ext_fwd, v_kff_ext_fwd,
+                      v_Kfb_ext_bwd, v_kff_ext_bwd,
                       cost_i_func):
     
     current_t, xt, current_mode, St, indx, reset_arg = carry
@@ -197,10 +197,10 @@ def feedback_cost_jax(carry, inputs, eps,
     ext_ref_mode_change = v_ext_ref_mode_change[0]
     ext_trj_fwd = v_ext_trj_fwd[0]
     ext_trj_bwd = v_ext_trj_bwd[0]
-    Kfb_ref_ext_fwd = v_Kfb_ref_ext_fwd[0]
-    kff_ref_ext_fwd = v_kff_ref_ext_fwd[0]
-    Kfb_ref_ext_bwd = v_Kfb_ref_ext_bwd[0]
-    kff_ref_ext_bwd = v_kff_ref_ext_bwd[0]
+    Kfb_ref_ext_fwd = v_Kfb_ext_fwd[0]
+    kff_ref_ext_fwd = v_kff_ext_fwd[0]
+    Kfb_ref_ext_bwd = v_Kfb_ext_bwd[0]
+    kff_ref_ext_bwd = v_kff_ext_bwd[0]
     
     is_ModeMismatched = (current_mode != current_mode_ref)    
     args_ModeMismatch = (current_mode, 

@@ -543,12 +543,12 @@ class hybrid_ilqr:
         hybrid_event_info = self._hybrid_event_info
         reset_args = self._reset_args
         
-        reference_extension_helper = self.compute_trejactory_extension(timespan, states, hybrid_event_info)
+        ref_ext_helper = self.compute_trejactory_extension(timespan, states, hybrid_event_info)
 
         return (timespan,modes,states,inputs,
                 k_feedforward,K_feedback,
                 current_cost,states_iter,
-                modechanges,reference_extension_helper,reset_args)
+                modechanges,ref_ext_helper,reset_args)
         
     
     def compute_trejactory_extension(self, timespan, states, hybrid_event_info):
@@ -558,7 +558,7 @@ class hybrid_ilqr:
         
         # hybrid_event_info:
         sorted_hybrid_index = sorted(hybrid_event_info.keys())
-        reference_extension_helper = []
+        ref_ext_helper = []
         
         i_events = []
         t_events = []
@@ -715,7 +715,7 @@ class hybrid_ilqr:
             xtrj_ext_bwd_i = np.vstack((xtrj_ext_bwd_i, xtrj_ext_padding_bwd_i))
             
             # ------------------------ collect the trajectory extensions ------------------------
-            reference_extension_helper.append({"Mode Change": np.array([current_mode_i, next_mode_i]), 
+            ref_ext_helper.append({"Mode Change": np.array([current_mode_i, next_mode_i]), 
                                               "Trajectory Extensions": {current_mode_i:xtrj_ext_fwd_i, next_mode_i:xtrj_ext_bwd_i}, 
                                               "Feedback gains": {current_mode_i:K_feedback_ext_fwd_i, next_mode_i:K_feedback_ext_bwd_i}, 
                                               "Feedforward gains": {current_mode_i:k_feedforward_ext_fwd_i, next_mode_i:k_feedforward_ext_bwd_i}, 
@@ -736,7 +736,7 @@ class hybrid_ilqr:
         
         # plt.show()
         
-        return reference_extension_helper
+        return ref_ext_helper
 
 
 def solve_ilqr(params, detect=True, verbose=True):

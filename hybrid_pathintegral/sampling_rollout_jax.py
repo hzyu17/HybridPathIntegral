@@ -33,10 +33,10 @@ def h_stoch_integr_euler_JAX(xt, current_mode, ut,
                             dt, dt_shrink, 
                             t0, reset_arg, 
                             stoch_integr_func=None,
-                            guard_func_0=None,
+                            guard_0=None,
                             guard_true_func_0=None,
                             guard_false_func_0=None,
-                            guard_func_1=None,
+                            guard_1=None,
                             guard_true_func_1=None,
                             guard_false_func_1=None):
 
@@ -50,7 +50,7 @@ def h_stoch_integr_euler_JAX(xt, current_mode, ut,
     
     def guard_reset_mode0(args_cond_mode):
         (xt, xt_next, current_mode) = args_cond_mode
-        guard_hit = guard_func_0(xt, xt_next, current_mode)
+        guard_hit = guard_0(xt, xt_next, current_mode)
         
         args_guard = (xt, current_mode, ut, t0, xt_next, dt, dt_shrink, randN, eps, reset_arg)
         t_next, _, xt_next, next_mode, dW_new, new_reset_arg = jax.lax.cond(guard_hit, guard_true_func_0, guard_false_func_0, args_guard)
@@ -58,7 +58,7 @@ def h_stoch_integr_euler_JAX(xt, current_mode, ut,
     
     def guard_reset_mode1(args_cond_mode):
         (xt, xt_next, current_mode) = args_cond_mode
-        guard_hit = guard_func_1(xt, xt_next, current_mode)
+        guard_hit = guard_1(xt, xt_next, current_mode)
         
         args_guard = (xt, current_mode, ut, t0, xt_next, dt, dt_shrink, randN, eps, reset_arg)
         t_next, _, xt_next, next_mode, dW_new, new_reset_arg = jax.lax.cond(guard_hit, guard_true_func_1, guard_false_func_1, args_guard)
@@ -68,6 +68,8 @@ def h_stoch_integr_euler_JAX(xt, current_mode, ut,
     args_cond_mode0 = (xt, xt_next, current_mode)
     
     (t_next, xt_next, next_mode, dW_new, new_reset_arg) = jax.lax.cond(cond_mode_0, guard_reset_mode0, guard_reset_mode1, args_cond_mode0)
+    
+    print("------------------ finished one-step hybrid integration ---------------------")
         
     return t_next, xt_next, next_mode, dW_new, new_reset_arg
 
@@ -178,6 +180,8 @@ def cost_i(xt, current_mode, cur_St,
     # Collect cost: consider only the terminal state cost for now.
     cur_St += jnp.array([jnp.dot(ut.T, ut)/2.0 * dt + jnp.sqrt(eps) * jnp.dot(ut.T, dW)])[0]
     
+    print("------------------- cost_i collected -------------------")
+    
     return t_next, xt_next, next_mode, ut, cur_St, new_reset_arg
 
 # @jax.jit
@@ -185,8 +189,8 @@ def feedback_cost_jax(carry, inputs, eps,
                       dt, dt_shrink, 
                       v_ext_ref_mode_change, 
                       v_ext_trj_fwd, v_ext_trj_bwd,
-                      v_Kfb_ref_ext_fwd, v_kff_ref_ext_fwd,
-                      v_Kfb_ref_ext_bwd, v_kff_ref_ext_bwd,
+                      v_Kfb_ext_fwd, v_kff_ext_fwd,
+                      v_Kfb_ext_bwd, v_kff_ext_bwd,
                       cost_i_func):
     
     current_t, xt, current_mode, St, indx, reset_arg = carry
@@ -218,10 +222,10 @@ def feedback_cost_jax(carry, inputs, eps,
     ext_ref_mode_change = v_ext_ref_mode_change[0]
     ext_trj_fwd = v_ext_trj_fwd[0]
     ext_trj_bwd = v_ext_trj_bwd[0]
-    Kfb_ref_ext_fwd = v_Kfb_ref_ext_fwd[0]
-    kff_ref_ext_fwd = v_kff_ref_ext_fwd[0]
-    Kfb_ref_ext_bwd = v_Kfb_ref_ext_bwd[0]
-    kff_ref_ext_bwd = v_kff_ref_ext_bwd[0]
+    Kfb_ref_ext_fwd = v_Kfb_ext_fwd[0]
+    kff_ref_ext_fwd = v_kff_ext_fwd[0]
+    Kfb_ref_ext_bwd = v_Kfb_ext_bwd[0]
+    kff_ref_ext_bwd = v_kff_ext_bwd[0]
     
     is_ModeMismatched = (current_mode != current_mode_ref)    
     args_ModeMismatch = (current_mode, 
@@ -237,6 +241,8 @@ def feedback_cost_jax(carry, inputs, eps,
     t_next, xt_next, next_mode, ut, St_next, new_reset_arg = cost_i_func(xt, current_mode, St, xref_mode, u_mode, 
                                                                         K_mode, k_mode, randN_mode, 
                                                                         eps, dt, dt_shrink, current_t, reset_arg)
+    
+    print("------------- outside cost_i func finished -------------")
     indx_next = indx + 1
     
     return (t_next, xt_next, next_mode, St_next, indx_next, new_reset_arg), (t_next, current_mode, xt, St, ut, xref_mode, K_mode, k_mode, new_reset_arg) 

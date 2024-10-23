@@ -12,12 +12,12 @@ from functools import partial
 
 h_stoch_integr_slip_padding = partial(h_stoch_integr_euler_JAX, 
                                     stoch_integr_func = stoch_integr_euler_SLIP_padding, 
-                                    guard_func_0=guard_cond_slip_12,
-                                    guard_true_func_0=guard_true_func_slip_12_padding,
-                                    guard_false_func_0=guard_false_func_slip_12,
-                                    guard_func_1=guard_cond_slip_21,
-                                    guard_true_func_1=guard_true_func_slip_21_padding,
-                                    guard_false_func_1=guard_false_func_slip_21)
+                                    guard_0=guard_cond_slip_12,
+                                    guard_true_func_0=guard_true_slip_12_padding,
+                                    guard_false_func_0=guard_false_slip_12,
+                                    guard_1=guard_cond_slip_21,
+                                    guard_true_func_1=guard_true_slip_21_padding,
+                                    guard_false_func_1=guard_false_slip_21)
 
 cost_i_slip = partial(cost_i, h_stoch_integr_func=h_stoch_integr_slip_padding)
 feedback_cost_slip_jax = partial(feedback_cost_jax, cost_i_func=cost_i_slip)
@@ -50,8 +50,8 @@ def sample_slip_jax(i_exp, n_samples,
                     noise_mode1,
                     v_ext_trj_mode_change, 
                     v_ext_trj_fwd, v_ext_trj_bwd, 
-                    v_Kfb_ref_ext_fwd, v_kff_ref_ext_fwd,
-                    v_Kfb_ref_ext_bwd, v_kff_ref_ext_bwd,
+                    v_Kfb_ext_fwd, v_kff_ext_fwd,
+                    v_Kfb_ext_bwd, v_kff_ext_bwd,
                     init_reset_args):
     
     # -----------------------------
@@ -149,11 +149,11 @@ def sample_slip_jax(i_exp, n_samples,
                                         dt_shrink=dt_shr, 
                                         v_ext_ref_mode_change=v_ext_trj_mode_change, 
                                         v_ext_trj_fwd=v_ext_trj_fwd, 
+                                        v_Kfb_ext_fwd=v_Kfb_ext_fwd, 
+                                        v_kff_ext_fwd=v_kff_ext_fwd,
                                         v_ext_trj_bwd=v_ext_trj_bwd,
-                                        v_Kfb_ref_ext_fwd=v_Kfb_ref_ext_fwd, 
-                                        v_kff_ref_ext_fwd=v_kff_ref_ext_fwd,
-                                        v_Kfb_ref_ext_bwd=v_Kfb_ref_ext_bwd, 
-                                        v_kff_ref_ext_bwd=v_kff_ref_ext_bwd)
+                                        v_Kfb_ext_bwd=v_Kfb_ext_bwd, 
+                                        v_kff_ext_bwd=v_kff_ext_bwd)
         
         # --------------------
         #    Update one row
@@ -173,6 +173,8 @@ def sample_slip_jax(i_exp, n_samples,
         # ------------------------
         v_sample_results = feedbackcost_vmap(v_initial_carry, v_inputs)
         
+        print("-------------------- Sampling results got --------------------")
+        
         # Terminal costs
         args_terminal_cost = (x_target, Q_T)
         terminal_cost_xQrx_vmap = jax.vmap(partial(quadratic_terminal_cost_jit, args=args_terminal_cost), in_axes=0)
@@ -183,13 +185,16 @@ def sample_slip_jax(i_exp, n_samples,
         (Ksamples_ts, Ksample_modes_jax, Ksamples_jax, 
          PathCosts_jax, 
          Ksamples_ut, 
-         actual_ref_jax, Ksamples_Kfb_mode, Ksamples_kff_mode, Ksamples_reset_args) = v_sample_results
+         actual_ref_jax, Ksamples_Kfb_mode, 
+         Ksamples_kff_mode, Ksamples_reset_args) = v_sample_results
         
         # ------------ Terminal cost ------------
         xT_samples = Ksamples_jax[:,-1,:]
         v_S_xT = terminal_cost_xQrx_vmap(xT_samples)
         PathCosts_jax = PathCosts_jax[:, -1].flatten()
         PathCosts_jax = PathCosts_jax + v_S_xT
+        
+        print("-------------------- Terminal cost collected --------------------")
     
     return Ksamples_ts, Ksample_modes_jax, Ksamples_jax, PathCosts_jax, Ksamples_ut, actual_ref_jax, Ksamples_Kfb_mode, Ksamples_kff_mode, Ksamples_reset_args
     

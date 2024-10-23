@@ -299,11 +299,11 @@ reset_maps_slip = {0:reset_map_slip_12, 1:reset_map_slip_21}
 def hybrid_stochastic_feedback_rollout_slip(init_mode, x0, n_inputs, xt_ref, ref_modes, 
                                             ut, Kt, kt, target_state, Q_T, t0, tf, 
                                             epsilon, GaussianNoise, dt_shrinkingrate, 
-                                            reference_extension_helper, init_reset_args):
+                                            ref_ext_helper, init_reset_args):
 
-    (v_event_modechange, v_ref_ext_bwd, v_ref_ext_fwd, 
-    v_Kfb_ref_ext_bwd, v_Kfb_ref_ext_fwd, 
-    v_kff_ref_ext_bwd, v_kff_ref_ext_fwd, _) = extract_extensions(reference_extension_helper, start_index = 0)
+    (v_event_modechange, v_ext_bwd, v_ext_fwd, 
+    v_Kfb_ext_bwd, v_Kfb_ext_fwd, 
+    v_kff_ext_bwd, v_kff_ext_fwd, _) = extract_extensions(ref_ext_helper, start_index = 0)
     
     n_timestamps = len(xt_ref)
     
@@ -353,10 +353,10 @@ def hybrid_stochastic_feedback_rollout_slip(init_mode, x0, n_inputs, xt_ref, ref
         if cond_mode_mismatch_slip(current_mode, ref_current_mode):
             xref_i, K_fb_i, k_ff_i, cnt_mismatch = reaction_mode_mismatch(cond_early_arrival_slip, ii_t, 
                                                                           current_mode, ref_current_mode, 
-                                                                            v_ref_ext_fwd[0], v_ref_ext_bwd[0], 
+                                                                            v_ext_fwd[0], v_ext_bwd[0], 
                                                                             v_event_modechange[0],
-                                                                            v_Kfb_ref_ext_fwd[0], v_kff_ref_ext_fwd[0],
-                                                                            v_Kfb_ref_ext_bwd[0], v_kff_ref_ext_bwd[0],
+                                                                            v_Kfb_ext_fwd[0], v_kff_ext_fwd[0],
+                                                                            v_Kfb_ext_bwd[0], v_kff_ext_bwd[0],
                                                                             cnt_mismatch)
         
         xt_ref_actual[ii_t] = xref_i

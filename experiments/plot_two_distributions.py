@@ -39,7 +39,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
     (_,modes,states,inputs,
         k_feedforward,K_feedback,
         _,_,
-        ref_modechanges,reference_extension_helper, ref_reset_args) = hybrid_ilqr_result
+        ref_modechanges,ref_ext_helper, ref_reset_args) = hybrid_ilqr_result
 
     RndN_actual = [np.random.randn(nt, 1), np.random.randn(nt, 1)]
 
@@ -63,7 +63,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
                                                                             target_state, Q_T,
                                                                             start_time, dt, 
                                                                             epsilon, RndN_actual, dt_shrinkingrate, 
-                                                                            reference_extension_helper,
+                                                                            ref_ext_helper,
                                                                             init_reset_args)
 
     show_hilqr_results = False
@@ -141,9 +141,9 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
     # ---------------------------------
     #  Extract the extended references 
     # ---------------------------------
-    (v_mode_change_ref, v_ref_ext_bwd, v_ref_ext_fwd, 
-    v_Kfb_ref_ext_bwd, v_Kfb_ref_ext_fwd, 
-    v_kff_ref_ext_bwd, v_kff_ref_ext_fwd, _) = extract_extensions(reference_extension_helper, start_index = 0)
+    (v_mode_change_ref, v_ext_bwd, v_ext_fwd, 
+    v_Kfb_ext_bwd, v_Kfb_ext_fwd, 
+    v_kff_ext_bwd, v_kff_ext_fwd, _) = extract_extensions(ref_ext_helper, start_index = 0)
 
 
     show_trj_extensions = False
@@ -157,16 +157,16 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         ax_ext_2.grid(True)
         ax_ext_3.grid(True)
         
-        ax_ext_1.plot(time_span, v_ref_ext_bwd[0][:-1, 0], color='r', label='Backward extension')
-        ax_ext_1.plot(time_span, v_ref_ext_fwd[0][:-1, 0], color='b', label='Forward extension')
+        ax_ext_1.plot(time_span, v_ext_bwd[0][:-1, 0], color='r', label='Backward extension')
+        ax_ext_1.plot(time_span, v_ext_fwd[0][:-1, 0], color='b', label='Forward extension')
         ax_ext_1.plot(time_span, states[:, 0], color='k')
         
-        ax_ext_2.plot(time_span, v_ref_ext_bwd[0][:-1, 1], color='r', label='Backward extension')
-        ax_ext_2.plot(time_span, v_ref_ext_fwd[0][:-1, 1], color='b', label='Forward extension')
+        ax_ext_2.plot(time_span, v_ext_bwd[0][:-1, 1], color='r', label='Backward extension')
+        ax_ext_2.plot(time_span, v_ext_fwd[0][:-1, 1], color='b', label='Forward extension')
         ax_ext_2.plot(time_span, states[:, 1], color='k')
         
-        ax_ext_3.plot(v_ref_ext_bwd[0][:, 0], v_ref_ext_bwd[0][:, 1], color='r', label='Backward extension')
-        ax_ext_3.plot(v_ref_ext_fwd[0][:, 0], v_ref_ext_fwd[0][:, 1], color='b', label='Forward extension')
+        ax_ext_3.plot(v_ext_bwd[0][:, 0], v_ext_bwd[0][:, 1], color='r', label='Backward extension')
+        ax_ext_3.plot(v_ext_fwd[0][:, 0], v_ext_fwd[0][:, 1], color='b', label='Forward extension')
         ax_ext_3.plot(states[:, 0], states[:, 1], color='k')
         
         ax_ext_1.legend()
@@ -247,7 +247,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         # ----------------------------------------------------------
         (v_mode_change_ref_i, v_ref_ext_bwd_i, v_ref_ext_fwd_i, 
         v_Kfb_ref_ext_bwd_i, v_Kfb_ref_ext_fwd_i, 
-        v_kff_ref_ext_bwd_i, v_kff_ref_ext_fwd_i, _) = extract_extensions(reference_extension_helper, start_index = i_t) 
+        v_kff_ref_ext_bwd_i, v_kff_ref_ext_fwd_i, _) = extract_extensions(ref_ext_helper, start_index = i_t) 
         
         # ====================
         # Sampling using jax 
@@ -325,10 +325,10 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
             print("--------------- mode mismatch happened ---------------")
             xref_i, K_fb, k_ff, cnt_mismatch = reaction_mode_mismatch(i_t, 
                                                                         current_mode_actual, ref_current_mode, 
-                                                                        v_ref_ext_fwd[0], v_ref_ext_bwd[0], 
+                                                                        v_ext_fwd[0], v_ext_bwd[0], 
                                                                         v_mode_change_ref[0],
-                                                                        v_Kfb_ref_ext_fwd[0], v_kff_ref_ext_fwd[0], 
-                                                                        v_Kfb_ref_ext_bwd[0], v_kff_ref_ext_bwd[0], 
+                                                                        v_Kfb_ext_fwd[0], v_kff_ext_fwd[0], 
+                                                                        v_Kfb_ext_bwd[0], v_kff_ext_bwd[0], 
                                                                         cnt_mismatch,
                                                                         cond_early_arrival=cond_early_arrival_bouncing)
         
@@ -547,7 +547,7 @@ if __name__ == '__main__':
     (timespan,modes,states,inputs,
      k_feedforward,K_feedback,
      current_cost,states_iter,
-     ref_modechanges,reference_extension_helper, ref_reset_args) = hybrid_ilqr_result
+     ref_modechanges,ref_ext_helper, ref_reset_args) = hybrid_ilqr_result
     
     
     exp_data.add_nominal_data(hybrid_ilqr_result)

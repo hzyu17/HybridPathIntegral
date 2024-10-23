@@ -83,7 +83,7 @@ if __name__=='__main__':
     (timespan,modes,states,inputs,
      k_feedforward,K_feedback,
      current_cost,states_iter,
-     ref_modechanges,reference_extension_helper, ref_reset_args) = hybrid_ilqr_result
+     ref_modechanges,ref_ext_helper, ref_reset_args) = hybrid_ilqr_result
     
     show_hilqr_results = True
     if show_hilqr_results:
@@ -95,7 +95,7 @@ if __name__=='__main__':
 
     (v_mode_change_ref, v_ext_trj_bwd_ref, v_ext_trj_fwd_ref, 
              v_Kfb_ext_trj_bwd_ref, v_Kfb_ext_trj_fwd_ref, 
-             v_kff_ext_trj_bwd_ref, v_kff_ext_trj_fwd_ref, v_tevents_ref) = extract_extensions(reference_extension_helper)
+             v_kff_ext_trj_bwd_ref, v_kff_ext_trj_fwd_ref, v_tevents_ref) = extract_extensions(ref_ext_helper)
     
     print("v_tevents_ref: ", v_tevents_ref)
 

@@ -104,7 +104,7 @@ def stoch_integr_euler_SLIP_padding(mode, x0, u, dt, eps, dW):
 def guard_cond_slip_12(xt, xt_next, current_mode):
     return jnp.logical_and(current_mode==0, jnp.logical_and(guard_slip_12(0.0,xt)<0, guard_slip_12(0.0,xt_next)>0))
 
-def guard_true_func_slip_12_padding(args):
+def guard_true_slip_12_padding(args):
     (xt_current, current_mode, u, t, xt_next, dt_int, _, RandN, eps, reset_arg) = args
     
     # -----------------
@@ -185,7 +185,7 @@ def guard_true_func_slip_12_padding(args):
     return t_left, x_left, xt_next, next_mode, dW_new, new_reset_arg
 
 
-def guard_false_func_slip_12(args):
+def guard_false_slip_12(args):
     # (xt_current, current_mode, u, t, xt_next, dt_int, dt_shrinkrate, RandN, eps, reset_arg) = args
     (xt_current, current_mode, _, t, xt_next, dt_int, _, RandN, _, reset_arg) = args
     dW = jnp.sqrt(dt_int)*RandN
@@ -199,7 +199,7 @@ def guard_false_func_slip_12(args):
 def guard_cond_slip_21(xt, xt_next, current_mode):
     return jnp.logical_and(current_mode==1, jnp.logical_and(guard_slip_21(0.0,xt)<=0, guard_slip_21(0.0,xt_next)>0))
 
-def guard_true_func_slip_21_padding(args):
+def guard_true_slip_21_padding(args):
     (xt_current, current_mode, u, t, xt_next, dt_int, _, RandN, eps, reset_arg) = args
     
     # -----------------
@@ -285,7 +285,7 @@ def guard_true_func_slip_21_padding(args):
     return t_left, x_left, xt_next, next_mode, dW_new, new_reset_arg
 
 
-def guard_false_func_slip_21(args):
+def guard_false_slip_21(args):
     # (xt_current, current_mode, u, t, xt_next, dt_int, _, RandN, eps, reset_arg) = args
     (xt_current, current_mode, _, t, xt_next, dt_int, _, RandN, _, reset_arg) = args
     dW = jnp.sqrt(dt_int)*RandN

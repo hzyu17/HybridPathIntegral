@@ -38,7 +38,7 @@ if __name__ == '__main__':
     (timespan,modes,states,inputs, 
         k_feedforward, K_feedback, current_cost, 
         states_iter, ref_modechanges,
-        reference_extension_helper, ref_reset_args) = exp_data.get_nominal_data()
+        ref_ext_helper, ref_reset_args) = exp_data.get_nominal_data()
     
         
     plotting_function = exp_data.get_plotting_function()

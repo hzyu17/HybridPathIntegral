@@ -5,7 +5,7 @@ from functools import partial
 from functools import partial
 
 hybrid_stochastic_integration_bouncing_JAX = partial(h_stoch_integr_euler_JAX, 
-                                                    stochastic_integration_euler_func = stochastic_integration_euler_bouncing_JAX, 
+                                                    stoch_integr_func = stochastic_integration_euler_bouncing_JAX, 
                                                     guard_func = guard_bouncing_12_JAX, 
                                                     guard_true_func = guard_true_bouncing_12_JAX, 
                                                     guard_false_func = guard_false_bouncing_12_JAX)
@@ -41,8 +41,8 @@ def sample_bouncing_jax(n_samples, x0, current_mode,
                         noise_mode1, 
                         v_ext_trj_mode_change, 
                         v_ext_trj_fwd, v_ext_trj_bwd, 
-                        v_Kfb_ref_ext_fwd, v_kff_ref_ext_fwd,
-                        v_Kfb_ref_ext_bwd, v_kff_ref_ext_bwd,
+                        v_Kfb_ext_fwd, v_kff_ext_fwd,
+                        v_Kfb_ext_bwd, v_kff_ext_bwd,
                         init_reset_args):
     
     # -----------------------------
@@ -128,10 +128,10 @@ def sample_bouncing_jax(n_samples, x0, current_mode,
                                      v_ext_ref_mode_change=v_ext_trj_mode_change, 
                                      v_ext_trj_fwd=v_ext_trj_fwd, 
                                      v_ext_trj_bwd=v_ext_trj_bwd,
-                                     v_Kfb_ref_ext_fwd=v_Kfb_ref_ext_fwd, 
-                                     v_kff_ref_ext_fwd=v_kff_ref_ext_fwd,
-                                     v_Kfb_ref_ext_bwd=v_Kfb_ref_ext_bwd, 
-                                     v_kff_ref_ext_bwd=v_kff_ref_ext_bwd)
+                                     v_Kfb_ext_fwd=v_Kfb_ext_fwd, 
+                                     v_kff_ext_fwd=v_kff_ext_fwd,
+                                     v_Kfb_ext_bwd=v_Kfb_ext_bwd, 
+                                     v_kff_ext_bwd=v_kff_ext_bwd)
     
     # carry = (v_xt, v_current_mode, v_St, v_index)
     # inputs = (uref_mode0, uref_mode1, Kfb, kff, randN_mode0, randN_mode1, xref, ref_modes, reset_args)

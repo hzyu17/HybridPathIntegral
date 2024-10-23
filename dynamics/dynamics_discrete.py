@@ -1,28 +1,26 @@
-import jax
-import jax.numpy as jnp
 import numpy as np
 from dynamics.dynamics import extract_extensions
 from dynamics.saltation_matrix import saltation_matrix
 
 
-def hybrid_stochastic_integration_euler(xt, current_mode, ut, 
-                                        randN, eps, 
-                                        dt, dt_shrink, t0, reset_arg, 
-                                        stochastic_integration_euler_func=None,
-                                        guard_func_0=None,
-                                        guard_true_func_0=None,
-                                        guard_false_func_0=None,
-                                        guard_func_1=None,
-                                        guard_true_func_1=None,
-                                        guard_false_func_1=None):
+def h_stoch_integr(xt, current_mode, ut, 
+                    randN, eps, 
+                    dt, dt_shrink, t0, reset_arg, 
+                    stoch_integr_func=None,
+                    guard_0=None,
+                    guard_true_func_0=None,
+                    guard_false_func_0=None,
+                    guard_1=None,
+                    guard_true_func_1=None,
+                    guard_false_func_1=None):
     dW = np.sqrt(dt) * randN
     
-    xt_next = stochastic_integration_euler_func(current_mode, xt, ut, dt, eps, dW)
+    xt_next = stoch_integr_func(current_mode, xt, ut, dt, eps, dW)
     
     args_guard = (xt, current_mode, ut, t0, xt_next, dt, dt_shrink, randN, eps, reset_arg)
     
     if (current_mode==0):
-        guard_hit = guard_func_0(xt, xt_next, current_mode)
+        guard_hit = guard_0(xt, xt_next, current_mode)
     
         if guard_hit:
             xt_next, next_mode, dW, new_reset_arg = guard_true_func_0(args_guard)
@@ -30,7 +28,7 @@ def hybrid_stochastic_integration_euler(xt, current_mode, ut,
             xt_next, next_mode, dW, new_reset_arg = guard_false_func_0(args_guard)
             
     elif (current_mode==1):
-        guard_hit = guard_func_1(xt, xt_next, current_mode)
+        guard_hit = guard_1(xt, xt_next, current_mode)
     
         if guard_hit:
             xt_next, next_mode, dW, new_reset_arg = guard_true_func_1(args_guard)
@@ -51,7 +49,6 @@ def guard_true_func_deterministic(args):
     t_left = t
     x_left = xt_current
     t_right = t+dt_int
-    x_right = xt_next
     
     while (t_right - t_left) / 2.0 > tol:
         t_mid = (t_left + t_right) / 2.0
@@ -69,22 +66,10 @@ def guard_true_func_deterministic(args):
         else:
             t_left = t_mid  # The root is in the right half
             x_left = x_mid
-            
-    # print(f"guard left: {guard(t, xt_current)}, t_right: {guard(t+dt_int, xt_next)}, midpoint: {guard(t_mid, x_mid)}")  # Debug statement
-    
-    # t_event = (t_left + t_right) / 2.0
-    # x_event = (x_left + x_right) / 2.0
     
     t_event =  t_left
     x_event = x_left
-    # dt_final = t_event - t_left
     x_reset, next_mode, new_reset_arg = resetmap(t_event, x_event, current_mode, reset_arg)
-    
-    # # --------------------
-    # #   Direct reset map 
-    # # --------------------
-    # x_reset, next_mode, new_reset_arg = resetmap(t, xt_next, current_mode, reset_arg)
-    # t_event =  t + dt_int
     
     return t_event, x_event, x_reset, next_mode, new_reset_arg
 
@@ -98,8 +83,8 @@ def event_detect_onestep_discrete(xt, ut,
                                     reset_maps,
                                     Rxs, Rts,
                                     reset_args, 
-                                    guard_condition_func_0=None,
-                                    guard_condition_func_1=None,
+                                    guard_cond_func_0=None,
+                                    guard_cond_func_1=None,
                                     detection=True, backwards=False):
     
     current_dyn = smooth_dynamics[current_mode]
@@ -134,9 +119,9 @@ def event_detect_onestep_discrete(xt, ut,
     if detection:
         
         if current_mode == 0:
-            guard_hit = guard_condition_func_0(xt, xt_next, current_mode)
+            guard_hit = guard_cond_func_0(xt, xt_next, current_mode)
         elif current_mode == 1:
-            guard_hit = guard_condition_func_1(xt, xt_next, current_mode)
+            guard_hit = guard_cond_func_1(xt, xt_next, current_mode)
             
         if guard_hit:
             args_guard = (xt, current_mode, ut, t0, xt_next, dt, dt_shrink, 
@@ -165,17 +150,19 @@ def event_detect_onestep_discrete(xt, ut,
     return xt_next, saltation, mode_mapping, t_event, x_event, x_reset, reset_byproduct
 
 
-def hybrid_stochastic_feedback_rollout_discrete(init_mode, x0, n_inputs, xt_ref, ref_modes, 
-                                                ut, Kt, kt, target_state, Q_T, t0, dt, 
-                                                epsilon, GaussianNoise, dt_shrinkrate, 
-                                                reference_extension_helper, init_reset_args,
-                                                cond_mode_mismatch_func=None,
-                                                reaction_mode_mismatch_func=None,
-                                                hybrid_stochastic_integration_func=None):
+def h_stoch_fb_rollout(init_mode, x0, n_inputs, 
+                       xt_ref, ref_modes, 
+                        ut, Kt, kt, 
+                        target_state, Q_T, t0, dt, 
+                        epsilon, GaussianNoise, dt_shrinkrate, 
+                        ref_ext_helper, init_reset_args,
+                        cond_mismatch_func=None,
+                        reaction_mismatch_func=None,
+                        hybrid_stochastic_integration_func=None):
 
-    (v_event_modechange, v_ref_ext_bwd, v_ref_ext_fwd, 
-    v_Kfb_ref_ext_bwd, v_Kfb_ref_ext_fwd, 
-    v_kff_ref_ext_bwd, v_kff_ref_ext_fwd, _) = extract_extensions(reference_extension_helper, start_index = 0)
+    (v_event_modechange, v_ext_bwd, v_ext_fwd, 
+    v_Kfb_ext_bwd, v_Kfb_ext_fwd, 
+    v_kff_ext_bwd, v_kff_ext_fwd, _) = extract_extensions(ref_ext_helper, start_index = 0)
     
     n_timestamps = len(xt_ref)
     
@@ -216,13 +203,13 @@ def hybrid_stochastic_feedback_rollout_discrete(init_mode, x0, n_inputs, xt_ref,
         reset_args[ii_t] = event_args[cnt_event]
         
         # ======== Handle mode mismatch ========
-        if cond_mode_mismatch_func(current_mode, ref_current_mode):
+        if cond_mismatch_func(current_mode, ref_current_mode):
             print("mode mismatch at time: ", ii_t)
-            xref_i, K_fb_i, k_ff_i, cnt_mismatch = reaction_mode_mismatch_func(ii_t, current_mode, ref_current_mode, 
-                                                                                v_ref_ext_fwd[0], v_ref_ext_bwd[0], 
+            xref_i, K_fb_i, k_ff_i, cnt_mismatch = reaction_mismatch_func(ii_t, current_mode, ref_current_mode, 
+                                                                                v_ext_fwd[0], v_ext_bwd[0], 
                                                                                 v_event_modechange[0],
-                                                                                v_Kfb_ref_ext_fwd[0], v_kff_ref_ext_fwd[0],
-                                                                                v_Kfb_ref_ext_bwd[0], v_kff_ref_ext_bwd[0],
+                                                                                v_Kfb_ext_fwd[0], v_kff_ext_fwd[0],
+                                                                                v_Kfb_ext_bwd[0], v_kff_ext_bwd[0],
                                                                                 cnt_mismatch)
         
         xt_ref_actual[ii_t] = xref_i
