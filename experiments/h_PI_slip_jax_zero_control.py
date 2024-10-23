@@ -411,7 +411,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
          xt_next, 
          next_mode_actual, 
          _, 
-         new_reset_arg) = hybrid_stochastic_integration_slip_padding(xt, current_mode_actual,
+         new_reset_arg) = h_stoch_integ_slip_padding(xt, current_mode_actual,
                                                                     u0_star_jax, actual_noise_i, 
                                                                     epsilon, dt, dt_shrink, start_time_i, 
                                                                     reset_args_actual[i_t])

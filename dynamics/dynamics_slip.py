@@ -452,8 +452,6 @@ def event_detect_slip(x0, u, t0, tf, current_mode, reset_args, detection=True, b
     # guards_slip = {0:guard_slip_12, 1: guard_slip_21}
     # reset_maps_slip = {0:reset_map_slip_12, 1:reset_map_slip_21}
     
-    reset_controls_slip = {0:reset_control_slip_12, 1:reset_control_slip_21}
-    
     Rxs_slip = {0:Rx_slip_12, 1:Rx_slip_21}
     Rts_slip = {0:Rt_slip_12, 1:Rt_slip_21}
     

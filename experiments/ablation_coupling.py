@@ -53,7 +53,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
     
     
     # =================================================================
-    #                     Hybrid ilqr for comparison
+    #                     Hybrid ilqr rollout
     # ================================================================= 
     # -------------- result collectors, hybrid ilqr proposal --------------
     xt_trj_ilqr = [np.array([0.0]) for _ in range(nt)]
@@ -275,9 +275,14 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         # --------------------------- 
         # Coupling of the randomness
         # ---------------------------
+        # GaussianNoise_i_coupled = [np.random.randn(n_samples, nt_i, max_n_inputs), np.random.randn(n_samples, nt_i, max_n_inputs)]
         GaussianNoise_i_coupled = copy.deepcopy(GaussianNoise_i)
+        GaussianNoise_i_coupled[0][int(n_samples/2):, :] = GaussianNoise_i_coupled[0][:int(n_samples/2), :]
+        GaussianNoise_i_coupled[1][int(n_samples/2):, :] = GaussianNoise_i_coupled[1][:int(n_samples/2), :]
         GaussianNoise_i_coupled[0][int(n_samples/2):, 0] = -GaussianNoise_i_coupled[0][:int(n_samples/2), 0]
         GaussianNoise_i_coupled[1][int(n_samples/2):, 0] = -GaussianNoise_i_coupled[1][:int(n_samples/2), 0]
+        
+        print("--------------- Start Sampling ---------------")
         
         (Ksamples_ts_i_coupled, Kmodes_jax_i_coupled, Ksamples_jax_i_coupled, PathCosts_jax_i_coupled, 
          Ksamples_ut, Ksamples_xref, Ksamples_Kfb_mode, 
@@ -298,7 +303,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
                                                                     v_Kfb_ref_ext_bwd_i, v_kff_ref_ext_bwd_i, 
                                                                     init_reset_args_i)
          
-         
+        print("--------------- End Sampling ---------------")
          
         # ----------------------------------- samples using un-coupled randomnesses ---------------------------------------
         (Ksamples_ts_i, Kmodes_jax_i, Ksamples_jax_i, PathCosts_jax_i, 
@@ -398,7 +403,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         # ----------------------------------
         #   Visualize sampled trajectories
         # ----------------------------------
-        show_samples = False
+        show_samples = True
         if show_samples and (i_t==0):
             print(f"Plotting trajectory samples.")
             nsamples_plot = 10
@@ -448,7 +453,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
          xt_next, 
          next_mode_actual, 
          _, 
-         new_reset_arg) = hybrid_stochastic_integration_slip_padding(xt, current_mode_actual,
+         new_reset_arg) = h_stoch_integ_slip_padding(xt, current_mode_actual,
                                                                     u0_star_jax, actual_noise_i_pad, 
                                                                     epsilon, dt, dt_shrink, start_time_i, 
                                                                     reset_args_actual[i_t])
@@ -627,8 +632,8 @@ import argparse
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="The epsilon parameter.")
     parser.add_argument("--epsilon", type=float, default=0.001, help="The process noise intensity value, epsilon.")
-    parser.add_argument("--nsamples", type=int, default=2000, help="The number of samples used in path integral control.")
-    parser.add_argument("--dt", type=int, default=0.0008, help="The time discretization.")
+    parser.add_argument("--nsamples", type=int, default=10, help="The number of samples used in path integral control.")
+    parser.add_argument("--dt", type=int, default=0.001, help="The time discretization.")
     
     args = parser.parse_args()
 

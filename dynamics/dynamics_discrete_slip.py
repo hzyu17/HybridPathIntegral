@@ -80,7 +80,7 @@ def stochastic_integration_euler_SLIP(mode, x0, u, dt, eps, dW):
 # -------------------------------- From mode 1 (flight) to mode 2 (stance) --------------------------------
 def guard_cond_slip_12(xt, xt_next, current_mode):
     # assume time invariant guard for now
-    return (current_mode==0) and (guard_slip_12(0.0,xt)<0) and (guard_slip_12(0.0,xt_next)>=0)
+    return (current_mode==0) and (guard_slip_12(0.0,xt)<0) and (guard_slip_12(0.0,xt_next)>0)
 
 def guard_true_func_slip_12(args):
     print("slip_cond_12: True")
@@ -142,48 +142,16 @@ def guard_false_func_slip_12(args):
     return xt_next, current_mode, dW, reset_arg
 
 
-
 # --------------------------------------------------  
 #       From mode 2 (stance) to mode 1 (flight)
 # --------------------------------------------------
 def guard_cond_slip_21(xt, xt_next, current_mode):
     # assume time invariant guard for now
-    return (current_mode==1) and (guard_slip_21(0.0,xt)<0) and (guard_slip_21(0.0,xt_next)>=0)
+    return (current_mode==1) and (guard_slip_21(0.0,xt)<=0) and (guard_slip_21(0.0,xt_next)>0)
 
 def guard_true_func_slip_21(args):
-    print("slip_cond: True")
-    (xt_current, current_mode, u, t, xt_next, dt_int, dt_shrinkrate, RandN, eps, reset_arg) = args
-    
-    def while_loop_body(xt, u, t, dt_int, dt_shrinkrate, RandN, eps, cnt_shrink):
-        # Too far from the guard, shrink the step size
-        dt_shrink = dt_int * dt_shrinkrate
-        dW_new = np.sqrt(dt_shrink) * RandN
-        
-        xt_shrinked = stochastic_integration_euler_SLIP(current_mode, xt, u, dt_shrink, eps, dW_new)
-        
-        new_condition = (guard_slip_21(t, xt_shrinked) >= 0) and (cnt_shrink < 10)
-        cnt_shrink += 1
-        
-        return xt_shrinked, dt_shrink, cnt_shrink, new_condition
-    
-    # -------------------
-    #   Shrinking step 
-    # -------------------
-    
-    # cnt_shrink = 0
-    # can_continue = True
-    # xt_shrinked = xt_next
-    
-    # # Implementing the loop with Python's while
-    # while can_continue:
-    #     xt_shrinked, dt_int, cnt_shrink, can_continue = while_loop_body(
-    #         xt_current, u, t, dt_int, dt_shrinkrate, RandN, eps, cnt_shrink
-    #     )
-    
-    # # Execute the reset map after the loop
-    # xt_next, next_mode, new_reset_arg = reset_map_slip_21(t, xt_shrinked, current_mode, reset_arg)
-    # dW_new = np.sqrt(dt_int) * RandN
-    
+    print("slip guard condition 21: True")
+    (xt_current, current_mode, u, t, xt_next, dt_int, _, RandN, eps, reset_arg) = args
     
     # -----------------
     #    Bi-section 
@@ -259,6 +227,9 @@ from functools import partial
 reaction_mode_mismatch_slip = partial(reaction_mode_mismatch, cond_early_arrival=cond_early_arrival_slip)
 hybrid_stochastic_integration_slip = partial(hybrid_stochastic_integration_euler, 
                                                 stochastic_integration_euler_func = stochastic_integration_euler_SLIP, 
+                                                guard_func_0=guard_cond_slip_12,
+                                                guard_true_func_0=guard_true_func_slip_12,
+                                                guard_false_func_0=guard_false_func_slip_12,
                                                 guard_func_1 = guard_cond_slip_21, 
                                                 guard_true_func_1 = guard_true_func_slip_21, 
                                                 guard_false_func_1 = guard_false_func_slip_21)

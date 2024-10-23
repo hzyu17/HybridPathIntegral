@@ -203,6 +203,8 @@ def hybrid_stochastic_feedback_rollout_discrete(init_mode, x0, n_inputs, xt_ref,
     # -------------- roullout function --------------
     for ii_t in range(n_timestamps-1):   
         
+        print("ii_t: ", ii_t)
+        
         xt = xt_trj[ii_t]
         current_mode = mode_trj[ii_t]
         ref_current_mode = ref_modes[ii_t]

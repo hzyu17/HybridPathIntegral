@@ -4,7 +4,7 @@ from functools import partial
 
 from functools import partial
 
-hybrid_stochastic_integration_bouncing_JAX = partial(hybrid_stochastic_integration_euler_JAX, 
+hybrid_stochastic_integration_bouncing_JAX = partial(h_stoch_integr_euler_JAX, 
                                                     stochastic_integration_euler_func = stochastic_integration_euler_bouncing_JAX, 
                                                     guard_func = guard_bouncing_12_JAX, 
                                                     guard_true_func = guard_true_bouncing_12_JAX, 

@@ -28,7 +28,7 @@ terminal_cost_jit = jax.jit(terminal_cost_jax)
 # ------------------------------------- / terminal loss ------------------------------------- 
 
 # @jax.jit
-def hybrid_stochastic_integration_euler_JAX(xt, current_mode, ut, 
+def h_stoch_integr_euler_JAX(xt, current_mode, ut, 
                                             randN, eps, 
                                             dt, dt_shrink, t0, reset_arg, 
                                             stochastic_integration_euler_func=None,

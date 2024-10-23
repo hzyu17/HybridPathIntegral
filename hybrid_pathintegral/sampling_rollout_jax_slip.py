@@ -10,13 +10,16 @@ from hybrid_pathintegral.sampling_rollout_jax import *
 
 from functools import partial
 
-hybrid_stochastic_integration_slip_padding = partial(hybrid_stochastic_integration_euler_JAX, 
-                                                    stochastic_integration_euler_func = stochastic_integration_euler_SLIP_padding, 
-                                                    guard_func = guard_condition_slip_padding, 
-                                                    guard_true_func = guard_true_func_slip_padding, 
-                                                    guard_false_func = guard_false_func_slip_padding)
+h_stoch_integr_slip_padding = partial(h_stoch_integr_euler_JAX, 
+                                    stoch_integr_func = stoch_integr_euler_SLIP_padding, 
+                                    guard_func_0=guard_cond_slip_12,
+                                    guard_true_func_0=guard_true_func_slip_12_padding,
+                                    guard_false_func_0=guard_false_func_slip_12,
+                                    guard_func_1=guard_cond_slip_21,
+                                    guard_true_func_1=guard_true_func_slip_21_padding,
+                                    guard_false_func_1=guard_false_func_slip_21)
 
-cost_i_slip = partial(cost_i, hybrid_stochastic_integration_func=hybrid_stochastic_integration_slip_padding)
+cost_i_slip = partial(cost_i, h_stoch_integr_func=h_stoch_integr_slip_padding)
 feedback_cost_slip_jax = partial(feedback_cost_jax, cost_i_func=cost_i_slip)
 
 # =======================================================
@@ -151,7 +154,6 @@ def sample_slip_jax(i_exp, n_samples,
                                         v_kff_ref_ext_fwd=v_kff_ref_ext_fwd,
                                         v_Kfb_ref_ext_bwd=v_Kfb_ref_ext_bwd, 
                                         v_kff_ref_ext_bwd=v_kff_ref_ext_bwd)
-        
         
         # --------------------
         #    Update one row

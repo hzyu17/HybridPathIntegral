@@ -27,22 +27,21 @@ terminal_cost_jit = jax.jit(terminal_cost_jax)
 
 # ------------------------------------- / terminal loss ------------------------------------- 
 
-
-
 # @jax.jit
-def hybrid_stochastic_integration_euler_JAX(xt, current_mode, ut, 
-                                            randN, eps, 
-                                            dt, dt_shrink, t0, reset_arg, 
-                                            stochastic_integration_euler_func=None,
-                                            guard_func_0=None,
-                                            guard_true_func_0=None,
-                                            guard_false_func_0=None,
-                                            guard_func_1=None,
-                                            guard_true_func_1=None,
-                                            guard_false_func_1=None):
-    
+def h_stoch_integr_euler_JAX(xt, current_mode, ut, 
+                            randN, eps, 
+                            dt, dt_shrink, 
+                            t0, reset_arg, 
+                            stoch_integr_func=None,
+                            guard_func_0=None,
+                            guard_true_func_0=None,
+                            guard_false_func_0=None,
+                            guard_func_1=None,
+                            guard_true_func_1=None,
+                            guard_false_func_1=None):
+
     dW = jnp.sqrt(dt)*randN
-    xt_next = stochastic_integration_euler_func(current_mode, xt, ut, dt, eps, dW)
+    xt_next = stoch_integr_func(current_mode, xt, ut, dt, eps, dW)
     
     # ------------
     # change mode
@@ -166,7 +165,7 @@ def cost_i(xt, current_mode, cur_St,
            xref, uref, Kfb, kff, 
            randN, eps, dt, dt_shrink, 
            t0, reset_arg, 
-           hybrid_stochastic_integration_func):
+           h_stoch_integr_func):
     
     # -------- compute control input --------
     delta_xt = xt - xref
@@ -174,7 +173,7 @@ def cost_i(xt, current_mode, cur_St,
     # next_mode = current_mode
     
     # -------- propagate dynamics with hybrid event --------
-    t_next, xt_next, next_mode, dW, new_reset_arg = hybrid_stochastic_integration_func(xt, current_mode, ut, randN, eps, dt, dt_shrink, t0, reset_arg)
+    t_next, xt_next, next_mode, dW, new_reset_arg = h_stoch_integr_func(xt, current_mode, ut, randN, eps, dt, dt_shrink, t0, reset_arg)
 
     # Collect cost: consider only the terminal state cost for now.
     cur_St += jnp.array([jnp.dot(ut.T, ut)/2.0 * dt + jnp.sqrt(eps) * jnp.dot(ut.T, dW)])[0]

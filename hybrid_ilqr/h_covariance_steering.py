@@ -143,7 +143,7 @@ if __name__=='__main__':
         Phi_next = Phi + dt * (M[i] @ Phi)
         Phi = Phi + (M[i] @ Phi + M[i+1] @ Phi_next) * (dt/2.0)
         # Phi = Phi + dt * Phi@M
-    
+
     Phi_11 = Phi[0:n_states[0], 0:n_states[0]]
     Phi_12 = Phi[0:n_states[0], n_states[0]:]
     Phi_21 = Phi[n_states[0]:, 0:n_states[0]]
