@@ -158,7 +158,7 @@ def h_stoch_fb_rollout(init_mode, x0, n_inputs,
                         ref_ext_helper, init_reset_args,
                         cond_mismatch_func=None,
                         reaction_mismatch_func=None,
-                        hybrid_stochastic_integration_func=None):
+                        h_stoch_integr_func=None):
 
     (v_event_modechange, v_ext_bwd, v_ext_fwd, 
     v_Kfb_ext_bwd, v_Kfb_ext_fwd, 
@@ -221,9 +221,9 @@ def h_stoch_fb_rollout(init_mode, x0, n_inputs,
         dW_i = np.sqrt(dt)*noise_i
         
         # ============================== One step integration ==============================        
-        xt_next, next_mode, _, new_reset_arg = hybrid_stochastic_integration_func(xt, current_mode, current_u, 
-                                                                                    noise_i, epsilon, 
-                                                                                    dt, dt_shrinkrate, t0, reset_args[ii_t])
+        xt_next, next_mode, _, new_reset_arg = h_stoch_integr_func(xt, current_mode, current_u, 
+                                                                noise_i, epsilon, 
+                                                                dt, dt_shrinkrate, t0, reset_args[ii_t])
         
         reset_args[ii_t+1] = new_reset_arg
         

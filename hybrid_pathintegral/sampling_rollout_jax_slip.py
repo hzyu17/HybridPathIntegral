@@ -93,12 +93,12 @@ def sample_slip_jax(i_exp, n_samples,
         """
         x0_jax = jnp.asarray(x0)
         
-        v_t = jnp.zeros((n_samples, 1), dtype=jnp.float64)
+        v_t = jnp.zeros((n_samples, ), dtype=jnp.float64)
         v_x0 = jnp.tile(x0_jax, (n_samples, 1))
         v_current_mode = jnp.tile(current_mode, (n_samples, ))
         v_St = jnp.zeros((n_samples, ), dtype=jnp.float64)
         v_index = jnp.tile(0, (n_samples, ))
-        v_init_event_args = jnp.tile(init_reset_args, (n_samples, 1))
+        v_init_event_args = jnp.tile(init_reset_args, (n_samples, ))
         
         v_initial_carry = (v_t, v_x0, v_current_mode, v_St, v_index, v_init_event_args)
         

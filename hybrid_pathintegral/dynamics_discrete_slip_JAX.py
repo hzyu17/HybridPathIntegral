@@ -15,7 +15,7 @@ def reset_map_slip_21_padding(t, x_event, current_mode, args_reset):
     print("t:", t)
     print("Reset map from mode 2 to mode 1, with padding.")
     
-    xp = args_reset[0]
+    xp = args_reset
     r0 = 1
     theta, theta_dot, r, r_dot = x_event[0], x_event[1], x_event[2], x_event[3]
     
@@ -27,7 +27,8 @@ def reset_map_slip_21_padding(t, x_event, current_mode, args_reset):
 
     x_reset = jnp.array([px_reset, vx_reset, pz_reset, vz_reset, theta_reset])
 
-    return x_reset, 0, jnp.array([args_reset[0]])
+    # return x_reset, 0, jnp.array([args_reset[0]])
+    return x_reset, 0, args_reset
 
 # @jax.jit
 def stoch_integr_euler_SLIP_padding(mode, x0, u, dt, eps, dW):   

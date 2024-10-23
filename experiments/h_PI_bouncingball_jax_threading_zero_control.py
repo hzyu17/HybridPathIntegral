@@ -398,10 +398,10 @@ def main(epsilon, n_samples, dt):
     print(f"The value of time discretization dt is: {dt}")
     
     # =========== save data ===========
-    # save_path = '/home/hzyu/git/HybridPathIntegral/experiments'
+    save_path = '/home/hzyu/git/HybridPathIntegral/experiments'
     # save_path = '/hddscratch/hyu419/hybrid_pathintegral/exp_200'
     # save_path = '/hddscratch/hyu419/hybrid_pathintegral/new_exp'
-    save_path = '/home/hyu419/git/HybridPathIntegral/data/new_exp/bouncing'
+    # save_path = '/home/hyu419/git/HybridPathIntegral/data/new_exp/bouncing'
     
     from pathlib import Path
     if not Path(save_path).exists():

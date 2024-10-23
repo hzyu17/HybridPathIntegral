@@ -104,7 +104,7 @@ def reset_map_slip_12_padding(t, x_event, current_mode, args_reset):
     args = (x_event, current_mode)
     x_reset = jax.lax.cond(stance_cond, stance_true_fun, stance_false_fun, args)
     
-    return x_reset, 1, jnp.array([x_event[0]])
+    return x_reset, 1, x_event[0]
 
 # =========================================================
 # The guard and reset map from stance mode to flight mode

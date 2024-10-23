@@ -128,7 +128,7 @@ hybrid_stochastic_integration_bouncing = partial(h_stoch_integr,
 hybrid_stochastic_feedback_rollout_discrete_bouncing = partial(h_stoch_fb_rollout, 
                                                             cond_mismatch_func=cond_mode_mismatch_bouncing,
                                                             reaction_mismatch_func=reaction_mode_mismatch_bouncing,
-                                                            hybrid_stochastic_integration_func=hybrid_stochastic_integration_bouncing)    
+                                                            h_stoch_integr_func=hybrid_stochastic_integration_bouncing)    
 
     
 

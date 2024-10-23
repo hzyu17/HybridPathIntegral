@@ -59,7 +59,7 @@ def h_stoch_integr_euler_JAX(xt, current_mode, ut,
 # Mode Mismatch condition handling
 # -----------------------------------
 
-def ModeMismatch_true_fun_jax(args):
+def mismatch_true_func_jax(args):
     
     (current_mode, ref_current_mode, 
      ref_mode_change, 
@@ -90,7 +90,7 @@ def ModeMismatch_true_fun_jax(args):
         
     return xref_i, K_fb_i, k_ff_i
 
-def ModeMismatch_false_fun_jax(args):
+def mismatch_false_func_jax(args):
     (_, _, _, _, _, _, _, _, _, Kfb, kff, xref_i, _)= args
     
     # Return the original ref and feedback gains
@@ -144,7 +144,7 @@ def cost_i(xt, current_mode, cur_St,
            xref, uref, Kfb, kff, 
            randN, eps, dt, dt_shrink, 
            t0, reset_arg, 
-           hybrid_stochastic_integration_func):
+           h_stoch_integr_func):
     
     # -------- compute control input --------
     delta_xt = xt - xref
@@ -152,7 +152,7 @@ def cost_i(xt, current_mode, cur_St,
     # next_mode = current_mode
     
     # -------- propagate dynamics with hybrid event --------
-    t_next, xt_next, next_mode, dW, new_reset_arg = hybrid_stochastic_integration_func(xt, current_mode, ut, randN, eps, dt, dt_shrink, t0, reset_arg)
+    t_next, xt_next, next_mode, dW, new_reset_arg = h_stoch_integr_func(xt, current_mode, ut, randN, eps, dt, dt_shrink, t0, reset_arg)
 
     # Collect cost: consider only the terminal state cost for now.
     cur_St += jnp.array([jnp.dot(ut.T, ut)/2.0 * dt + jnp.sqrt(eps) * jnp.dot(ut.T, dW)])[0]
@@ -202,8 +202,8 @@ def feedback_cost_jax(carry, inputs, eps,
     Kfb_ref_ext_bwd = v_Kfb_ext_bwd[0]
     kff_ref_ext_bwd = v_kff_ext_bwd[0]
     
-    is_ModeMismatched = (current_mode != current_mode_ref)    
-    args_ModeMismatch = (current_mode, 
+    is_mismatched = (current_mode != current_mode_ref)    
+    args_mismatch = (current_mode, 
                          current_mode_ref,
                          ext_ref_mode_change, 
                          ext_trj_fwd, ext_trj_bwd, 
@@ -211,7 +211,7 @@ def feedback_cost_jax(carry, inputs, eps,
                          Kfb_ref_ext_bwd, kff_ref_ext_bwd, 
                          K_mode, k_mode,
                          xref_mode, indx)
-    xref_mode, K_mode, k_mode = jax.lax.cond(is_ModeMismatched, ModeMismatch_true_fun_jax, ModeMismatch_false_fun_jax, args_ModeMismatch)
+    xref_mode, K_mode, k_mode = jax.lax.cond(is_mismatched, mismatch_true_func_jax, mismatch_false_func_jax, args_mismatch)
     
     t_next, xt_next, next_mode, ut, St_next, new_reset_arg = cost_i_func(xt, current_mode, St, xref_mode, u_mode, 
                                                                         K_mode, k_mode, randN_mode, 

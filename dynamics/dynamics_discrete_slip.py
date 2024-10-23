@@ -238,7 +238,7 @@ h_stoch_integr_slip = partial(h_stoch_integr,
 h_stoch_fb_rollout_slip = partial(h_stoch_fb_rollout, 
                                 cond_mismatch_func=cond_mode_mismatch_slip,
                                 reaction_mismatch_func=reaction_mode_mismatch_slip,
-                                hybrid_stochastic_integration_func=h_stoch_integr_slip)    
+                                h_stoch_integr_func=h_stoch_integr_slip)    
     
     
 def event_detect_discrete_slip(current_mode, x0, u, 

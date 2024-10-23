@@ -286,7 +286,8 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         
         print("--------------- Start Sampling ---------------")
         
-        (Ksamples_ts_i_coupled, Kmodes_jax_i_coupled, Ksamples_jax_i_coupled, PathCosts_jax_i_coupled, 
+        (Ksamples_ts_i_coupled, Kmodes_jax_i_coupled, 
+         Ksamples_jax_i_coupled, PathCosts_jax_i_coupled, 
          Ksamples_ut, Ksamples_xref, Ksamples_Kfb_mode, 
          Ksamples_kff_mode, Ksamples_reset_args) = sample_slip_jax(i_exp, n_samples, xt, 
                                                                     current_mode_actual, 

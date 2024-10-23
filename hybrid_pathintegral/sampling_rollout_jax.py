@@ -82,7 +82,7 @@ def h_stoch_integr_euler_JAX(xt, current_mode, ut,
 # Mode Mismatch condition handling
 # -----------------------------------
 
-def ModeMismatch_true_fun_jax(args):
+def mismatch_true_func_jax(args):
     
     (current_mode, ref_current_mode, 
      ref_mode_change, 
@@ -113,7 +113,7 @@ def ModeMismatch_true_fun_jax(args):
         
     return xref_i, K_fb_i, k_ff_i
 
-def ModeMismatch_false_fun_jax(args):
+def mismatch_false_func_jax(args):
     (_, _, _, _, _, _, _, _, _, Kfb, kff, xref_i, _)= args
     
     # Return the original ref and feedback gains
@@ -142,19 +142,15 @@ def EarlyArr_false_fun_jax(args):
 # ===========================================
 #    Choose nominal control based on mode 
 # ===========================================
-# @jax.jit
-def mode0_condition_jit(current_mode):
-    # assume time invariant guard for now
-    return current_mode == 0
 
 # @jax.jit
-def mode0_true_fun_jax(args):
+def mode0_true_func(args):
     (xref_mode0, _, uref_mode0, _, Kfb_mode0, kff_mode0, _, _, randN_mode0, _) = args
     return xref_mode0, uref_mode0, Kfb_mode0, kff_mode0, randN_mode0
 
 
 # @jax.jit
-def mode0_false_fun_jax(args):
+def mode0_false_func(args):
     (_, xref_mode1, _, uref_mode1, _, _, Kfb_mode1, kff_mode1, _, randN_mode1) = args
     return xref_mode1, uref_mode1, Kfb_mode1, kff_mode1, randN_mode1
 
@@ -212,7 +208,7 @@ def feedback_cost_jax(carry, inputs, eps,
                        kfb_mode1, kff_mode1, 
                        randN_mode0, randN_mode1)
     
-    (xref_mode, u_mode, K_mode, k_mode, randN_mode) = jax.lax.cond(cond_mode0, mode0_true_fun_jax, mode0_false_fun_jax, args_cond_mode0)
+    (xref_mode, u_mode, K_mode, k_mode, randN_mode) = jax.lax.cond(cond_mode0, mode0_true_func, mode0_false_func, args_cond_mode0)
 
     # -------------------------------
     # Get the trajectory extensions 
@@ -227,16 +223,16 @@ def feedback_cost_jax(carry, inputs, eps,
     Kfb_ref_ext_bwd = v_Kfb_ext_bwd[0]
     kff_ref_ext_bwd = v_kff_ext_bwd[0]
     
-    is_ModeMismatched = (current_mode != current_mode_ref)    
-    args_ModeMismatch = (current_mode, 
-                         current_mode_ref,
-                         ext_ref_mode_change, 
-                         ext_trj_fwd, ext_trj_bwd, 
-                         Kfb_ref_ext_fwd, kff_ref_ext_fwd, 
-                         Kfb_ref_ext_bwd, kff_ref_ext_bwd, 
-                         K_mode, k_mode,
-                         xref_mode, indx)
-    xref_mode, K_mode, k_mode = jax.lax.cond(is_ModeMismatched, ModeMismatch_true_fun_jax, ModeMismatch_false_fun_jax, args_ModeMismatch)
+    is_mismatched = (current_mode != current_mode_ref)    
+    args_mismatch = (current_mode, 
+                    current_mode_ref,
+                    ext_ref_mode_change, 
+                    ext_trj_fwd, ext_trj_bwd, 
+                    Kfb_ref_ext_fwd, kff_ref_ext_fwd, 
+                    Kfb_ref_ext_bwd, kff_ref_ext_bwd, 
+                    K_mode, k_mode,
+                    xref_mode, indx)
+    xref_mode, K_mode, k_mode = jax.lax.cond(is_mismatched, mismatch_true_func_jax, mismatch_false_func_jax, args_mismatch)
     
     t_next, xt_next, next_mode, ut, St_next, new_reset_arg = cost_i_func(xt, current_mode, St, xref_mode, u_mode, 
                                                                         K_mode, k_mode, randN_mode, 
