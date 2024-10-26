@@ -42,7 +42,7 @@ def symbolic_dynamics_bouncing_continuoustime():
     return (f_contin,A_contin_func,B_contin_func)
 
 
-def symbolic_dynamics_bouncing():
+def sym_dyn_bouncing():
     g = 9.81
     z,z_dot,u,dt = sp.symbols('z z_dot u dt')
 

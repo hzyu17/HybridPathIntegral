@@ -127,7 +127,7 @@ if __name__ == '__main__':
     exp_params = ExpParams()
     initial_guess = 0.5*np.ones((np.shape(time_span)[0],n_inputs))
     exp_params.update_params(init_state, target_state, start_time, end_time, dt, initial_guess, 
-                             epsilon, n_exp, n_samples, Q_k, R_k, Q_T, symbolic_dynamics_bouncing,detect_bouncing)
+                             epsilon, n_exp, n_samples, Q_k, R_k, Q_T, sym_dyn_bouncing,detect_bouncing)
     exp_data = ExpData(exp_params)
     (states,inputs,k_feedforward,K_feedback,current_cost,states_iter,modechanges,mode_exttrjs_maps) = solve_ilqr(exp_params, detect=True)
     
@@ -432,7 +432,7 @@ if __name__ == '__main__':
             #     exp_params = ExpParams()
             #     initial_guess = inputs[1:]
             #     exp_params.update_params(xt, target_state, start_time_i+dt, end_time, dt, initial_guess, 
-            #                             epsilon, n_exp, n_samples, Q_k, R_k, Q_T, symbolic_dynamics_bouncing, detect_bouncing)
+            #                             epsilon, n_exp, n_samples, Q_k, R_k, Q_T, sym_dyn_bouncing, detect_bouncing)
             #     exp_data = ExpData(exp_params)
             #     (states,inputs,k_feedforward,K_feedback,current_cost,
             #      states_iter,modechanges,mode_exttrjs_maps) = solve_ilqr(exp_params, detect=True)

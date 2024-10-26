@@ -65,7 +65,7 @@ if __name__=='__main__':
     # ============================================================================================================
     exp_params = ExpParams()
     
-    flow_dynamics = [symbolic_dynamics_bouncing, symbolic_dynamics_bouncing]
+    flow_dynamics = [sym_dyn_bouncing, sym_dyn_bouncing]
     
     exp_params.update_params(n_modes, init_mode, target_mode, n_states, init_state, target_state, 
                              start_time, end_time, dt, dt_shrink, initial_guess, 

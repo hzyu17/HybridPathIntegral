@@ -30,7 +30,7 @@ import copy
 import gc
 gc.collect()
 
-
+os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
 def run_experiment(i_exp, nt, n_samples, n_states, n_inputs, 
                     init_mode, init_state, target_state, hybrid_ilqr_result, 
                     start_time, end_time, dt, dt_shrink, 

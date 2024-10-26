@@ -60,7 +60,7 @@ class TestHybirdPathIntegral(unittest.TestCase):
         exp_params = ExpParams()
         initial_guess = 0.5*np.ones((np.shape(time_span)[0],n_inputs))
         exp_params.update_params(init_state, target_state, start_time, end_time, dt, initial_guess, 
-                                epsilon, 1, n_samples, Q_k, R_k, Q_T, symbolic_dynamics_bouncing,detect_bouncing)
+                                epsilon, 1, n_samples, Q_k, R_k, Q_T, sym_dyn_bouncing,detect_bouncing)
         (states,inputs,k_feedforward,K_feedback,current_cost,states_iter,modechanges,mode_exttrjs_maps) = solve_ilqr(exp_params, detect=True)
         
         trj_pi = np.zeros((nt, n_states))

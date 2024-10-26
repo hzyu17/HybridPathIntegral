@@ -163,7 +163,9 @@ def cost_i(xt, current_mode, cur_St,
            xref, uref, Kfb, kff, 
            randN, eps, dt, dt_shrink, 
            t0, reset_arg, 
-           h_stoch_integr_func):
+           x_targ, Qk,
+           h_stoch_integr_func
+           ):
     
     # -------- compute control input --------
     delta_xt = xt - xref
@@ -173,8 +175,32 @@ def cost_i(xt, current_mode, cur_St,
     # -------- propagate dynamics with hybrid event --------
     t_next, xt_next, next_mode, dW, new_reset_arg = h_stoch_integr_func(xt, current_mode, ut, randN, eps, dt, dt_shrink, t0, reset_arg)
 
-    # Collect cost: consider only the terminal state cost for now.
-    cur_St += jnp.array([jnp.dot(ut.T, ut)/2.0 * dt + jnp.sqrt(eps) * jnp.dot(ut.T, dW)])[0]
+    # cond_none_running_cost = (target_state is None)
+    
+    # def none_running_cost_true(args):
+    #     St, xt, ut, dW, eps, dt, target_state, Q_k = args
+    #     St += jnp.array([jnp.dot(ut.T, ut)/2.0 * dt + jnp.sqrt(eps) * jnp.dot(ut.T, dW)])[0]
+    #     return St
+    
+    # def none_running_cost_false(args):
+        # St, xt, ut, dW, eps, dt, target_state, Q_k = args
+        # running_cost_u = jnp.dot(ut.T, ut) / 2.0
+        # diff_x = xt - target_state
+        # running_cost_x = jnp.dot(jnp.dot(diff_x.T, Q_k), diff_x) / 2.0
+        # St += jnp.array([(running_cost_u+running_cost_x)* dt + jnp.sqrt(eps) * jnp.dot(ut.T, dW)])[0]
+        # return St
+        
+    # args_none_running_cost = (cur_St, xt, ut, dW, eps, dt, target_state, Q_k)
+    # cur_St = jax.lax.cond(cond_none_running_cost, none_running_cost_true, none_running_cost_false, args_none_running_cost)
+    
+    # only consider the control energy running cost
+    # cur_St += jnp.array([jnp.dot(ut.T, ut)/2.0 * dt + jnp.sqrt(eps) * jnp.dot(ut.T, dW)])[0]
+    
+    # consider both the control and state running costs
+    running_cost_u = jnp.dot(ut.T, ut) / 2.0
+    diff_x = xt - x_targ
+    running_cost_x = jnp.dot(jnp.dot(diff_x.T, Qk), diff_x) / 2.0
+    cur_St += jnp.array([(running_cost_u+running_cost_x)* dt + jnp.sqrt(eps) * jnp.dot(ut.T, dW)])[0]
     
     print("------------------- cost_i collected -------------------")
     
@@ -195,7 +221,8 @@ def feedback_cost_jax(carry, inputs, eps,
     Kfb_mode0, kff_mode0, 
     kfb_mode1, kff_mode1, 
     randN_mode0, randN_mode1, 
-    xref_mode0, xref_mode1, current_mode_ref) = inputs
+    xref_mode0, xref_mode1, 
+    current_mode_ref, x_targ, Qk) = inputs
     
     # ---------------------------
     #  Rollout and collect costs 
@@ -214,7 +241,7 @@ def feedback_cost_jax(carry, inputs, eps,
     # Get the trajectory extensions 
     # -------------------------------
     # Consider only 1 mode change for now.
-    # cnt_event = 0
+
     ext_ref_mode_change = v_ext_ref_mode_change[0]
     ext_trj_fwd = v_ext_trj_fwd[0]
     ext_trj_bwd = v_ext_trj_bwd[0]
@@ -234,9 +261,12 @@ def feedback_cost_jax(carry, inputs, eps,
                     xref_mode, indx)
     xref_mode, K_mode, k_mode = jax.lax.cond(is_mismatched, mismatch_true_func_jax, mismatch_false_func_jax, args_mismatch)
     
-    t_next, xt_next, next_mode, ut, St_next, new_reset_arg = cost_i_func(xt, current_mode, St, xref_mode, u_mode, 
-                                                                        K_mode, k_mode, randN_mode, 
-                                                                        eps, dt, dt_shrink, current_t, reset_arg)
+    t_next, xt_next, next_mode, ut, St_next, new_reset_arg = cost_i_func(xt, current_mode, 
+                                                                         St, xref_mode, u_mode, 
+                                                                         K_mode, k_mode, randN_mode, 
+                                                                         eps, dt, dt_shrink, 
+                                                                         current_t, reset_arg,
+                                                                         x_targ, Qk)
     
     print("------------- outside cost_i func finished -------------")
     indx_next = indx + 1

@@ -46,7 +46,7 @@ if __name__ == '__main__':
     nt_ode_solve = 1000 # number of points used to solve the ode
     
     exp_params_ilqr = ExpParams()
-    exp_params_ilqr.update_params(init_state, target_state, start_time, end_time, dt, dt_pathintegral, epsilon, n_exp, n_samples, Q_k, R_k, Q_T, symbolic_dynamics_bouncing,detect_bouncing)
+    exp_params_ilqr.update_params(init_state, target_state, start_time, end_time, dt, dt_pathintegral, epsilon, n_exp, n_samples, Q_k, R_k, Q_T, sym_dyn_bouncing,detect_bouncing)
     
     exp_params_riccati = ExpParams()
     exp_params_riccati.update_params(init_state, target_state, start_time, end_time, dt, dt_pathintegral, epsilon, n_exp, n_samples, Q_k, R_k, Q_T, symbolic_dynamics_bouncing_continuoustime,detect_bouncing)

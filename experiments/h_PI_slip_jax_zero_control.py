@@ -40,7 +40,8 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
     (time_span,modes,states,inputs,
      k_feedforward,K_feedback,
      current_cost,states_iter,
-     ref_modechanges,ref_ext_helper, ref_reset_args) = hybrid_ilqr_result
+     ref_modechanges,
+     ref_ext_helper, ref_reset_args) = hybrid_ilqr_result
         
     show_ilqr_reference = False
     if show_ilqr_reference:

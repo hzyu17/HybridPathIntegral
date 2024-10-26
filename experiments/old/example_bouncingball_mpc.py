@@ -22,7 +22,7 @@ import matplotlib.pyplot as plt
 from joblib import Parallel, delayed
 
 # Import dynamics
-(f,A,B) = symbolic_dynamics_bouncing()
+(f,A,B) = sym_dyn_bouncing()
 
 # # ==================== Define necessary functions for sampling and compute costs ====================
 # def compute_cost(states,inputs,target_state,trj_ref, Qk, Rk, QT):

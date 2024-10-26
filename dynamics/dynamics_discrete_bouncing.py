@@ -10,7 +10,7 @@ from dynamics.dynamics_bouncing import *
 from dynamics.dynamics_discrete import *
 
 
-def stochastic_integration_euler_bouncing(mode, x0, u, dt, eps, dW):
+def stoch_integr_bouncing(mode, x0, u, dt, eps, dW):
     B = np.array([[0],[1.0]], dtype=np.float64)
     xt_next = x0 + np.array([x0[1], u[0]-9.81], dtype=np.float64) * dt + np.sqrt(eps) * B@dW
     return xt_next
@@ -34,7 +34,7 @@ def guard_true_func_bouncing_12(args):
         dt_shrinked = dt * dt_shrinkrate
         dW_shrink = np.sqrt(dt_shrinked) * RandN
         
-        xt_shrinked = stochastic_integration_euler_bouncing(current_mode, xt, u, dt_shrinked, eps, dW_shrink)
+        xt_shrinked = stoch_integr_bouncing(current_mode, xt, u, dt_shrinked, eps, dW_shrink)
         
         new_condition = ((guard_cond_bouncing_12(xt, xt_shrinked, current_mode)) and (cnt_shrink < 20))
         cnt_shrink += 1
@@ -78,7 +78,7 @@ def guard_true_func_bouncing_21(args):
         dt_shrinked = dt * dt_shrinkrate
         dW_shrink = np.sqrt(dt_shrinked) * RandN
         
-        xt_shrinked = stochastic_integration_euler_bouncing(current_mode, xt, u, dt_shrinked, eps, dW_shrink)
+        xt_shrinked = stoch_integr_bouncing(current_mode, xt, u, dt_shrinked, eps, dW_shrink)
         
         new_condition = ((guard_cond_bouncing_21(xt, xt_shrinked, current_mode)) and (cnt_shrink < 20))
         cnt_shrink += 1
@@ -115,8 +115,8 @@ def guard_false_func_bouncing_21(args):
 from functools import partial
 
 reaction_mode_mismatch_bouncing = partial(reaction_mode_mismatch, cond_early_arrival=cond_early_arrival_bouncing)
-hybrid_stochastic_integration_bouncing = partial(h_stoch_integr, 
-                                                stoch_integr_func = stochastic_integration_euler_bouncing, 
+h_stoch_integr_bouncing = partial(h_stoch_integr, 
+                                                stoch_integr_func = stoch_integr_bouncing, 
                                                 guard_0=guard_cond_bouncing_12,
                                                 guard_true_func_0=guard_true_func_bouncing_12,
                                                 guard_false_func_0=guard_false_func_bouncing_12,
@@ -125,10 +125,10 @@ hybrid_stochastic_integration_bouncing = partial(h_stoch_integr,
                                                 guard_false_func_1=guard_false_func_bouncing_21)
 
 
-hybrid_stochastic_feedback_rollout_discrete_bouncing = partial(h_stoch_fb_rollout, 
+h_stoch_fb_rollout_bouncing = partial(h_stoch_fb_rollout, 
                                                             cond_mismatch_func=cond_mode_mismatch_bouncing,
                                                             reaction_mismatch_func=reaction_mode_mismatch_bouncing,
-                                                            h_stoch_integr_func=hybrid_stochastic_integration_bouncing)    
+                                                            h_stoch_integr_func=h_stoch_integr_bouncing)    
 
     
 

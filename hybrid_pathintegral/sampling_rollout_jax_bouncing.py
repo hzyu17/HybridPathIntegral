@@ -4,16 +4,16 @@ from functools import partial
 
 from functools import partial
 
-hybrid_stochastic_integration_bouncing_JAX = partial(h_stoch_integr_euler_JAX, 
-                                                    stoch_integr_func = stochastic_integration_euler_bouncing_JAX, 
-                                                    guard_0 = guard_bouncing_12_JAX, 
-                                                    guard_true_func_0 = guard_true_bouncing_12_JAX, 
-                                                    guard_false_func_0 = guard_false_bouncing_12_JAX,
-                                                    guard_1 = guard_bouncing_21_JAX,
-                                                    guard_true_func_1 = guard_true_bouncing_21_JAX,
-                                                    guard_false_func_1 = guard_false_bouncing_21_JAX)
+h_stoch_integr_bouncing_JAX = partial(h_stoch_integr_euler_JAX, 
+                                        stoch_integr_func = stoch_integr_bouncing_JAX, 
+                                        guard_0 = guard_bouncing_12_JAX, 
+                                        guard_true_func_0 = guard_true_bouncing_12_JAX, 
+                                        guard_false_func_0 = guard_false_bouncing_12_JAX,
+                                        guard_1 = guard_bouncing_21_JAX,
+                                        guard_true_func_1 = guard_true_bouncing_21_JAX,
+                                        guard_false_func_1 = guard_false_bouncing_21_JAX)
 
-cost_i_bouncing = partial(cost_i, h_stoch_integr_func=hybrid_stochastic_integration_bouncing_JAX)
+cost_i_bouncing = partial(cost_i, h_stoch_integr_func=h_stoch_integr_bouncing_JAX)
 feedback_cost_bouncing_jax = partial(feedback_cost_jax, cost_i_func=cost_i_bouncing)
 
 # =======================================================
@@ -37,7 +37,7 @@ def sample_bouncing_jax(n_samples, x0, current_mode,
                         uref_mode0_trj, uref_mode1_trj, 
                         K_fb_0, k_ff_0, 
                         K_fb_1, k_ff_1, 
-                        x_tar, Q_T, 
+                        x_targ, Q_T, Q_k,
                         dt, dt_shr, 
                         eps, 
                         noise_mode0,
@@ -63,7 +63,8 @@ def sample_bouncing_jax(n_samples, x0, current_mode,
     k_ff_1 = jnp.asarray(k_ff_1)
     noise_mode0 = jnp.asarray(noise_mode0)
     noise_mode1 = jnp.asarray(noise_mode1)
-
+    Q_k = jnp.asarray(Q_k)
+    x_targ = jnp.asarray(x_targ)
     
     # ============================
     #  Start jax sampling process
@@ -82,6 +83,7 @@ def sample_bouncing_jax(n_samples, x0, current_mode,
     v_St = jnp.zeros((n_samples, 1), dtype=jnp.float64)
     v_init_event_args = jnp.tile(init_reset_args, (n_samples, 1))
     v_initial_carry = (v_t, v_x0, v_current_mode, v_St, v_index, v_init_event_args)
+    
     
     # --------------- // carrys // --------------- 
     
@@ -113,12 +115,15 @@ def sample_bouncing_jax(n_samples, x0, current_mode,
     v_randN_mode1 = jnp.asarray(noise_mode1)
     v_ref_modes = jnp.tile(ref_modes, (n_samples, 1))
     
+    v_Qk = jnp.tile(Q_k, (n_samples, 1, 1, 1))
+    v_x_targ = jnp.tile(x_targ, (n_samples, 1, 1))
+    
     v_inputs = (v_uref_mode0, v_uref_mode1, 
                 v_Kfb_0, v_kff_0,
                 v_Kfb_1, v_kff_1, 
                 v_randN_mode0, v_randN_mode1, 
                 v_xref_mode0, v_xref_mode1,
-                v_ref_modes)
+                v_ref_modes, v_x_targ, v_Qk)
     
     # --------------- / inputs --------------------
 
@@ -147,7 +152,7 @@ def sample_bouncing_jax(n_samples, x0, current_mode,
     
     v_sample_results = feedbackcost_vmap(v_initial_carry, v_inputs)
     
-    args_terminal_cost = (x_tar, Q_T)
+    args_terminal_cost = (x_targ[0], Q_T)
     terminal_cost_xQrx_vmap = jax.vmap(partial(quadratic_terminal_cost_jit, args=args_terminal_cost), in_axes=0)
     
 
@@ -156,7 +161,8 @@ def sample_bouncing_jax(n_samples, x0, current_mode,
     # --------------------------
     (Ksamples_ts, Ksample_modes_jax, Ksamples_jax, 
      PathCosts_jax, Ksamples_ut, 
-     actual_ref_jax, Ksamples_Kfb_mode, Ksamples_kff_mode, Ksamples_reset_args) = v_sample_results
+     actual_ref_jax, Ksamples_Kfb_mode, 
+     Ksamples_kff_mode, Ksamples_reset_args) = v_sample_results
     
     # ------------ Terminal cost ------------
     PathCosts_jax = PathCosts_jax[:, -1].flatten()

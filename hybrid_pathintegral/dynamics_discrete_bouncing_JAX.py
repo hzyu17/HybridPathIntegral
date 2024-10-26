@@ -9,7 +9,7 @@ from dynamics.dynamics_bouncing import *
 from dynamics.dynamics_discrete import *
 
 
-def stochastic_integration_euler_bouncing_JAX(mode, x0, u, dt, eps, dW):
+def stoch_integr_bouncing_JAX(mode, x0, u, dt, eps, dW):
     B = jnp.array([[0],[1.0]], dtype=jnp.float64)
     xt_next = x0 + jnp.array([x0[1], u[0]-9.81], dtype=jnp.float64) * dt + jnp.sqrt(eps) * B@dW
     return xt_next
@@ -40,7 +40,7 @@ def guard_true_bouncing_12_JAX(args):
         dt_shrinked = dt_int * dt_shrinkrate
         dW_shrinked = jnp.sqrt(dt_shrinked)*RandN
         
-        xt_shrinked = stochastic_integration_euler_bouncing_JAX(current_mode, xt_current, u, dt_shrinked, eps, dW_shrinked)
+        xt_shrinked = stoch_integr_bouncing_JAX(current_mode, xt_current, u, dt_shrinked, eps, dW_shrinked)
         
         new_condition = jnp.logical_and(guard_bouncing_12_JAX(xt_current, xt_shrinked, current_mode), cnt_shrink<20)
         cnt_shrink += 1
@@ -91,7 +91,7 @@ def guard_true_bouncing_21_JAX(args):
         dt_shrinked = dt_int * dt_shrinkrate
         dW_shrinked = jnp.sqrt(dt_shrinked)*RandN
         
-        xt_shrinked = stochastic_integration_euler_bouncing_JAX(current_mode, xt_current, u, dt_shrinked, eps, dW_shrinked)
+        xt_shrinked = stoch_integr_bouncing_JAX(current_mode, xt_current, u, dt_shrinked, eps, dW_shrinked)
         
         new_condition = jnp.logical_and(guard_bouncing_21_JAX(xt_current, xt_shrinked, current_mode), cnt_shrink<20)
         cnt_shrink += 1

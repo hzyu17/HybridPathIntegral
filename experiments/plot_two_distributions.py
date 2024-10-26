@@ -55,7 +55,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
     (mode_trj_ilqr, 
         xt_trj_ilqr, 
         u_trj_ilqr, 
-        cost_ilqr, _, _) = hybrid_stochastic_feedback_rollout_discrete_bouncing(init_mode, 
+        cost_ilqr, _, _) = h_stoch_fb_rollout_bouncing(init_mode, 
                                                                             init_state, 
                                                                             n_inputs, 
                                                                             states, modes, 
@@ -461,7 +461,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         reset_args_actual[i_t] = event_args_actual[cnt_event_actual]
         actual_noise_i = RndN_actual[current_mode_actual][i_t]
         
-        xt_next, next_mode_actual, _, new_reset_arg = hybrid_stochastic_integration_bouncing(xt, current_mode_actual,
+        xt_next, next_mode_actual, _, new_reset_arg = h_stoch_integr_bouncing(xt, current_mode_actual,
                                                                                                 u0_star_jax, actual_noise_i, 
                                                                                                 epsilon, dt, dt_shrinkingrate, 
                                                                                                 start_time_i, reset_args_actual[i_t])
@@ -529,7 +529,7 @@ if __name__ == '__main__':
     
     initial_guess = [0.5*np.ones((np.shape(time_span)[0],n_inputs[0])), 0.5*np.ones((np.shape(time_span)[0],n_inputs[1]))]
     
-    flow_dynamics = [symbolic_dynamics_bouncing, symbolic_dynamics_bouncing]
+    flow_dynamics = [sym_dyn_bouncing, sym_dyn_bouncing]
     
     exp_params.update_params(n_modes, init_mode, target_mode, n_states, init_state, target_state, 
                              start_time, end_time, dt, dt_shrink, initial_guess, 

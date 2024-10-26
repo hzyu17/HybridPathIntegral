@@ -4,13 +4,13 @@ from functools import partial
 
 from functools import partial
 
-hybrid_stochastic_integration_bouncing_JAX = partial(h_stoch_integr_euler_JAX, 
-                                                    stoch_integr_func = stochastic_integration_euler_bouncing_JAX, 
+h_stoch_integr_bouncing_JAX = partial(h_stoch_integr_euler_JAX, 
+                                                    stoch_integr_func = stoch_integr_bouncing_JAX, 
                                                     guard_func = guard_bouncing_12_JAX, 
                                                     guard_true_func = guard_true_bouncing_12_JAX, 
                                                     guard_false_func = guard_false_bouncing_12_JAX)
 
-cost_i_bouncing = partial(cost_i, h_stoch_integr_func=hybrid_stochastic_integration_bouncing_JAX)
+cost_i_bouncing = partial(cost_i, h_stoch_integr_func=h_stoch_integr_bouncing_JAX)
 feedback_cost_bouncing_jax = partial(feedback_cost_jax, cost_i_func=cost_i_bouncing)
 
 # =======================================================

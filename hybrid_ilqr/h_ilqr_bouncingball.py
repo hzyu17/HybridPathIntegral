@@ -79,7 +79,7 @@ if __name__ == '__main__':
     
     initial_guess = [0.5*np.ones((np.shape(time_span)[0],n_inputs[0])), 0.5*np.ones((np.shape(time_span)[0],n_inputs[1]))]
     
-    flow_dynamics = [symbolic_dynamics_bouncing, symbolic_dynamics_bouncing]
+    flow_dynamics = [sym_dyn_bouncing, sym_dyn_bouncing]
     
     exp_params.update_params(n_modes, init_mode, target_mode, n_states, init_state, target_state, 
                              start_time, end_time, dt, dt_shrink, initial_guess, 

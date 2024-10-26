@@ -106,8 +106,15 @@ class hybrid_ilqr:
             dt = timespan[ii+1] - timespan[ii]
             current_mode = modes[ii]
             current_u = inputs[current_mode][ii].flatten()
+            current_x = states[ii].flatten()
 
-            current_cost = 0.5*current_u.T@self.R_k_[current_mode]@current_u # Right now only considering cost in input
+            current_cost_u = 0.5*current_u.T@self.R_k_[current_mode]@current_u # Right now only considering cost in input
+            
+            state_diff = current_x - self._target_state
+            current_cost_x = 0.5*state_diff.T@self.Q_k_[current_mode]@state_diff
+            
+            current_cost = current_cost_u + current_cost_x
+            
             total_cost = total_cost+current_cost*dt
             
         # Compute terminal cost
@@ -150,7 +157,7 @@ class hybrid_ilqr:
             l_xx = self.Q_k_[current_mode] 
             l_uu = self.R_k_[current_mode]
 
-            l_x = self.Q_k_[current_mode]@np.zeros(self._n_states[current_mode]).flatten() 
+            l_x = self.Q_k_[current_mode]@(current_x).flatten() 
             l_u = self.R_k_[current_mode]@(current_u).flatten()
 
             # Get the jacobian of the discretized dynamics
@@ -677,7 +684,7 @@ class hybrid_ilqr:
             nt_ext_bwd = len(timespan_ext_bwd)
             xtrj_ext_bwd_i = np.zeros((nt_ext_bwd, self._n_states[next_mode_i]))
             xtrj_ext_bwd_i[0] = x_reset_i
-                 
+            
             K_feedback_ext_bwd_i = np.tile(K_feedback_bwd_extension_i, (self._n_timesteps, 1, 1))
             k_feedforward_ext_bwd_i = np.tile(k_feedforward_bwd_extension_i, (self._n_timesteps, 1))
             
@@ -716,11 +723,11 @@ class hybrid_ilqr:
             
             # ------------------------ collect the trajectory extensions ------------------------
             ref_ext_helper.append({"Mode Change": np.array([current_mode_i, next_mode_i]), 
-                                              "Trajectory Extensions": {current_mode_i:xtrj_ext_fwd_i, next_mode_i:xtrj_ext_bwd_i}, 
-                                              "Feedback gains": {current_mode_i:K_feedback_ext_fwd_i, next_mode_i:K_feedback_ext_bwd_i}, 
-                                              "Feedforward gains": {current_mode_i:k_feedforward_ext_fwd_i, next_mode_i:k_feedforward_ext_bwd_i}, 
-                                              "event index":  i_event_i
-                                              })
+                                    "Trajectory Extensions": {current_mode_i:xtrj_ext_fwd_i, next_mode_i:xtrj_ext_bwd_i}, 
+                                    "Feedback gains": {current_mode_i:K_feedback_ext_fwd_i, next_mode_i:K_feedback_ext_bwd_i}, 
+                                    "Feedforward gains": {current_mode_i:k_feedforward_ext_fwd_i, next_mode_i:k_feedforward_ext_bwd_i}, 
+                                    "event index":  i_event_i
+                                    })
         
         
         # fig, axes = plt.subplots(2,1)
