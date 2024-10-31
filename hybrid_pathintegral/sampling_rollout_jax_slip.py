@@ -43,7 +43,7 @@ def sample_slip_jax(i_exp, n_samples,
                     uref_mode0_trj, uref_mode1_trj, 
                     K_fb_0, k_ff_0,
                     K_fb_1, k_ff_1,
-                    x_target, Q_T,
+                    x_target, Q_T, Q_k,
                     dt, dt_shr,
                     eps,
                     noise_mode0,
@@ -69,6 +69,9 @@ def sample_slip_jax(i_exp, n_samples,
     k_ff_1 = jnp.asarray(k_ff_1)
     noise_mode0 = jnp.asarray(noise_mode0)
     noise_mode1 = jnp.asarray(noise_mode1)
+    
+    Q_k = jnp.asarray(Q_k)
+    x_target = jnp.asarray(x_target)
     
     devices = jax.devices()
 
@@ -132,12 +135,15 @@ def sample_slip_jax(i_exp, n_samples,
         v_randN_mode1 = jnp.asarray(noise_mode1)
         v_ref_modes = jnp.tile(ref_modes, (n_samples, 1))
         
+        v_Qk = jnp.tile(Q_k, (n_samples, 1, 1, 1))
+        v_x_targ = jnp.tile(x_target, (n_samples, 1, 1))
+        
         v_inputs = (v_uref_mode0, v_uref_mode1, 
                     v_Kfb_0, v_kff_0,
                     v_Kfb_1, v_kff_1, 
                     v_randN_mode0, v_randN_mode1, 
                     v_xref_mode0, v_xref_mode1,
-                    v_ref_modes)
+                    v_ref_modes, v_x_targ, v_Qk)
         
         # -------------------- // inputs // ------------------------- 
         

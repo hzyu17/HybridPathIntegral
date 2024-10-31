@@ -6,7 +6,7 @@ from dynamics.dynamics_discrete_slip import *
 class hybrid_ilqr:
     def __init__(self, nmodes, init_mode, target_mode, nstates,
                  init_state,target_state,initial_guess,
-                 dt,dt_shrinkrate,start_time,end_time,
+                 dt,start_time,end_time,
                  contact_detect,smooth_dynamics,
                  Q_k,R_k,Q_T,parameters,n_iterations,
                  detect,plot_func,state_convert_func, 
@@ -27,7 +27,7 @@ class hybrid_ilqr:
         
         # time definitions
         self.dt_ = dt
-        self._dtshrinkrate = dt_shrinkrate
+        # self._dtshrinkrate = dt_shrinkrate
         self.start_time_ = start_time
         self.end_time_ = end_time
         self._timespan = np.arange(start_time, end_time, dt).flatten()
@@ -110,10 +110,11 @@ class hybrid_ilqr:
 
             current_cost_u = 0.5*current_u.T@self.R_k_[current_mode]@current_u # Right now only considering cost in input
             
-            state_diff = current_x - self._target_state
-            current_cost_x = 0.5*state_diff.T@self.Q_k_[current_mode]@state_diff
+            # state_diff = current_x - self._target_state
+            # current_cost_x = 0.5*state_diff.T@self.Q_k_[current_mode]@state_diff
+            # current_cost = current_cost_u + current_cost_x
             
-            current_cost = current_cost_u + current_cost_x
+            current_cost = current_cost_u
             
             total_cost = total_cost+current_cost*dt
             
@@ -362,7 +363,7 @@ class hybrid_ilqr:
                                                                                 current_state, 
                                                                                 current_input, 
                                                                                 t_ii, dt, 
-                                                                                self._dtshrinkrate, 
+                                                                                # self._dtshrinkrate, 
                                                                                 reset_args[ii], self.detect_)
 
             # -------------------------------
@@ -422,8 +423,10 @@ class hybrid_ilqr:
                                             self._init_state, self._target_mode, self._target_state, 
                                             self._n_timesteps, self._reset_args, self._target_reset_args,step=20)
             
-            plt.tight_layout()
-            # fig.savefig(root_dir+'/data/figures/slip/slip_jump_setting.pdf', dpi=2000)
+            fig.tight_layout()
+            ax.set_xlim(-0.4, 1.25)
+            ax.set_ylim(-0.2, 1.65)
+            fig.savefig(root_dir+'/data/figures/slip/slip_jump_setting.pdf', dpi=2000)
             plt.show()
             
         # ----------------------------------------------------
@@ -658,8 +661,10 @@ class hybrid_ilqr:
                 # Using zero control, modify if needed.
                 current_input = np.zeros(self._n_inputs[current_mode_i])
                 
-                next_state, _, _, _, _, _, _ = self.detection_func_(current_mode_i, current_state, current_input, t_jj, dt, 
-                                                                    self._dtshrinkrate, self._reset_args[jj], detection=False)
+                next_state, _, _, _, _, _, _ = self.detection_func_(current_mode_i, current_state, 
+                                                                    current_input, t_jj, dt, 
+                                                                    # self._dtshrinkrate, 
+                                                                    self._reset_args[jj], detection=False)
              
                 # Store states and inputs
                 xtrj_ext_fwd_i[jj+1] = next_state
@@ -701,7 +706,7 @@ class hybrid_ilqr:
                 
                 next_state, _, _, _, _, _, _ = self.detection_func_(next_mode_i,current_state, 
                                                                     current_input, t_jj, dt, 
-                                                                    self._dtshrinkrate, 
+                                                                    # self._dtshrinkrate, 
                                                                     self._reset_args[jj], 
                                                                     detection=False, 
                                                                     backwards=True)
@@ -758,7 +763,7 @@ def solve_ilqr(params, detect=True, verbose=True):
 
     # Initialize timings
     dt = params._dt
-    dt_shrink = params._dt_shrink
+    # dt_shrink = params._dt_shrink
     
     start_time = params._start_time
     end_time = params._end_time
@@ -797,7 +802,7 @@ def solve_ilqr(params, detect=True, verbose=True):
     nstates = params._nstates
 
     ilqr_ = hybrid_ilqr(nmodes,init_mode,target_mode,nstates,init_state,target_state,initial_guess,
-                        dt,dt_shrink,start_time,end_time,detect_integration,smooth_dynamis,
+                        dt,start_time,end_time,detect_integration,smooth_dynamis,
                         Q_k,R_k,Q_T,parameters,n_iterations,
                         detect,plotting_function,state_convert_function, 
                         init_reset_args, target_reset_args, animate_function, verbose)

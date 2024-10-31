@@ -55,15 +55,15 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
      xt_trj_ilqr, 
      u_trj_ilqr, 
      cost_ilqr, _, _) = h_stoch_fb_rollout_bouncing(init_mode, 
-                                                                            init_state, 
-                                                                            n_inputs, 
-                                                                            states, modes, 
-                                                                            inputs, K_feedback, k_feedforward, 
-                                                                            target_state, Q_T,
-                                                                            start_time, dt, 
-                                                                            epsilon, RndN_actual, dt_shrinkingrate, 
-                                                                            ref_ext_helper,
-                                                                            init_reset_args)
+                                                    init_state, 
+                                                    n_inputs, 
+                                                    states, modes, 
+                                                    inputs, K_feedback, k_feedforward, 
+                                                    target_state, Q_T,
+                                                    start_time, dt, 
+                                                    epsilon, RndN_actual, dt_shrinkingrate, 
+                                                    ref_ext_helper,
+                                                    init_reset_args)
     
     show_hilqr_results = False
     if show_hilqr_results:

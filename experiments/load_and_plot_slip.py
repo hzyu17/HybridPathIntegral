@@ -19,7 +19,7 @@ if __name__ == '__main__':
     exp_data = ExpData(exp_params)
 
     # filename = root_dir+"/data/bouncing/ablation_study_nsamples/data_5000samples_eps_15.0_coupling.pickle"
-    filename = root_dir+"/experiments/data/new_exp/slip/data_h_PI_slip_jax_threading_100exp_5000samples_eps_0.006_coupling.pickle"
+    filename = root_dir+"/experiments/data/new_exp/slip/data_h_PI_slip_jax_threading_100exp_5000samples_eps_0.005_coupling.pickle"
     print("loading data: ", filename)
     
     exp_data.load(filename)
@@ -36,11 +36,10 @@ if __name__ == '__main__':
     print("dt: ", exp_params._dt)
     
     (timespan,modes,states,inputs, 
-        k_feedforward, K_feedback, current_cost, 
-        states_iter, ref_modechanges,
-        ref_ext_helper, ref_reset_args) = exp_data.get_nominal_data()
+    k_feedforward, K_feedback, current_cost, 
+    states_iter, ref_modechanges,
+    ref_ext_helper, ref_reset_args) = exp_data.get_nominal_data()
     
-        
     plotting_function = exp_data.get_plotting_function()
     
     # # compute the costs and variances
@@ -71,8 +70,8 @@ if __name__ == '__main__':
     # Check the costs of the 10% tail of h-iLQR costs
     sorted_cost_ilqr_indices = [index for index, _ in sorted(enumerate(cost_ilqr_exp), key=lambda x: x[1])]
     sorted_costilqr = sorted(cost_ilqr_exp)
-    ilqr_tail_index = sorted_cost_ilqr_indices[int(np.floor(0.9 * len(sorted_cost_ilqr_indices))):]
-    ilqr_best_index = sorted_cost_ilqr_indices[:int(np.floor(0.1 * len(sorted_cost_ilqr_indices)))]
+    ilqr_tail_index = sorted_cost_ilqr_indices[int(np.floor(0.95 * len(sorted_cost_ilqr_indices))):]
+    ilqr_best_index = sorted_cost_ilqr_indices[:int(np.floor(0.05 * len(sorted_cost_ilqr_indices)))]
     
     # ------------------------------------------------------------------
     #   Compute CVaR: check the cases where h-iLQR do not perform well
@@ -98,10 +97,10 @@ if __name__ == '__main__':
     cost_diff_tail = (cost_ilqr_exp[ilqr_tail_index] - cost_pi_exp[ilqr_tail_index]) / cost_ilqr_exp[ilqr_tail_index]
     mean_cost_diff_tail = np.mean(cost_diff_tail) * 100.0
     
-    print("================= H-iLQG tail Cost =================")
-    print("mean 10% tail H-iLQG cost, H-iLQG: ", np.mean(cost_ilqr_exp[ilqr_tail_index]))
-    print("mean 10% tail H-iLQG cost, H-PI: ", np.mean(cost_pi_exp[ilqr_tail_index]))
-    print("mean 10% tail H-iLQG cost, Improvement (%): ", mean_cost_diff_tail)
+    print("================= H-iLQR tail Cost =================")
+    print("mean 10% tail H-iLQR cost, H-iLQR: ", np.mean(cost_ilqr_exp[ilqr_tail_index]))
+    print("mean 10% tail H-iLQR cost, H-PI: ", np.mean(cost_pi_exp[ilqr_tail_index]))
+    print("mean 10% tail H-iLQR cost, Improvement (%): ", mean_cost_diff_tail)
     
     # ==============================================
     #                   Plottings
@@ -110,7 +109,7 @@ if __name__ == '__main__':
     # ---------------------------------------
     # Setting font properties using fontdict
     # ---------------------------------------
-    font_props = FontProperties(family='serif', size=18, weight='normal')
+    font_props = FontProperties(family='serif', size=20, weight='normal')
     
     # --------------------------------------------
     # plot the path integral controlled trajectory
@@ -121,23 +120,43 @@ if __name__ == '__main__':
     figs1, axes1 = plot_slip_nexp(ilqr_best_index, exp_data, time_span, init_state, target_state, args=None)
     figs2, axes2 = plot_slip_nexp(ilqr_tail_index, exp_data, time_span, init_state, target_state, args=None)
     
-    fig11, fig12, fig13, fig14, fig15 = figs1.flatten()
-    fig21, fig22, fig23, fig24, fig25 = figs2.flatten()
+    # fig11, fig12, fig13, fig14, fig15 = figs1.flatten()
+    # fig21, fig22, fig23, fig24, fig25 = figs2.flatten()
+    
+    fig11, fig12, fig13, fig14, fig15, _, _, _ = figs1.flatten()
+    fig21, fig22, fig23, fig24, fig25, _, _, _ = figs2.flatten()
     
     fig11.tight_layout()
     fig12.tight_layout()
     fig13.tight_layout()
+    fig14.tight_layout()
+    fig15.tight_layout()
+    
     fig21.tight_layout()
     fig22.tight_layout()
     fig23.tight_layout()
+    fig24.tight_layout()
+    fig25.tight_layout()
     
-    # save figures
     fig11.savefig(root_dir+'/data/figures/slip/slip_mode0_best10_1.pdf', format='pdf', dpi=2000)
     fig12.savefig(root_dir+'/data/figures/slip/slip_mode0_best10_2.pdf', format='pdf', dpi=2000)
-    fig13.savefig(root_dir+'/data/figures/slip/slip_mode1_best10.pdf', format='pdf', dpi=2000)
+    fig13.savefig(root_dir+'/data/figures/slip/slip_mode0_best10_3.pdf', format='pdf', dpi=2000)
+    fig14.savefig(root_dir+'/data/figures/slip/slip_mode0_best10_4.pdf', format='pdf', dpi=2000)
+    fig15.savefig(root_dir+'/data/figures/slip/slip_mode0_best10_5.pdf', format='pdf', dpi=2000)
+    
     fig21.savefig(root_dir+'/data/figures/slip/slip_mode0_tail10_1.pdf', format='pdf', dpi=2000)
     fig22.savefig(root_dir+'/data/figures/slip/slip_mode0_tail10_2.pdf', format='pdf', dpi=2000)
-    fig23.savefig(root_dir+'/data/figures/slip/slip_mode1_tail10.pdf', format='pdf', dpi=2000)
+    fig23.savefig(root_dir+'/data/figures/slip/slip_mode0_tail10_3.pdf', format='pdf', dpi=2000)
+    fig24.savefig(root_dir+'/data/figures/slip/slip_mode0_tail10_4.pdf', format='pdf', dpi=2000)
+    fig25.savefig(root_dir+'/data/figures/slip/slip_mode0_tail10_5.pdf', format='pdf', dpi=2000)
+    
+    # save figures
+    # fig11.savefig(root_dir+'/data/figures/slip/slip_mode0_best10_1.pdf', format='pdf', dpi=2000)
+    # fig12.savefig(root_dir+'/data/figures/slip/slip_mode0_best10_2.pdf', format='pdf', dpi=2000)
+    # fig13.savefig(root_dir+'/data/figures/slip/slip_mode1_best10.pdf', format='pdf', dpi=2000)
+    # fig21.savefig(root_dir+'/data/figures/slip/slip_mode0_tail10_1.pdf', format='pdf', dpi=2000)
+    # fig22.savefig(root_dir+'/data/figures/slip/slip_mode0_tail10_2.pdf', format='pdf', dpi=2000)
+    # fig23.savefig(root_dir+'/data/figures/slip/slip_mode1_tail10.pdf', format='pdf', dpi=2000)
     
     plt.show()
     
@@ -168,29 +187,35 @@ if __name__ == '__main__':
         # fig8, ax9 = animate_slip(modes, states, init_mode, 
         #                         exp_params._init_state, target_mode, exp_params._target_state, 
         #                         nt, reset_args, target_reset_args, step=20)
-        # ax9.set_title(r"H-iLQG reference", fontproperties=font_props)
+        # ax9.set_title(r"H-iLQR reference", fontproperties=font_props)
         # plt.show()
         # ax9.set_title(r"H-PI controlled SLIP under uncertainty", fontproperties=font_props)
         
         
         fig8, ax9 = animate_slip(modes_pi, states_pi, init_mode, 
                                 exp_params._init_state, target_mode, exp_params._target_state, 
-                                nt, reset_args, target_reset_args, step=10)
-        ax9.set_title(r"H-PI controlled SLIP under uncertainty", fontproperties=font_props)
-        
+                                nt, reset_args, target_reset_args, step=25)
+        # ax9.set_title(r"H-PI controlled SLIP under uncertainty", fontproperties=font_props)
+        ax9.set_xlim(-0.4, 1.25)
+        ax9.set_ylim(-0.2, 1.65)
         
         fig9, ax10 = animate_slip(modes_ilqg, states_ilqg, init_mode, 
                                 exp_params._init_state, target_mode, exp_params._target_state, 
-                                nt, reset_args, target_reset_args, step=10)
-        ax10.set_title(r"H-iLQG controlled SLIP under uncertainty", fontproperties=font_props)
+                                nt, reset_args, target_reset_args, step=25)
+        # ax10.set_title(r"H-iLQR controlled SLIP under uncertainty", fontproperties=font_props)
+        ax10.set_xlim(-0.4, 1.25)
+        ax10.set_ylim(-0.2, 1.65)
         
         fig8.tight_layout()
         fig9.tight_layout()
         
         plt.show()
         
+    fig8.savefig(root_dir+'/data/figures/slip/slip_animate_H_PI.pdf', dpi=2000)
+    fig9.savefig(root_dir+'/data/figures/slip/slip_animate_H_ILQR.pdf', dpi=2000)
+    
     # ------------------------------------------ 
-    # Bar Plot PathCosts for all experiments
+    #   Bar Plot PathCosts for all experiments
     # ------------------------------------------
     fig3, ax8 = plt.subplots(figsize=(18,6))
     ax8.grid(True)
@@ -202,7 +227,7 @@ if __name__ == '__main__':
 
     index = np.arange(n_exp)
 
-    bars1 = ax8.bar(index, cost_ilqr_exp, bar_width, alpha=opacity, color='b', label='Hybrid iLQG')
+    bars1 = ax8.bar(index, cost_ilqr_exp, bar_width, alpha=opacity, color='b', label='Hybrid iLQR')
     bars2 = ax8.bar(index + bar_width, cost_pi_exp, bar_width, alpha=opacity, color='r', label='Hybrid Path Integral')
 
     # Add some labels, title and axes ticks
@@ -221,38 +246,55 @@ if __name__ == '__main__':
     #--- plot the variances and useful portion
     
     (avg_variances, std_variances, lowerbound_variances, upperbound_variances, 
-            avg_lbdas, std_lbdas, lowerbound_lbdas, upperbound_lbdas) = compute_var_lbd_nexp(n_exp, nt, exp_data)
+    avg_lbdas, std_lbdas, lowerbound_lbdas, upperbound_lbdas) = compute_var_lbd_nexp(n_exp, nt, exp_data)
     
     # --------------------------- Plotting --------------------------- 
-    fig6, ax7 = plt.subplots(figsize=(8,6))
-    fig7, ax8 = plt.subplots(figsize=(8,6))
+    fig6, ax7 = plt.subplots(figsize=(7,8))
+    fig7, ax8 = plt.subplots(figsize=(7,8))
     
-    ax7.grid(True)
-    ax8.grid(True)
+    # ax7.grid(True)
+    # ax8.grid(True)
     
     # Mean as a solid line
-    ax7.plot(time_span[:-1], avg_variances, 'r-', label=r'Mean Weight Distribution Variance')
-    ax7.fill_between(time_span[:-1], lowerbound_variances, upperbound_variances, color='gray', alpha=0.5, label='Varies across experiments')
+    ax7.plot(time_span[:-1], avg_variances, 'r-', label=r'Average Variance', linewidth=2)
+    ax7.fill_between(time_span[:-1], lowerbound_variances, upperbound_variances, color='gray', alpha=0.2, label='Varies Across Experiments')
+    ax7.set_ylim(-5,100)
     
     # ax9.set_title('Weight Variance')
     ax7.set_xlabel(r'Time', fontproperties=font_props)
-    ax7.set_ylabel(r'Var$(\alpha)$ (t)', fontproperties=font_props)
-    ax7.legend(loc='best', prop={'family': 'serif', 'size': 12})
+    # ax7.set_ylabel(r'Var$(\alpha)$ (t)', fontproperties=font_props)
+    ax7.legend(loc='best', prop={'family': 'serif', 'size': 18})
     
     # Shaded area for variability (e.g., ±1 standard deviation)
-    ax8.plot(time_span[:-1], avg_lbdas, 'r-', label=r'Mean Effective Samples $(\%)$')
-    # ax8.fill_between(time_span[:-1], avg_lbdas-std_lbdas, avg_lbdas+std_lbdas, color='gray', alpha=0.5, label=r'$1$ StdV. across experiments')
-    ax8.fill_between(time_span[:-1], lowerbound_lbdas, upperbound_lbdas, color='gray', alpha=0.5, label='Varies across experiments')
+    ax8.plot(time_span[:-1], avg_lbdas, 'r-', linewidth=2, label=r'Average')
+    ax8.fill_between(time_span[:-1], avg_lbdas-std_lbdas, avg_lbdas+std_lbdas, color='gray', alpha=0.2, label=r'$1$ StdV.')
+    # ax8.fill_between(time_span[:-1], lowerbound_lbdas, upperbound_lbdas, color='gray', alpha=0.2, label='Varies Across Experiments')
 
     ax8.set_xlabel(r'Time', fontproperties=font_props)
-    ax8.set_ylabel(r'$\lambda$ (t) (%)', fontproperties=font_props)
-    ax8.set_ylim(0, 110)    
-    ax8.legend(loc='best', prop={'family': 'serif', 'size': 12})
+    # ax8.set_ylabel(r'$\lambda$ (t) (%)', fontproperties=font_props)
+    ax8.set_ylim(0, 105)    
+    ax8.legend(loc='upper left', prop={'family': 'serif', 'size': 18})
+    
+    font = FontProperties()
+    font.set_family('serif')     
+    font.set_size(18)       
+
+    # Apply font properties to x and y tick labels
+    for tick in ax7.get_xticklabels():
+        tick.set_fontproperties(font)
+    for tick in ax7.get_yticklabels():
+        tick.set_fontproperties(font)
+    for tick in ax8.get_xticklabels():
+        tick.set_fontproperties(font)
+    for tick in ax8.get_yticklabels():
+        tick.set_fontproperties(font)
     
     fig6.tight_layout()
     fig7.tight_layout()
-    fig6.savefig(root_dir+'/data/figures/slip/slip_var.pdf', format='pdf', dpi=2000)
-    fig7.savefig(root_dir+'/data/figures/slip/slip_lbda.pdf', format='pdf', dpi=2000)
+    fig6.savefig(root_dir+'/data/figures/slip/slip_var.pdf', format='pdf', dpi=4000)
+    fig7.savefig(root_dir+'/data/figures/slip/slip_lbda.pdf', format='pdf', dpi=4000)
+    
+    plt.show()
         
     # --------------------------- Compute the statistics ---------------------------
     jump_indexes = np.zeros(n_exp)

@@ -19,7 +19,7 @@ if __name__ == '__main__':
     exp_data = ExpData(exp_params)
 
     # filename = root_dir+"/data/bouncing/ablation_study_nsamples/data_5000samples_eps_15.0_coupling.pickle"
-    filename = root_dir+"/experiments/data/new_exp/slip/data_ablation_coupling_2exp_2000samples_eps_0.001_coupling.pickle"
+    filename = root_dir+"/experiments/data/new_exp/slip/data_2024-10-27_10-22-50_ablation_coupling_bouncing_3exp_500samples_eps_2.0_coupling_ablation.pickle"
     print("loading data: ", filename)
     exp_data.load(filename)
     
@@ -39,15 +39,16 @@ if __name__ == '__main__':
         
         modes_pi = exp_data.get_data(i_exp).mode_trj_pi()
         mode0_index = np.where(modes_pi==0)
-        print("mode 0: ", mode0_index[0][0])
 
     #-----------------------------------------
     #  Plot the variances and useful portion
     #-----------------------------------------
     [(avg_var, std_var, lb_var, ub_var, 
      avg_lbdas, std_lbdas, lb_lbdas, ub_lbdas),
-     (avg_var_uncoupled, std_var_uncoupled, lb_var_uncoupled, ub_var_uncoupled, 
-     avg_lbdas_uncoupled, std_lbdas_uncoupled, lb_lbdas_uncoupled, ub_lbdas_uncoupled)] = compute_var_lbd_nexp_ablation_coupling(n_exp, nt, exp_data)
+     (avg_var_uncoupled, std_var_uncoupled, 
+      lb_var_uncoupled, ub_var_uncoupled, 
+     avg_lbdas_uncoupled, std_lbdas_uncoupled, 
+     lb_lbdas_uncoupled, ub_lbdas_uncoupled)] = compute_var_lbd_nexp_ablation_coupling(n_exp, nt, exp_data)
     
     # --------------------------- Compute the statistics ---------------------------
     jump_index = 212

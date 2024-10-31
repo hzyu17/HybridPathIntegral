@@ -30,12 +30,14 @@ if __name__ == '__main__':
     
     exp_params = ExpParams()
     exp_data = ExpData(exp_params)
+    exp_data_zerocontrol = ExpData(exp_params)
 
     # filename = root_dir+"/data/bouncing/ablation_study_nsamples/data_5000samples_eps_15.0_coupling.pickle"
-    filename = root_dir+"/experiments/data/new_exp/bouncing/data_2024-08-23_11-05-08_h_PI_bouncingball_jax_threading_zero_control_2000samples_eps_5.0_coupling_zero_control.pickle"
-    print("loading data: ", filename)
-    exp_data.load(filename)
+    filename = root_dir+"/experiments/data/new_exp/bouncing/data_2024-08-07_18-46-25_example_bouncingball_jax_threading_5000samples_eps_10.0_coupling.pickle"
+    # filename = root_dir+"/experiments/data/new_exp/bouncing/data_2024-08-30_05-18-48_h_PI_bouncingball_jax_threading_zero_control_2000samples_eps_5.0_coupling_zero_control.pickle"
     
+    print("loading data: ", filename)
+    exp_data.load(filename)   
     exp_params = exp_data.get_params()
     
     dt = exp_params._dt
@@ -48,12 +50,12 @@ if __name__ == '__main__':
     target_state = exp_params._target_state
     
     if exp_data.get_nominal_data():
-        (timespan, modes,states,inputs, 
+        (modes,states,inputs, 
          k_ff, K_fb, current_cost, 
          states_iter, ref_modechanges,
          ref_extension_helper, ref_reset_args) = exp_data.get_nominal_data()
     else:
-        (timespan, modes,states,inputs, 
+        (modes,states,inputs, 
          k_ff, K_fb, current_cost, 
          states_iter, ref_modechanges,
          ref_extension_helper, ref_reset_args) = solve_ilqr(exp_params)
@@ -88,8 +90,8 @@ if __name__ == '__main__':
     # Check the costs of the 10% tail of h-iLQR costs
     sorted_indx_costilqr = [index for index, _ in sorted(enumerate(v_cost_ilqr), key=lambda x: x[1])]
     sorted_costilqr = sorted(v_cost_ilqr)
-    ilqr_tail_index = sorted_indx_costilqr[int(np.floor(0.9 * len(sorted_indx_costilqr))):]
-    ilqr_best_index = sorted_indx_costilqr[:int(np.floor(0.1 * len(sorted_indx_costilqr)))]
+    ilqr_tail_index = sorted_indx_costilqr[int(np.floor(0.95 * len(sorted_indx_costilqr))):]
+    ilqr_best_index = sorted_indx_costilqr[:int(np.floor(0.05 * len(sorted_indx_costilqr)))]
     
     # ------------------------------------------------------------------
     #   Compute CVaR: check the cases where h-iLQR do not perform well
@@ -109,7 +111,7 @@ if __name__ == '__main__':
     #                   Plottings
     # ============================================== 
     from matplotlib.font_manager import FontProperties
-    font_props = FontProperties(family='serif', size=16, weight='normal')
+    font_props = FontProperties(family='serif', size=20, weight='normal')
     
     # ------------------------------------------------
     #   Plot the path integral controlled trajectory
@@ -119,8 +121,9 @@ if __name__ == '__main__':
     fig1, axes_12 = plt.subplots(1, 2, figsize=(10,6))
     fig2, ax3 = plt.subplots(figsize=(8,8))
     args = (fig1, axes_12, fig2, ax3)
-    fig1, axes_12, fig2, ax3 =  plot_bouncingball_nexp(ilqr_best_index, exp_data, time_span, init_state, 
-                                                        target_state, args=args)
+    fig1, axes_12, fig2, ax3 =  plot_bouncingball_nexp(ilqr_best_index, exp_data, 
+                                                       time_span, init_state, 
+                                                       target_state, args=args)
     
     fig1.tight_layout()
     fig2.tight_layout()
@@ -129,8 +132,9 @@ if __name__ == '__main__':
     fig3, axes_34 = plt.subplots(1, 2, figsize=(10,6))
     fig4, ax5 = plt.subplots(figsize=(8,8))
     args = (fig3, axes_34, fig4, ax5)
-    fig3, axes_34, fig4, ax5 =  plot_bouncingball_nexp(ilqr_tail_index, exp_data, time_span, init_state, 
-                                                        target_state, args=args)
+    fig3, axes_34, fig4, ax5 =  plot_bouncingball_nexp(ilqr_tail_index, exp_data, 
+                                                       time_span, init_state, 
+                                                       target_state, args=args)
     
     fig3.tight_layout()
     fig4.tight_layout()
@@ -138,15 +142,14 @@ if __name__ == '__main__':
     # save figures
     fig2.savefig(root_dir+'/data/figures/bouncing/bouncing_1D_zdotz_best10.pdf', format='pdf', dpi=2000)
     fig4.savefig(root_dir+'/data/figures/bouncing/bouncing_1D_zdotz_tail10.pdf', format='pdf', dpi=2000)
-    
     # fig2.savefig(root_dir+'/data/figures/bouncing/bouncing_1D_zdotz_best10_zerocontrol.pdf', format='pdf', dpi=2000)
     # fig4.savefig(root_dir+'/data/figures/bouncing/bouncing_1D_zdotz_tail10_zerocontrol.pdf', format='pdf', dpi=2000)
-
+    
     # ------------------------------------------ 
     #   Bar Plot PathCosts for all experiments
     # ------------------------------------------
     fig5, ax6 = plt.subplots(figsize=(18,6))
-    ax6.grid(True)
+    # ax6.grid(True)
     
     # Set the bar width
     bar_width = 0.35
@@ -165,10 +168,10 @@ if __name__ == '__main__':
     ax6.set_xticklabels(index)
 
     # Adding a legend
-    ax6.legend(loc='best', prop={'family': 'serif', 'size': 12})
+    ax6.legend(loc='best', prop={'family': 'serif', 'size': 18})
 
     fig5.tight_layout()
-    fig5.savefig(root_dir+'/data/figures/bouncing/bouncing_1D_costs.pdf', dpi=2000)
+    fig5.savefig(root_dir+'/data/figures/bouncing/bouncing_1D_costs.pdf', dpi=4000)
 
     #-----------------------------------------
     #  Plot the variances and useful portion
@@ -177,37 +180,112 @@ if __name__ == '__main__':
     avg_lbdas, std_lbdas, lb_lbdas, ub_lbdas) = compute_var_lbd_nexp(n_exp, nt, exp_data)
     
     # --------------------------- Plotting --------------------------- 
-    fig6, ax7 = plt.subplots(figsize=(8,6))
-    fig7, ax8 = plt.subplots(figsize=(8,6))
+    fig6, ax7 = plt.subplots(figsize=(7,8))
+    fig7, ax8 = plt.subplots(figsize=(7,8))
     
-    ax7.grid(True)
-    ax8.grid(True)
+    # ax7.grid(True)
+    # ax8.grid(True)
     
     # Mean as a solid line
-    ax7.plot(time_span[:-1], avg_var, 'r-', label=r'Mean Weight Distribution Variance')
-    ax7.fill_between(time_span[:-1], lb_var, ub_var, color='gray', alpha=0.5, label='Varies across experiments')
+    ax7.plot(time_span[:-1], avg_var, 'k-', label=r'Average Variance', linewidth=2)
+    ax7.fill_between(time_span[:-1], lb_var, ub_var, color='gray', alpha=0.2, label='Varies across experiments')
+    # ax7.fill_between(time_span[:-1], avg_var-std_var, avg_var+std_var, color='r', alpha=0.2, label=r'$1$ StdV. across experiments')
     
-    # ax9.set_title('Weight Variance')
     ax7.set_xlabel(r'Time', fontproperties=font_props)
-    ax7.set_ylabel(r'Var$(\alpha)$ (t)', fontproperties=font_props)
-    ax7.legend(loc='best', prop={'family': 'serif', 'size': 12})
+    ax7.set_ylim(-1,10)
+    # ax7.set_ylabel(r'Var$(\alpha)$ (t)', fontproperties=font_props)
+    ax7.legend(loc='best', prop={'family': 'serif', 'size': 18})
     
     # Shaded area for variability (e.g., ±1 standard deviation)
-    ax8.plot(time_span[:-1], avg_lbdas, 'r-', label=r'Mean Effective Samples $(\%)$')
-    # ax8.fill_between(time_span[:-1], avg_lbdas-std_lbdas, avg_lbdas+std_lbdas, color='gray', alpha=0.5, label=r'$1$ StdV. across experiments')
+    ax8.plot(time_span[:-1], avg_lbdas, 'r-', label=r'Average Effective Samples $(\%)$', linewidth=2)
+    ax8.fill_between(time_span[:-1], avg_lbdas-std_lbdas, avg_lbdas+std_lbdas, color='gray', alpha=0.2, label=r'$1$ StdV. across experiments')
 
-    ax8.fill_between(time_span[:-1], lb_lbdas, ub_lbdas, color='gray', alpha=0.5, label='Varies across experiments')
-
+    # ax8.fill_between(time_span[:-1], lb_lbdas, ub_lbdas, color='r', alpha=0.2, label='Varies across experiments')
+        
     ax8.set_xlabel(r'Time', fontproperties=font_props)
-    ax8.set_ylabel(r'$\lambda$ (t) (%)', fontproperties=font_props)
-    ax8.set_ylim(0, 110)    
-    ax8.legend(loc='best', prop={'family': 'serif', 'size': 12})
+    # ax8.set_ylabel(r'$\lambda$ (t) (%)', fontproperties=font_props)
+    ax8.set_ylim(0, 105)    
+    ax8.legend(loc='best', prop={'family': 'serif', 'size': 18})
     
     fig6.tight_layout()
     fig7.tight_layout()
-    fig6.savefig(root_dir+'/data/figures/bouncing/bouncing_1D_var.pdf', format='pdf', dpi=2000)
-    fig7.savefig(root_dir+'/data/figures/bouncing/bouncing_1D_lbda.pdf', format='pdf', dpi=2000)
     
+    font = FontProperties()
+    font.set_family('serif')     
+    font.set_size(18)       
+
+    # Apply font properties to x and y tick labels
+    for tick in ax7.get_xticklabels():
+        tick.set_fontproperties(font)
+    for tick in ax7.get_yticklabels():
+        tick.set_fontproperties(font)
+    for tick in ax8.get_xticklabels():
+        tick.set_fontproperties(font)
+    for tick in ax8.get_yticklabels():
+        tick.set_fontproperties(font)
+        
+    fig6.savefig(root_dir+'/data/figures/bouncing/bouncing_1D_var.pdf', format='pdf', dpi=4000)
+    fig7.savefig(root_dir+'/data/figures/bouncing/bouncing_1D_lbda.pdf', format='pdf', dpi=4000)
+    
+    
+    # --------------------- Compare with zero-control proposal ---------------------
+    filename_zerocontrol = root_dir+"/experiments/data/new_exp/bouncing/data_2024-08-30_05-18-48_h_PI_bouncingball_jax_threading_zero_control_2000samples_eps_5.0_coupling_zero_control.pickle"
+    exp_data_zerocontrol = ExpData(exp_params)
+
+    print("loading data: ", filename)
+    exp_data_zerocontrol.load(filename_zerocontrol)   
+    exp_params_zerocontrol = exp_data_zerocontrol.get_params()
+    
+    (avg_var_zc, std_var_zc, lb_var_zc, ub_var_zc, 
+    avg_lbdas_zc, std_lbdas_zc, lb_lbdas_zc, ub_lbdas_zc) = compute_var_lbd_nexp(n_exp, nt, exp_data_zerocontrol)
+    
+    # fig6.savefig(root_dir+'/data/figures/bouncing/bouncing_1D_var_zerocontrol.pdf', format='pdf', dpi=4000)
+    # fig7.savefig(root_dir+'/data/figures/bouncing/bouncing_1D_lbda_zerocontrol.pdf', format='pdf', dpi=4000)
+    
+    fig6, ax7 = plt.subplots(figsize=(7,8))
+    fig7, ax8 = plt.subplots(figsize=(7,8))
+    
+    ax7.plot(time_span[:-1], avg_var, 'r-', label=r'H-iLQR')
+    ax7.fill_between(time_span[:-1], lb_var, ub_var, color='r', alpha=0.1, label='Varies across experiments')
+    ax7.plot(time_span[:-1], avg_var_zc, 'b-', label=r'Zero-control Proposal')
+    ax7.fill_between(time_span[:-1], lb_var_zc, ub_var_zc, color='b', alpha=0.1, label='Varies across experiments')
+    ax7.legend(loc='best', prop={'family': 'serif', 'size': 16})
+    
+    ax7.set_xlabel(r'Time', fontproperties=font_props)
+    ax7.set_ylabel(r'Var$(\alpha)$ (t)', fontproperties=font_props)
+    ax7.set_ylim(-1,300)
+    ax7.legend(loc='best', prop={'family': 'serif', 'size': 18})
+    
+    ax8.set_xlabel(r'Time', fontproperties=font_props)
+    ax8.set_ylabel(r'$\lambda$ (t) (%)', fontproperties=font_props)
+    ax8.set_ylim(0, 110)    
+    ax8.legend(loc='upper left', prop={'family': 'serif', 'size': 18})
+    
+    font = FontProperties()
+    font.set_family('serif')     # Choose font family (e.g., 'sans-serif', 'serif')
+    font.set_size(18)             # Set font size
+
+    # Apply font properties to x and y tick labels
+    for tick in ax7.get_xticklabels():
+        tick.set_fontproperties(font)
+    for tick in ax7.get_yticklabels():
+        tick.set_fontproperties(font)
+    
+    ax8.plot(time_span[:-1], avg_lbdas, 'r-', label=r'H-iLQR')
+    ax8.fill_between(time_span[:-1], avg_lbdas-std_lbdas, avg_lbdas+std_lbdas, color='r', alpha=0.1, label=r'$1$ StdV. across experiments')
+    ax8.plot(time_span[:-1], avg_lbdas_zc, 'b-', label=r'Zero-control Proposal')
+    ax8.fill_between(time_span[:-1], avg_lbdas_zc-std_lbdas_zc, avg_lbdas_zc+std_lbdas_zc, color='b', alpha=0.1, label=r'$1$ StdV. across experiments')
+    ax8.legend(loc='best', prop={'family': 'serif', 'size': 16})
+
+    # Apply font properties to x and y tick labels
+    for tick in ax8.get_xticklabels():
+        tick.set_fontproperties(font)
+    for tick in ax8.get_yticklabels():
+        tick.set_fontproperties(font)
+        
+    fig6.savefig(root_dir+'/data/figures/bouncing/bouncing_1D_var_compare.pdf', format='pdf', dpi=2000)
+    fig7.savefig(root_dir+'/data/figures/bouncing/bouncing_1D_lbda_compare.pdf', format='pdf', dpi=2000)
+    plt.show()
     
     # --------------------------- Compute the statistics ---------------------------
     jump_index = 585

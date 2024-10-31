@@ -135,7 +135,7 @@ if __name__ == '__main__':
     
     # # # Mean as a solid line
     # ax1.plot(v_nsamples, avg_cost_pi, 'r-', label='avg cost H-PI')
-    # ax1.plot(v_nsamples, avg_cost_hilqr, 'b-', label='avg cost H-iLQG')
+    # ax1.plot(v_nsamples, avg_cost_hilqr, 'b-', label='avg cost H-iLQR')
     
     # # Shaded area for variability (e.g., ±1 standard deviation)
     # ax1.fill_between(v_nsamples, avg_cost_pi - std_cost_pi, avg_cost_pi + std_cost_pi, color='red', alpha=0.1, label='±1 Std.')
@@ -219,11 +219,11 @@ if __name__ == '__main__':
     
     # # Mean as a solid line
     # ax.plot(v_nsamples, avg_cost_pi, 'r-', label='avg cost path integral')
-    # ax.plot(v_nsamples, avg_cost_hilqr, 'b-', label='avg cost H-iLQG')
+    # ax.plot(v_nsamples, avg_cost_hilqr, 'b-', label='avg cost H-iLQR')
     
     # # Shaded area for variability (e.g., ±1 standard deviation)
     # ax.fill_between(v_nsamples, avg_cost_pi - std_cost_pi, avg_cost_pi + std_cost_pi, color='red', alpha=0.1, label='±1 Std. cost path integral')
-    # ax.fill_between(v_nsamples, avg_cost_hilqr - std_cost_hilqr, avg_cost_hilqr + std_cost_hilqr, color='blue', alpha=0.1, label='±1 Std. cost H-iLQG')
+    # ax.fill_between(v_nsamples, avg_cost_hilqr - std_cost_hilqr, avg_cost_hilqr + std_cost_hilqr, color='blue', alpha=0.1, label='±1 Std. cost H-iLQR')
     
     # ax.set_xlabel(r'Number of samples')
     # ax.set_ylabel(r'Cost')
@@ -314,7 +314,7 @@ if __name__ == '__main__':
     
     # # Mean as a solid line
     ax1.plot(v_eps, avg_cost_pi, 'r-', label='avg cost H-PI')
-    ax1.plot(v_eps, avg_cost_hilqr, 'b-', label='avg cost H-iLQG')
+    ax1.plot(v_eps, avg_cost_hilqr, 'b-', label='avg cost H-iLQR')
     
     # Shaded area for variability (e.g., ±1 standard deviation)
     ax1.fill_between(v_eps, avg_cost_pi - std_cost_pi, avg_cost_pi + std_cost_pi, color='red', alpha=0.1, label='±1 Std.')

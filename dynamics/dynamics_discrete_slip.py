@@ -84,7 +84,7 @@ def guard_cond_slip_12(xt, xt_next, current_mode):
 
 def guard_true_slip_12(args):
     print("slip_cond_12: True")
-    (xt_current, current_mode, u, t, xt_next, dt_int, dt_shrinkrate, RandN, eps, reset_arg) = args
+    (xt_current, current_mode, u, t, xt_next, dt_int, RandN, eps, reset_arg) = args
     
     # -----------------
     #    Bi-section 
@@ -137,7 +137,7 @@ def guard_true_slip_12(args):
 
 
 def guard_false_slip_12(args):
-    (_, current_mode, _, _, xt_next, dt_int, _, RandN, _, reset_arg) = args
+    (_, current_mode, _, _, xt_next, dt_int, RandN, _, reset_arg) = args
     dW = np.sqrt(dt_int)*RandN
     return xt_next, current_mode, dW, reset_arg
 
@@ -151,7 +151,7 @@ def guard_cond_slip_21(xt, xt_next, current_mode):
 
 def guard_true_slip_21(args):
     print("slip guard condition 21: True")
-    (xt_current, current_mode, u, t, xt_next, dt_int, _, RandN, eps, reset_arg) = args
+    (xt_current, current_mode, u, t, xt_next, dt_int, RandN, eps, reset_arg) = args
     
     # -----------------
     #    Bi-section 
@@ -213,7 +213,7 @@ def guard_true_slip_21(args):
 
 
 def guard_false_slip_21(args):
-    (_, current_mode, _, _, xt_next, dt_int, _, RandN, _, reset_arg) = args
+    (_, current_mode, _, _, xt_next, dt_int, RandN, _, reset_arg) = args
     dW = np.sqrt(dt_int)*RandN
     return xt_next, current_mode, dW, reset_arg
 
@@ -242,7 +242,8 @@ h_stoch_fb_rollout_slip = partial(h_stoch_fb_rollout,
     
     
 def event_detect_discrete_slip(current_mode, x0, u, 
-                                t0, dt, dt_shrinkrate, 
+                                t0, dt, 
+                                # dt_shrinkrate, 
                                 reset_args, 
                                 detection=True, backwards=False):
 
@@ -258,7 +259,8 @@ def event_detect_discrete_slip(current_mode, x0, u,
     reset_maps_slip_slip = {0:reset_map_slip_12, 1:reset_map_slip_21}
                                         
     return event_detect_onestep_discrete(x0, u, t0, 
-                                        dt, dt_shrinkrate, 
+                                        dt, 
+                                        # dt_shrinkrate, 
                                         current_mode, 
                                         smooth_dynamics_slip, 
                                         guards_slip_slip,

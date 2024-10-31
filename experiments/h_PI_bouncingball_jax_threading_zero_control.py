@@ -353,9 +353,9 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         actual_noise_i = RndN_actual[current_mode_actual][i_t]
         
         xt_next, next_mode_actual, _, new_reset_arg = h_stoch_integr_bouncing(xt, current_mode_actual,
-                                                                                                u0_star_jax, actual_noise_i, 
-                                                                                                epsilon, dt, dt_shrinkingrate, 
-                                                                                                start_time_i, reset_args_actual[i_t])
+                                                                            u0_star_jax, actual_noise_i, 
+                                                                            epsilon, dt, dt_shrinkingrate, 
+                                                                            start_time_i, reset_args_actual[i_t])
 
         next_mode_actual = int(next_mode_actual)
         # current_modechange = np.array([current_mode_actual, next_mode_actual])

@@ -5,7 +5,9 @@ from dynamics.saltation_matrix import saltation_matrix
 
 def h_stoch_integr(xt, current_mode, ut, 
                     randN, eps, 
-                    dt, dt_shrink, t0, reset_arg, 
+                    dt, 
+                    # dt_shrink, 
+                    t0, reset_arg, 
                     stoch_integr_func=None,
                     guard_0=None,
                     guard_true_func_0=None,
@@ -17,7 +19,9 @@ def h_stoch_integr(xt, current_mode, ut,
     
     xt_next = stoch_integr_func(current_mode, xt, ut, dt, eps, dW)
     
-    args_guard = (xt, current_mode, ut, t0, xt_next, dt, dt_shrink, randN, eps, reset_arg)
+    args_guard = (xt, current_mode, ut, t0, xt_next, dt, 
+                #   dt_shrink, 
+                  randN, eps, reset_arg)
     
     if (current_mode==0):
         guard_hit = guard_0(xt, xt_next, current_mode)
@@ -40,7 +44,7 @@ def h_stoch_integr(xt, current_mode, ut,
 
 
 def guard_true_func_deterministic(args):
-    (xt_current, current_mode, u_current, t, xt_next, dt_int, _, smooth_dyn, guard, resetmap, reset_arg) = args
+    (xt_current, current_mode, u_current, t, xt_next, dt_int, smooth_dyn, guard, resetmap, reset_arg) = args
     
     # -------------------
     #     Bi-section 
@@ -76,16 +80,18 @@ def guard_true_func_deterministic(args):
 
 
 def event_detect_onestep_discrete(xt, ut, 
-                                  t0, dt, dt_shrink, current_mode, 
-                                    smooth_dynamics, 
-                                    guards,
-                                    gxs, gts,
-                                    reset_maps,
-                                    Rxs, Rts,
-                                    reset_args, 
-                                    guard_cond_func_0=None,
-                                    guard_cond_func_1=None,
-                                    detection=True, backwards=False):
+                                  t0, dt, 
+                                #   dt_shrink, 
+                                  current_mode, 
+                                smooth_dynamics, 
+                                guards,
+                                gxs, gts,
+                                reset_maps,
+                                Rxs, Rts,
+                                reset_args, 
+                                guard_cond_func_0=None,
+                                guard_cond_func_1=None,
+                                detection=True, backwards=False):
     
     current_dyn = smooth_dynamics[current_mode]
     
@@ -124,7 +130,9 @@ def event_detect_onestep_discrete(xt, ut,
             guard_hit = guard_cond_func_1(xt, xt_next, current_mode)
             
         if guard_hit:
-            args_guard = (xt, current_mode, ut, t0, xt_next, dt, dt_shrink, 
+            args_guard = (xt, current_mode, ut, t0, 
+                          xt_next, dt, 
+                        #   dt_shrink, 
                           current_dyn, current_guard, current_resetmap, reset_args)
             
             t_event, x_event, x_reset, next_mode, reset_byproduct = guard_true_func_deterministic(args_guard)
@@ -154,7 +162,8 @@ def h_stoch_fb_rollout(init_mode, x0, n_inputs,
                        xt_ref, ref_modes, 
                         ut, Kt, kt, 
                         target_state, Q_T, t0, dt, 
-                        epsilon, GaussianNoise, dt_shrinkrate, 
+                        epsilon, GaussianNoise, 
+                        # dt_shrinkrate, 
                         ref_ext_helper, init_reset_args,
                         cond_mismatch_func=None,
                         reaction_mismatch_func=None,
@@ -222,8 +231,10 @@ def h_stoch_fb_rollout(init_mode, x0, n_inputs,
         
         # ============================== One step integration ==============================        
         xt_next, next_mode, _, new_reset_arg = h_stoch_integr_func(xt, current_mode, current_u, 
-                                                                noise_i, epsilon, 
-                                                                dt, dt_shrinkrate, t0, reset_args[ii_t])
+                                                                    noise_i, epsilon, 
+                                                                    dt, 
+                                                                    # dt_shrinkrate, 
+                                                                    t0, reset_args[ii_t])
         
         reset_args[ii_t+1] = new_reset_arg
         

@@ -1,5 +1,4 @@
 import numpy as np
-
 import os
 import sys
 file_path = os.path.abspath(__file__)
@@ -75,7 +74,8 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
      cost_ilqr, _, _) = h_stoch_fb_rollout_bouncing(init_mode, 
                                                     init_state, n_inputs, 
                                                     states_zero, modes, 
-                                                    inputs_zero, K_feedback_zero, k_feedforward_zero, 
+                                                    inputs_zero, K_feedback_zero, 
+                                                    k_feedforward_zero, 
                                                     target_state, Q_T,
                                                     start_time, dt, 
                                                     epsilon, RndN_actual, dt_shrink, 
@@ -352,7 +352,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         # ----------------------------------
         #   Visualize sampled trajectories
         # ----------------------------------
-        show_samples = True
+        show_samples = False
         if show_samples and (i_t==0):
             _, axes_sample = plt.subplots(2, 1)
             (ax1_sample, ax2_sample) = axes_sample.flatten()
@@ -365,7 +365,6 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
             # ----------------------
             xt_trj_ilqr = np.asarray(xt_trj_ilqr)
             states_ref = np.asarray(states)
-                        
             
             for i_s in range(20):
                 ax1_sample.plot(Ksamples_jax_i[i_s,:,0], Ksamples_jax_i[i_s,:,1],'b', alpha=0.2)
@@ -469,7 +468,7 @@ def main(epsilon, n_samples, dt):
     print(f"The value of epsilon input is: {epsilon}")
     print(f"The value of number of samples input is: {n_samples}")
 
-    n_exp = 100
+    n_exp = 3
     
     # save_root = '/hddscratch/hyu419/hybrid_pathintegral/exp_200'
     # save_root = '/ssdscratch/hyu419/hybrid_pathintegral/new_exp/data/slip'
@@ -556,18 +555,45 @@ def main(epsilon, n_samples, dt):
     cost_pi_exp = np.zeros(n_exp)
     cost_ilqr_exp = np.zeros(n_exp)
     
-    # ---------------------------------------
-    #     Main Loop over the experiments
-    # ---------------------------------------
-    for i_exp in range(n_exp):
-        result = run_experiment(i_exp, nt, n_samples, n_states, n_inputs, 
-                                init_mode, init_state, target_state, hybrid_ilqr_result, 
-                                start_time, end_time, dt, dt_shrink, 
-                                Q_k, Q_T, R_k, epsilon, init_reset_args)
-
+    # ==================== 
+    # Run ith experiment 
+    # ====================
+    import multiprocessing as mp 
+    mp.set_start_method('spawn', force=True)
+        
+    # Pool of workers
+    num_process = max(1, min(mp.cpu_count()-10, 3))
+    with mp.Pool(processes=num_process) as pool:
+        # Prepare the arguments for each experiment
+        args = [(i, nt, n_samples, n_states, n_inputs, 
+                 init_mode, init_state, target_state, hybrid_ilqr_result, 
+                 start_time, end_time, dt, dt_shrink, 
+                 Q_k, Q_T, R_k, epsilon, init_reset_args) for i in range(n_exp)]
+        
+        # Map each experiment to the pool
+        results = pool.starmap(run_experiment, args)
+    
+    cost_pi_exp = np.zeros(n_exp)
+    cost_ilqr_exp = np.zeros(n_exp)
+    
+    for i_exp, result in enumerate(results):
+        print("Experiment result:", result)
         cost_pi_exp[i_exp] = result[0]
         cost_ilqr_exp[i_exp] = result[1]
         exp_data.add_data(i_exp, result[2])
+    
+    # # ---------------------------------------
+    # #     Main Loop over the experiments
+    # # ---------------------------------------
+    # for i_exp in range(n_exp):
+    #     result = run_experiment(i_exp, nt, n_samples, n_states, n_inputs, 
+    #                             init_mode, init_state, target_state, hybrid_ilqr_result, 
+    #                             start_time, end_time, dt, dt_shrink, 
+    #                             Q_k, Q_T, R_k, epsilon, init_reset_args)
+
+    #     cost_pi_exp[i_exp] = result[0]
+    #     cost_ilqr_exp[i_exp] = result[1]
+    #     exp_data.add_data(i_exp, result[2])
         
         
     print("E[cost_pi]: ", np.mean(cost_pi_exp))
@@ -587,9 +613,9 @@ import argparse
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="The epsilon parameter.")
     
-    parser.add_argument("--epsilon", type=float, default=3.0, help="The process noise intensity value, epsilon.")
-    parser.add_argument("--nsamples", type=int, default=2000, help="The number of samples used in path integral control.")
-    parser.add_argument("--dt", type=int, default=0.0015, help="The time discretization.")
+    parser.add_argument("--epsilon", type=float, default=2.0, help="The process noise intensity value, epsilon.")
+    parser.add_argument("--nsamples", type=int, default=500, help="The number of samples used in path integral control.")
+    parser.add_argument("--dt", type=int, default=0.01, help="The time discretization.")
     
     args = parser.parse_args()
 

@@ -11,7 +11,7 @@ sys.path.append(root_dir)
 # Import iLQR class
 from hybrid_ilqr.h_ilqr import solve_ilqr, extract_extensions
 # Import SLIP dynamics
-from dynamics.dynamics_slip import *
+from dynamics.dynamics_discrete_slip import *
 # Importing path integral control
 from hybrid_pathintegral.hybrid_pathintegral import *
 # Import plotting
@@ -107,9 +107,11 @@ if __name__ == '__main__':
     n_exp = 1
     n_samples = 0 
     
-    exp_params.update_params(n_modes, init_mode, target_mode, n_states, init_state, target_state, 
+    exp_params.update_params(n_modes, init_mode, target_mode, 
+                             n_states, init_state, target_state, 
                              start_time, end_time, dt, initial_guess, 
-                             epsilon, n_exp, n_samples, Q_k, R_k, Q_T, symbolic_dynamics, 
+                             epsilon, n_exp, n_samples, 
+                             Q_k, R_k, Q_T, symbolic_dynamics, 
                              event_detect_slip, plot_slip, convert_state_21_slip, 
                              init_reset_args, target_reset_args, 
                              animate_slip)

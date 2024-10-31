@@ -61,15 +61,15 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
     (mode_trj_ilqr, xt_trj_ilqr, 
     ut_trj_ilqr, cost_ilqr, _, 
     reset_args_ilqr) = h_stoch_fb_rollout_slip(init_mode, init_state, 
-                                                                        n_inputs, 
-                                                                        states, modes, inputs, 
-                                                                        K_feedback, k_feedforward, 
-                                                                        target_state, Q_T,
-                                                                        start_time, dt, 
-                                                                        epsilon, RndN_actual, 
-                                                                        dt_shrink, 
-                                                                        ref_ext_helper,
-                                                                        init_reset_args)
+                                                n_inputs, 
+                                                states, modes, inputs, 
+                                                K_feedback, k_feedforward, 
+                                                target_state, Q_T,
+                                                start_time, dt, 
+                                                epsilon, RndN_actual, 
+                                                # dt_shrink, 
+                                                ref_ext_helper,
+                                                init_reset_args)
 
     show_hilqr_noise_results = False
     if show_hilqr_noise_results:
@@ -276,6 +276,8 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         # ---------------------------------------------------------------------------------------
         #                               Sample future trajectories
         # ---------------------------------------------------------------------------------------                    
+        target_state_t = np.tile(target_state, (nt_i,1))
+        Qk_t = np.tile(Q_k[0], (nt_i,1,1))
         
         (Ksamples_ts_i, Kmodes_jax_i, Ksamples_jax_i, PathCosts_jax_i, 
          Ksamples_ut, Ksamples_xref, Ksamples_Kfb_mode, 
@@ -286,7 +288,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
                                                                     inputs_0_i, inputs_1_i, 
                                                                     K_feedback_0_i, k_feedforward_0_i, 
                                                                     K_feedback_1_i, k_feedforward_1_i, 
-                                                                    target_state, Q_T, 
+                                                                    target_state_t, Q_T, Qk_t,
                                                                     dt, dt_shrink, 
                                                                     epsilon, 
                                                                     GaussianNoise_i[0], GaussianNoise_i[1], 
@@ -560,7 +562,7 @@ def main(epsilon, n_samples, dt):
     
     exp_params.update_params(n_modes, init_mode, target_mode, n_states, 
                              init_state, target_state, 
-                             start_time, end_time, dt, dt_shrink,
+                             start_time, end_time, dt, 
                              initial_guess, 
                              epsilon, n_exp, n_samples, 
                              Q_k, R_k, Q_T, smooth_dynamics, 
@@ -585,7 +587,14 @@ def main(epsilon, n_samples, dt):
     show_results = True
     if show_results:
         plot_slip(time_span, modes, states, inputs, init_state, target_state, nt, ref_reset_args)
-
+        fig, ax = animate_slip(modes, states, init_mode, init_state, 
+                                target_mode, target_state, 
+                                nt, init_reset_args, target_reset_args, step=20)
+        ax.set_xlim(-0.4, 1.25)
+        ax.set_ylim(-0.2, 1.65)
+        fig.savefig(root_dir+"/data/figures/slip/H-iLQG_ref_animate.pdf", dpi=4000)
+        plt.show()
+        
     # ============================================================================================================
     #                                   // End of Solve for hybrid ilqg proposal
     # ============================================================================================================
