@@ -112,8 +112,6 @@ def guard_true_slip_12(args):
             t_left = t_mid
             x_left = x_mid
             
-        # print(f"t_left: {guard_left}, t_right: {t_right}, midpoint: {guard_left}, x_mid: {x_mid}")  # Debug statement
-
         return t_left, t_mid, t_right, x_left, x_mid, x_right, u_current, tol, randN, continue_cond
 
     tol = 1e-10
@@ -179,8 +177,6 @@ def guard_true_slip_21(args):
             t_left = t_mid
             x_left = x_mid
             
-        # print(f"t_left: {guard_left}, t_right: {t_right}, midpoint: {guard_left}, x_mid: {x_mid}")  # Debug statement
-
         return t_left, t_mid, t_right, x_left, x_mid, x_right, u_current, tol, randN, continue_cond
 
     tol = 1e-10

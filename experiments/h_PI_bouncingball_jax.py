@@ -309,7 +309,7 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         # -------------------------------
         # Visualize sampled trajectories
         # -------------------------------
-        show_samples = False
+        show_samples = True
         if show_samples:
             _, axes_sample = plt.subplots(2, 1)
             (ax1_sample, ax2_sample) = axes_sample.flatten()
@@ -502,8 +502,9 @@ def main(epsilon, n_samples, dt):
     
     flow_dynamics = [sym_dyn_bouncing, sym_dyn_bouncing]
     
-    exp_params.update_params(n_modes, init_mode, target_mode, n_states, init_state, target_state, 
-                             start_time, end_time, dt, dt_shrink, initial_guess, 
+    exp_params.update_params(n_modes, init_mode, target_mode, 
+                             n_states, init_state, target_state, 
+                             start_time, end_time, dt, initial_guess, 
                              epsilon, n_exp, n_samples, 
                              Q_k, R_k, Q_T, flow_dynamics, 
                              event_detect_bouncing_discrete, 

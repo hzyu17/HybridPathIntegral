@@ -423,11 +423,11 @@ class hybrid_ilqr:
                                             self._init_state, self._target_mode, self._target_state, 
                                             self._n_timesteps, self._reset_args, self._target_reset_args,step=20)
             
-            fig.tight_layout()
-            ax.set_xlim(-0.4, 1.25)
-            ax.set_ylim(-0.2, 1.65)
-            fig.savefig(root_dir+'/data/figures/slip/slip_jump_setting.pdf', dpi=2000)
-            plt.show()
+                fig.tight_layout()
+                ax.set_xlim(-0.4, 1.25)
+                ax.set_ylim(-0.2, 1.65)
+                fig.savefig(root_dir+'/data/figures/slip/slip_jump_setting.pdf', dpi=2000)
+                plt.show()
             
         # ----------------------------------------------------
         #  Compute the current cost of the initial trajectory
@@ -801,11 +801,14 @@ def solve_ilqr(params, detect=True, verbose=True):
     nmodes = params.nmodes()
     nstates = params._nstates
 
-    ilqr_ = hybrid_ilqr(nmodes,init_mode,target_mode,nstates,init_state,target_state,initial_guess,
-                        dt,start_time,end_time,detect_integration,smooth_dynamis,
-                        Q_k,R_k,Q_T,parameters,n_iterations,
-                        detect,plotting_function,state_convert_function, 
-                        init_reset_args, target_reset_args, animate_function, verbose)
-            
+    ilqr_ = hybrid_ilqr(nmodes, init_mode, target_mode, 
+                        nstates, init_state, target_state, initial_guess,
+                        dt, start_time, end_time,
+                        detect_integration, smooth_dynamis,
+                        Q_k, R_k, Q_T, parameters, n_iterations,
+                        detect, plotting_function, state_convert_function, 
+                        init_reset_args, target_reset_args, 
+                        animate_function, verbose)
+    
     return ilqr_.solve()
         

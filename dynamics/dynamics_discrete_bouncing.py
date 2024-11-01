@@ -20,7 +20,7 @@ def stoch_integr_bouncing(mode, x0, u, dt, eps, dW):
 #                                        Bouncing Guard condition handling 
 # ===============================================================================================================
 # -------------------------------- 
-#       From mode 1 to mode 2 
+#      From mode 1 to mode 2 
 # --------------------------------
 def guard_cond_bouncing_12(xt, xt_next, current_mode):
     # assume time invariant guard for now
@@ -59,7 +59,7 @@ def guard_true_func_bouncing_12(args):
 
 
 def guard_false_func_bouncing_12(args):
-    (_, current_mode, _, _, xt_next, dt_int, _, RandN, _, reset_arg) = args
+    (_, current_mode, _, _, xt_next, dt_int, RandN, _, reset_arg) = args
     dW = np.sqrt(dt_int)*RandN
     return xt_next, current_mode, dW, reset_arg
 
@@ -126,14 +126,13 @@ h_stoch_integr_bouncing = partial(h_stoch_integr,
 
 
 h_stoch_fb_rollout_bouncing = partial(h_stoch_fb_rollout, 
-                                                            cond_mismatch_func=cond_mode_mismatch_bouncing,
-                                                            reaction_mismatch_func=reaction_mode_mismatch_bouncing,
-                                                            h_stoch_integr_func=h_stoch_integr_bouncing)    
+                                        cond_mismatch_func=cond_mode_mismatch_bouncing,
+                                        reaction_mismatch_func=reaction_mode_mismatch_bouncing,
+                                        h_stoch_integr_func=h_stoch_integr_bouncing)    
 
-    
 
 def event_detect_bouncing_discrete(current_mode, x0, u, 
-                                   t0, dt, dt_shrinkrate, 
+                                   t0, dt, 
                                    reset_args, 
                                    detection=True, 
                                    backwards=False):
@@ -150,7 +149,7 @@ def event_detect_bouncing_discrete(current_mode, x0, u,
     reset_maps_bouncing_bouncing = {0:reset_map_bouncing_12, 1:reset_map_bouncing_21}
     
     return event_detect_onestep_discrete(x0, u, t0, 
-                                        dt, dt_shrinkrate, 
+                                        dt, 
                                         current_mode, 
                                         smooth_dynamics_bouncing, 
                                         guards_bouncing_bouncing,

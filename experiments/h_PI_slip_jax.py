@@ -67,7 +67,6 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
                                                 target_state, Q_T,
                                                 start_time, dt, 
                                                 epsilon, RndN_actual, 
-                                                # dt_shrink, 
                                                 ref_ext_helper,
                                                 init_reset_args)
 
@@ -270,9 +269,10 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
             v_ref_ext_bwd_i[i_e][t_e_i+1:] = states_i[mc_i[1]][t_e_i+1:]
         
         # ====================
-        # Sampling using jax 
+        #  Sampling using jax 
         # ====================
         
+        print("--------------- Sample future trajectories ----------------")
         # ---------------------------------------------------------------------------------------
         #                               Sample future trajectories
         # ---------------------------------------------------------------------------------------                    
@@ -281,8 +281,8 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
         
         (Ksamples_ts_i, Kmodes_jax_i, Ksamples_jax_i, PathCosts_jax_i, 
          Ksamples_ut, Ksamples_xref, Ksamples_Kfb_mode, 
-         Ksamples_kff_mode, Ksamples_reset_args) = sample_slip_jax(i_exp, n_samples, xt, 
-                                                                    current_mode_actual, 
+         Ksamples_kff_mode, Ksamples_reset_args) = sample_slip_jax(i_exp, n_samples, 
+                                                                   xt, current_mode_actual, 
                                                                     states_0_i, states_1_i, 
                                                                     modes_i, 
                                                                     inputs_0_i, inputs_1_i, 
@@ -291,7 +291,8 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
                                                                     target_state_t, Q_T, Qk_t,
                                                                     dt, dt_shrink, 
                                                                     epsilon, 
-                                                                    GaussianNoise_i[0], GaussianNoise_i[1], 
+                                                                    GaussianNoise_i[0], 
+                                                                    GaussianNoise_i[1], 
                                                                     v_mode_change_ref_i, 
                                                                     v_ref_ext_fwd_i, v_ref_ext_bwd_i, 
                                                                     v_Kfb_ref_ext_fwd_i, v_kff_ref_ext_fwd_i, 

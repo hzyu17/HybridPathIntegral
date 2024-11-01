@@ -842,7 +842,7 @@ def plot_slip_flight_animate(state_flight, r0, ax=None, spring_color='k-'):
     z_spring_rot = z_spring_rot + z - 0.7*r0*np.sin(theta)
     
     # Plot the spring
-    ax.plot(x_spring_rot, z_spring_rot, spring_color, lw=2.5)
+    ax.plot(x_spring_rot, z_spring_rot, spring_color, lw=3.5)
     
     # Plot the line connecting the ends of the spring
     t1_x = np.linspace(x_spring_rot[-1], x, 1000)
@@ -853,8 +853,8 @@ def plot_slip_flight_animate(state_flight, r0, ax=None, spring_color='k-'):
     t2_x = np.linspace(x_tail, x_spring_rot[0], 1000)
     t2_z = np.linspace(z_tail, z_spring_rot[0], 1000)
     
-    ax.plot(t2_x, t2_z, spring_color, lw=2.5)
-    ax.plot(t1_x, t1_z, spring_color, lw=2.5)
+    ax.plot(t2_x, t2_z, spring_color, lw=3.5)
+    ax.plot(t1_x, t1_z, spring_color, lw=3.5)
 
     # Calculate spring end position    
     ball_x = x 
@@ -865,7 +865,7 @@ def plot_slip_flight_animate(state_flight, r0, ax=None, spring_color='k-'):
     
     colors = ['r', 'g', 'b', 'k']
     labels = ['Start', 'Goal', 'Stance', 'Flight']
-    proxy_artists = [plt.Line2D([0], [0], color=color, lw=1.5) for color in colors]
+    proxy_artists = [plt.Line2D([0], [0], color=color, lw=3.5) for color in colors]
     ax.legend(proxy_artists, labels, loc='best', prop={'family': 'serif', 'size': 20})
     
     ax.set_xlim(-0.5, 1.5)
@@ -895,7 +895,7 @@ def plot_slip_stance_animate(state_stance, xp, ax=None, spring_color='b-'):
     x_spring_rot = x_spring_rot + xp
     
     # Plot the spring
-    ax.plot(x_spring_rot, z_spring_rot, spring_color, lw=1.5)
+    ax.plot(x_spring_rot, z_spring_rot, spring_color, lw=3.5)
 
     # Calculate spring end position
     spring_end_x = xp + r * np.cos(theta)
@@ -910,8 +910,8 @@ def plot_slip_stance_animate(state_stance, xp, ax=None, spring_color='b-'):
     t2_x = np.linspace(x_tail, x_spring_rot[0], 1000)
     t2_z = np.linspace(z_tail, z_spring_rot[0], 1000)
     
-    ax.plot(t2_x, t2_z, spring_color, lw=1.5)
-    ax.plot(t1_x, t1_z, spring_color, lw=1.5)
+    ax.plot(t2_x, t2_z, spring_color, lw=3.5)
+    ax.plot(t1_x, t1_z, spring_color, lw=3.5)
     
     ball_x = spring_end_x
     ball_y = spring_end_z

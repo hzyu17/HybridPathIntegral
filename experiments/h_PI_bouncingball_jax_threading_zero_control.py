@@ -476,7 +476,8 @@ def main(epsilon, n_samples, dt):
     
     flow_dynamics = [sym_dyn_bouncing, sym_dyn_bouncing]
     
-    exp_params.update_params(n_modes, init_mode, target_mode, n_states, init_state, target_state, 
+    exp_params.update_params(n_modes, init_mode, target_mode, 
+                             n_states, init_state, target_state, 
                              start_time, end_time, dt, dt_shrink,
                              initial_guess, 
                              epsilon, n_exp, n_samples, 

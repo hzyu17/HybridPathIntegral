@@ -51,20 +51,20 @@ def run_experiment(i_exp, nt, n_samples, n_states, n_inputs,
     xt_trj_ilqr = [np.array([0.0]) for _ in range(nt)]
     u_trj_ilqr = [np.zeros((nt, n_inputs[0])), np.zeros((nt, n_inputs[1]))]
     xt_trj_ilqr[0] = init_state
-
+    
     (mode_trj_ilqr, 
         xt_trj_ilqr, 
         u_trj_ilqr, 
         cost_ilqr, _, _) = h_stoch_fb_rollout_bouncing(init_mode, 
-                                                                            init_state, 
-                                                                            n_inputs, 
-                                                                            states, modes, 
-                                                                            inputs, K_feedback, k_feedforward, 
-                                                                            target_state, Q_T,
-                                                                            start_time, dt, 
-                                                                            epsilon, RndN_actual, dt_shrinkingrate, 
-                                                                            ref_ext_helper,
-                                                                            init_reset_args)
+                                                        init_state, 
+                                                        n_inputs, 
+                                                        states, modes, 
+                                                        inputs, K_feedback, k_feedforward, 
+                                                        target_state, Q_T,
+                                                        start_time, dt, 
+                                                        epsilon, RndN_actual,
+                                                        ref_ext_helper,
+                                                        init_reset_args)
 
     show_hilqr_results = False
     if show_hilqr_results:
@@ -530,15 +530,18 @@ if __name__ == '__main__':
     initial_guess = [0.5*np.ones((np.shape(time_span)[0],n_inputs[0])), 0.5*np.ones((np.shape(time_span)[0],n_inputs[1]))]
     
     flow_dynamics = [sym_dyn_bouncing, sym_dyn_bouncing]
-    
-    exp_params.update_params(n_modes, init_mode, target_mode, n_states, init_state, target_state, 
-                             start_time, end_time, dt, dt_shrink, initial_guess, 
+        
+    exp_params.update_params(n_modes, init_mode, target_mode, 
+                             n_states, init_state, target_state, 
+                             start_time, end_time, dt,
+                             initial_guess, 
                              epsilon, n_exp, n_samples, 
                              Q_k, R_k, Q_T, flow_dynamics, 
                              event_detect_bouncing_discrete, 
                              plot_bouncingball, 
                              convert_state_21_bouncing, 
                              init_reset_args, target_reset_args)
+    
     exp_data = ExpData(exp_params)
         
     print("===================== Solving for h-iLQG proposal controller =====================")

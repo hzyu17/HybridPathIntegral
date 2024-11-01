@@ -114,7 +114,7 @@ def event_detect_onestep_discrete(xt, ut,
     saltation = None
     next_mode = current_mode
     reset_byproduct = (None, )
-        
+    
     # smooth dynamics
     if backwards:
         xt_next = xt - current_dyn(t0, xt, ut)*dt
@@ -163,7 +163,6 @@ def h_stoch_fb_rollout(init_mode, x0, n_inputs,
                         ut, Kt, kt, 
                         target_state, Q_T, t0, dt, 
                         epsilon, GaussianNoise, 
-                        # dt_shrinkrate, 
                         ref_ext_helper, init_reset_args,
                         cond_mismatch_func=None,
                         reaction_mismatch_func=None,
@@ -214,12 +213,13 @@ def h_stoch_fb_rollout(init_mode, x0, n_inputs,
         # ======== Handle mode mismatch ========
         if cond_mismatch_func(current_mode, ref_current_mode):
             print("mode mismatch at time: ", ii_t)
-            xref_i, K_fb_i, k_ff_i, cnt_mismatch = reaction_mismatch_func(ii_t, current_mode, ref_current_mode, 
-                                                                                v_ext_fwd[0], v_ext_bwd[0], 
-                                                                                v_event_modechange[0],
-                                                                                v_Kfb_ext_fwd[0], v_kff_ext_fwd[0],
-                                                                                v_Kfb_ext_bwd[0], v_kff_ext_bwd[0],
-                                                                                cnt_mismatch)
+            xref_i, K_fb_i, k_ff_i, cnt_mismatch = reaction_mismatch_func(ii_t, current_mode, 
+                                                                          ref_current_mode, 
+                                                                            v_ext_fwd[0], v_ext_bwd[0], 
+                                                                            v_event_modechange[0],
+                                                                            v_Kfb_ext_fwd[0], v_kff_ext_fwd[0],
+                                                                            v_Kfb_ext_bwd[0], v_kff_ext_bwd[0],
+                                                                            cnt_mismatch)
         
         xt_ref_actual[ii_t] = xref_i
         delta_xt_i = xt - xref_i
