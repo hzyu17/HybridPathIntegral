@@ -345,7 +345,7 @@ if __name__=='__main__':
 
     for i in range(0, t_event):
         Acl_i = A[i] + B[i]@K[i]
-        cov_trj[i+1] = cov_trj[i] + (Acl_i@cov_trj[i] + cov_trj[i]@Acl_i.T + B[i]@B[i].T) * dt
+        cov_trj[i+1] = cov_trj[i] + (Acl_i@cov_trj[i] + cov_trj[i]@Acl_i.T + epsilon*B[i]@B[i].T) * dt
     
     print("----------------- Sigma_minus computed -----------------")
     print(cov_trj[t_event])
@@ -358,7 +358,7 @@ if __name__=='__main__':
 
     for i in range(t_event+1, nt-1):
         Acl_i = A[i] + B[i]@K[i]
-        cov_trj[i+1] = cov_trj[i] + (Acl_i@cov_trj[i] + cov_trj[i]@Acl_i.T + B[i]@B[i].T) * dt
+        cov_trj[i+1] = cov_trj[i] + (Acl_i@cov_trj[i] + cov_trj[i]@Acl_i.T + epsilon*B[i]@B[i].T) * dt
 
     # ========================= controlled covariances i-LQG =========================
     K_ilQG = np.asarray(K_feedback)

@@ -115,7 +115,7 @@ if __name__ == '__main__':
     
     hybrid_ilqr_result = solve_ilqr(exp_params, detect=True, verbose=False)
     
-    (timespan, modes,states,inputs,
+    (timespan, modes,states,inputs,saltations,
      k_feedforward,K_feedback,
      current_cost,states_iter,
      ref_modechanges,reference_extension_helper, ref_reset_args) = hybrid_ilqr_result

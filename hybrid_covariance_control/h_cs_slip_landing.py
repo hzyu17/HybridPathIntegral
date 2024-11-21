@@ -1,4 +1,4 @@
-# Covariance control for SLIP system
+# Covariance control for SLIP system, landing from flight to stance
 
 import numpy as np
 import os
@@ -207,7 +207,7 @@ if __name__ == '__main__':
     # -------------- 
     #  SLIP example 
     # --------------
-    dt = 0.00005
+    dt = 0.0005
     epsilon = 0.0015
     dt_shrink = 0.9
     r0 = 1
@@ -224,27 +224,26 @@ if __name__ == '__main__':
     n_states = [5, 4]
     n_inputs = [3, 2]
     
-    # --------------------------
-    #  Case 2: Running one step
-    # --------------------------
-    init_mode = 1
+    # ------------------------------
+    #   Case 3: Landing from flight
+    # ------------------------------
+    init_mode = 0
     
     # Time definitions
     start_time = 0
     end_time = 0.5
     
     # Terminal cost 
-    target_mode = 0
-    Q_T = 2.0*np.eye(n_states[0])
+    target_mode = 1
+    Q_T = 20.0*np.eye(n_states[0])
     
     # Running costs
     Q_k = [np.zeros((n_states[0],n_states[0])), np.zeros((n_states[1],n_states[1]))] # zero weight to penalties along a strajectory since we are finding a trajectory
     R_k = [np.eye(n_inputs[0]), np.eye(n_inputs[1])]
     
-    init_theta_deg = 100
-    init_theta = init_theta_deg / 180 * np.pi
-    init_state = np.array([init_theta, -4.0, 0.5*r0, 0.0], dtype=np.float64)
-    target_state = np.array([1.1, 2.25, 1.4, 0.0, np.pi/3], dtype=np.float64)  # Swing pendulum upright
+
+    init_state = np.array([0.0, 2.25, 1.4, 0.0, 2*np.pi/3], dtype=np.float64) 
+    target_state = np.array([np.pi/3, -4.0, 0.5*r0, 0.0], dtype=np.float64) # Swing pendulum upright
     
     # ---------------- / slip example -----------------
     time_span = np.arange(start_time, end_time, dt).flatten()
@@ -284,17 +283,17 @@ if __name__ == '__main__':
     
 
     # # ---------------------- mean trajectory under H-iLQR ----------------------------
-    Noise_zero = [np.zeros((nt, n_inputs[0])), np.zeros((nt, n_inputs[1]))]
-    (mode_trj_mean, 
-    xt_trj_mean, 
-    ut_cl_trj_mean, 
-    Sk_mean, 
-    xt_ref_actual_mean, 
-    reset_args_mean) = hybrid_stochastic_feedback_rollout_discrete_slip(init_mode, init_state, n_inputs, states, modes, 
-                                                                        inputs, K_feedback, k_feedforward, target_state, 
-                                                                        Q_T, 0.0, dt, 
-                                                                        epsilon, Noise_zero, 0.9, 
-                                                                        reference_extension_helper, init_reset_args)
+    # Noise_zero = [np.zeros((nt, n_inputs[0])), np.zeros((nt, n_inputs[1]))]
+    # (mode_trj_mean, 
+    # xt_trj_mean, 
+    # ut_cl_trj_mean, 
+    # Sk_mean, 
+    # xt_ref_actual_mean, 
+    # reset_args_mean) = hybrid_stochastic_feedback_rollout_discrete_slip(init_mode, init_state, n_inputs, states, modes, 
+    #                                                                     inputs, K_feedback, k_feedforward, target_state, 
+    #                                                                     Q_T, 0.0, dt, 
+    #                                                                     epsilon, Noise_zero, 0.9, 
+    #                                                                     reference_extension_helper, init_reset_args)
     
     exp_data.add_nominal_data(hybrid_ilqr_result)
 
@@ -311,8 +310,8 @@ if __name__ == '__main__':
     #               Covariance Steering 
     # ===============================================
 
-    Sig0 = 0.002*np.eye(4)
-    SigT = 0.0003*np.eye(5)
+    Sig0 = 0.002*np.eye(5)
+    SigT = 0.0003*np.eye(4)
     # SigT[2,2] = 0.0001
 
     E_linear = saltations[t_event]
@@ -333,6 +332,13 @@ if __name__ == '__main__':
     Q1 = np.zeros((nt1, nx1, nx1))
 
     for i in range(nt1):
+        # A1_i = A1_func(states[i], inputs[mode_1][i])
+        # B1_i = B1_func(states[i], inputs[mode_1][i])
+        # A1_i = A1_func(xt_trj_mean[i], ut_cl_trj_mean[mode_1][i])
+        # B1_i = B1_func(xt_trj_mean[i], ut_cl_trj_mean[mode_1][i])
+
+        # A1[i] = A1_i
+        # B1[i] = B1_i
 
         A1_i = A_trj[i]
         B1_i = B_trj[i]
@@ -346,7 +352,14 @@ if __name__ == '__main__':
 
     for i in range(nt2):
         ii = t_event+i+1
-        
+        # A2_i = A2_func(states[ii], inputs[mode_2][ii])
+        # B2_i = B2_func(states[ii], inputs[mode_2][ii])
+        # A2_i = A2_func(xt_trj_mean[ii], ut_cl_trj_mean[mode_2][ii])
+        # B2_i = B2_func(xt_trj_mean[ii], ut_cl_trj_mean[mode_2][ii])
+
+        # A2[i] = A2_i
+        # B2[i] = B2_i
+
         A2_i = A_trj[ii]
         B2_i = B_trj[ii]
 
@@ -921,7 +934,7 @@ if __name__ == '__main__':
     # At = At_1 + At_2
     # Bt = Bt_1 + Bt_2
 
-    np.random.seed(70)
+    # np.random.seed(70)
     for i in range(12):
         GaussianNoise_i = [np.random.randn(nt, n_inputs[0]), np.random.randn(nt, n_inputs[1])]
         x0_i = init_state + sqrtSig0@np.random.randn(n_states[1])
@@ -975,7 +988,7 @@ if __name__ == '__main__':
                 px, pz = converted_state[0], converted_state[2]
 
             ax.scatter(px, pz, marker='.', c='c', s=12)
-        
+
         # Plot samples, H-iLQR
         for ii in range(0,nt,300):
             mode_i = mode_trj_ilqr[ii]
@@ -999,22 +1012,14 @@ if __name__ == '__main__':
         px_T_ilqr, pz_T_ilqr = xt_trj_ilqr[-1][0], xt_trj_ilqr[-1][2]
         ax_ilqr.scatter(px_T_ilqr, pz_T_ilqr, marker='d', c='g', s=12)
 
-         
-    # ax.legend()
-    # Draw covariances
-    SigT_mar = SigT[0:2, 0:2]   
-    target_ellipse_boundary, ax = plot_2d_ellipsoid_boundary(np.array([xt_trj_mean[-1][0], xt_trj_mean[-1][2]]), SigT_mar, ax, 'g', linewidth=1.0)
-    target_ellipse_boundary_ilqr, ax_ilqr = plot_2d_ellipsoid_boundary(np.array([xt_trj_mean[-1][0], xt_trj_mean[-1][2]]), SigT_mar, ax_ilqr, 'g', linewidth=1.0)
-
-    ax.legend([target_ellipse_boundary], [ 
-                    r'Target covariance $\Sigma_T$'], 
-                    prop={'family': 'serif', 'size': 15})
-    ax_ilqr.legend([target_ellipse_boundary], [ 
-                    r'Target covariance $\Sigma_T$'], 
-                    prop={'family': 'serif', 'size': 15})
+        # Draw covariances
+        SigT_mar = SigT[0:2, 0:2]
+        target_ellipse_boundary, ax = plot_2d_ellipsoid_boundary(np.array([xt_trj[-1][0], xt_trj[-1][2]]), SigT_mar, ax, 'g', linewidth=5.0)
+        
     
-    # ax.set_title("H-CS")
-    # ax_ilqr.set_title("H-iLQR")
+    # ax.legend()
+    ax.set_title("H-CS")
+    ax_ilqr.set_title("H-iLQR")
     fig.savefig("h_cs_slip_samples.pdf", format="pdf", dpi=2000)
     plt.show()
 

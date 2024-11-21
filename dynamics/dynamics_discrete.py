@@ -17,8 +17,9 @@ def hybrid_stochastic_integration_euler(xt, current_mode, ut,
                                         guard_false_func_1=None):
     dW = np.sqrt(dt) * randN
     
+    # Nonlinear
     xt_next = stochastic_integration_euler_func(current_mode, xt, ut, dt, eps, dW)
-    
+
     args_guard = (xt, current_mode, ut, t0, xt_next, dt, dt_shrink, randN, eps, reset_arg)
     
     if (current_mode==0):
@@ -38,7 +39,6 @@ def hybrid_stochastic_integration_euler(xt, current_mode, ut,
             xt_next, next_mode, dW, new_reset_arg = guard_false_func_1(args_guard)
 
     return xt_next, next_mode, dW, new_reset_arg
-
 
 
 def guard_true_func_deterministic(args):
@@ -91,17 +91,18 @@ def guard_true_func_deterministic(args):
 
 
 def event_detect_onestep_discrete(xt, ut, 
-                                  t0, dt, dt_shrink, current_mode, 
-                                    smooth_dynamics, 
-                                    guards,
-                                    gxs, gts,
-                                    reset_maps,
-                                    Rxs, Rts,
-                                    reset_args, 
-                                    guard_condition_func_0=None,
-                                    guard_condition_func_1=None,
-                                    detection=True, backwards=False):
-    
+                                  t0, dt, dt_shrink, 
+                                  current_mode, 
+                                  smooth_dynamics, 
+                                  guards, 
+                                  gxs, gts, 
+                                  reset_maps, 
+                                  Rxs, Rts, 
+                                  reset_args, 
+                                  guard_condition_func_0=None, 
+                                  guard_condition_func_1=None, 
+                                  detection=True, backwards=False):
+
     current_dyn = smooth_dynamics[current_mode]
     
     current_guard = guards[current_mode]
@@ -139,6 +140,10 @@ def event_detect_onestep_discrete(xt, ut,
             guard_hit = guard_condition_func_1(xt, xt_next, current_mode)
             
         if guard_hit:
+            if current_mode == 1:
+                print("Hit the guard g_21!")
+            if current_mode == 0:
+                print("Hit the guard g_12!")
             args_guard = (xt, current_mode, ut, t0, xt_next, dt, dt_shrink, 
                           current_dyn, current_guard, current_resetmap, reset_args)
             
@@ -210,14 +215,15 @@ def hybrid_stochastic_feedback_rollout_discrete(init_mode, x0, n_inputs, xt_ref,
         ref_current_mode = ref_modes[ii_t]
         
         K_fb_i = Kt[ii_t]
-        k_ff_i = kt[ii_t]
+        if kt is not None:
+            k_ff_i = kt[ii_t]
         xref_i = xt_ref[ii_t] 
         
         reset_args[ii_t] = event_args[cnt_event]
         
         # ======== Handle mode mismatch ========
         if cond_mode_mismatch_func(current_mode, ref_current_mode):
-            print("mode mismatch at time: ", ii_t)
+            # print("mode mismatch at time: ", ii_t)
             xref_i, K_fb_i, k_ff_i, cnt_mismatch = reaction_mode_mismatch_func(ii_t, current_mode, ref_current_mode, 
                                                                                 v_ref_ext_fwd[0], v_ref_ext_bwd[0], 
                                                                                 v_event_modechange[0],
@@ -227,7 +233,11 @@ def hybrid_stochastic_feedback_rollout_discrete(init_mode, x0, n_inputs, xt_ref,
         
         xt_ref_actual[ii_t] = xref_i
         delta_xt_i = xt - xref_i
-        current_u = ut[current_mode][ii_t] + K_fb_i@delta_xt_i + k_ff_i
+        if kt is None:
+            current_u = ut[current_mode][ii_t] + K_fb_i@delta_xt_i
+        else:
+            current_u = ut[current_mode][ii_t] + K_fb_i@delta_xt_i + k_ff_i
+            
         ut_cl_trj[current_mode][ii_t] = current_u
         
         noise_i = GaussianNoise[current_mode][ii_t]
@@ -236,14 +246,15 @@ def hybrid_stochastic_feedback_rollout_discrete(init_mode, x0, n_inputs, xt_ref,
         # ============================== One step integration ==============================        
         xt_next, next_mode, _, new_reset_arg = hybrid_stochastic_integration_func(xt, current_mode, current_u, 
                                                                                     noise_i, epsilon, 
-                                                                                    dt, dt_shrinkrate, t0, reset_args[ii_t])
+                                                                                    dt, dt_shrinkrate, 
+                                                                                    t0, reset_args[ii_t])
         
         reset_args[ii_t+1] = new_reset_arg
         
         # ============================== // One step integration // ==============================     
         
         # Collect cost: consider only the terminal state cost for now.
-        Sk += current_u.T@current_u/2.0 * dt + np.sqrt(epsilon) * np.dot(current_u.T, dW_i)
+        # Sk += current_u.T@current_u/2.0 * dt + np.sqrt(epsilon) * np.dot(current_u.T, dW_i)
         
         # Update trajectories
         xt_trj[ii_t+1] = xt_next
@@ -252,6 +263,6 @@ def hybrid_stochastic_feedback_rollout_discrete(init_mode, x0, n_inputs, xt_ref,
     xt_ref_actual[-1] = xt_ref[-1]
     
     # Terminal cost
-    Sk += (xt-target_state)@Q_T@(xt-target_state) / 2.0
+    # Sk += (xt-target_state)@Q_T@(xt-target_state) / 2.0
     
     return mode_trj, xt_trj, ut_cl_trj, Sk, xt_ref_actual, reset_args

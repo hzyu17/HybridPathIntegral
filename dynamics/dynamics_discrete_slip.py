@@ -9,6 +9,17 @@ import numpy as np
 from dynamics.dynamics_slip import *
 from dynamics.dynamics_discrete import *
 
+g = 9.81
+k = 25.0
+m = 0.5
+r0 = 1
+
+# g = 9.81
+# # k = 25.0
+# k = 5.0
+# m = 2.5
+# r0 = 1
+
 # @jax.jit
 def stochastic_integration_euler_SLIP(mode, x0, u, dt, eps, dW):   
     def mode0_dynamics_true_func_slip(args):
@@ -16,7 +27,7 @@ def stochastic_integration_euler_SLIP(mode, x0, u, dt, eps, dW):
         # flight mode
         # [x, x_dot, z, z_dot, theta] = x0
         
-        # debug: two inputs
+        # Controlled: 3 inputs
         B = np.array([[0.0, 0.0, 0.0],
                     [1.0, 0.0, 0.0],
                     [0.0, 0.0, 0.0],
@@ -38,18 +49,13 @@ def stochastic_integration_euler_SLIP(mode, x0, u, dt, eps, dW):
         # stance mode
         # [theta, theta_dot, r, r_dot] = x0
         
-        g = 9.81
-        k = 25.0
-        m = 0.5
-        r0 = 1
-        
         theta, theta_dot, r, r_dot = x0[0], x0[1], x0[2], x0[3]
         
         # Defining the stance dynamics of the system
         B = np.array([[0.0, 0.0], 
-                        [0.0, 0.0], 
-                        [0.0, 1/m/r/r], 
-                        [k/m, 0.0]], dtype=np.float64)
+                    [0.0, 0.0], 
+                    [0.0, 1/m/r/r], 
+                    [k/m, 0.0]], dtype=np.float64)
         
         # xt_next = x0 + np.array([theta_dot, 
         #                         u[0], 
@@ -80,7 +86,7 @@ def stochastic_integration_euler_SLIP(mode, x0, u, dt, eps, dW):
 # -------------------------------- From mode 1 (flight) to mode 2 (stance) --------------------------------
 def guard_cond_slip_12(xt, xt_next, current_mode):
     # assume time invariant guard for now
-    return (current_mode==0) and (guard_slip_12(0.0,xt)<0) and (guard_slip_12(0.0,xt_next)>=0)
+    return (current_mode==0) and (guard_slip_12(0.0,xt)<0) and (guard_slip_12(0.0,xt_next)>0)
 
 def guard_true_func_slip_12(args):
     print("slip_cond_12: True")
@@ -142,16 +148,15 @@ def guard_false_func_slip_12(args):
     return xt_next, current_mode, dW, reset_arg
 
 
-
 # --------------------------------------------------  
 #       From mode 2 (stance) to mode 1 (flight)
 # --------------------------------------------------
 def guard_cond_slip_21(xt, xt_next, current_mode):
     # assume time invariant guard for now
-    return (current_mode==1) and (guard_slip_21(0.0,xt)<0) and (guard_slip_21(0.0,xt_next)>=0)
+    return (current_mode==1) and (guard_slip_21(0.0,xt)<=0) and (guard_slip_21(0.0,xt_next)>0) 
 
 def guard_true_func_slip_21(args):
-    print("slip_cond: True")
+    # print("slip_cond: True")
     (xt_current, current_mode, u, t, xt_next, dt_int, dt_shrinkrate, RandN, eps, reset_arg) = args
     
     def while_loop_body(xt, u, t, dt_int, dt_shrinkrate, RandN, eps, cnt_shrink):
@@ -259,6 +264,9 @@ from functools import partial
 reaction_mode_mismatch_slip = partial(reaction_mode_mismatch, cond_early_arrival=cond_early_arrival_slip)
 hybrid_stochastic_integration_slip = partial(hybrid_stochastic_integration_euler, 
                                                 stochastic_integration_euler_func = stochastic_integration_euler_SLIP, 
+                                                guard_func_0=guard_cond_slip_12,
+                                                guard_true_func_0=guard_true_func_slip_12,
+                                                guard_false_func_0=guard_false_func_slip_12,
                                                 guard_func_1 = guard_cond_slip_21, 
                                                 guard_true_func_1 = guard_true_func_slip_21, 
                                                 guard_false_func_1 = guard_false_func_slip_21)

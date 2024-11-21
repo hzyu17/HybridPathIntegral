@@ -3,9 +3,9 @@ import numpy as np
 import os
 import sys
 file_path = os.path.abspath(__file__)
-hilqr_dir = os.path.dirname(file_path)
+hcs_dir = os.path.dirname(file_path)
 script_filename = os.path.splitext(os.path.basename(file_path))[0]
-root_dir = os.path.abspath(os.path.join(hilqr_dir, '..'))
+root_dir = os.path.abspath(os.path.join(hcs_dir, '..'))
 sys.path.append(root_dir)
 
 import jax.numpy as jnp
@@ -34,8 +34,8 @@ if __name__=='__main__':
     n_inputs = [1, 1]
 
     # ------------------ one bounce --------------------
-    dt = 0.0015
-    epsilon = 1.0
+    dt = 0.001
+    epsilon = 0.5
 
     dt_shrink = 0.9
     start_time = 0
@@ -43,7 +43,7 @@ if __name__=='__main__':
     time_span = np.arange(start_time, end_time, dt).flatten()
     nt = len(time_span)
 
-    Q_T = 60*np.eye(n_states[0])
+    Q_T = 25*np.eye(n_states[0])
     init_state = np.array([5, 1.5], dtype=np.float64)    # Define the initial state to be the origin with no velocity
     target_state = np.array([2.5, 0], dtype=np.float64)  # Swing pendulum upright
 
@@ -84,7 +84,7 @@ if __name__=='__main__':
     hybrid_ilqr_result = solve_ilqr(exp_params, detect=True, verbose=False)
     
     (timespan,modes,states,inputs, saltations,
-     k_feedforward,K_feedback,
+     k_feedforward,K_feedback,A_trj,B_trj,
      current_cost,states_iter,
      ref_modechanges,reference_extension_helper, ref_reset_args) = hybrid_ilqr_result
 
@@ -102,12 +102,13 @@ if __name__=='__main__':
 
     # The event time at which the system enters mode 2 from mode 1.
     t_event = v_tevents_ref[0]
-
+    mode_1 = 0
+    mode_2 = 1
     
     # ==================== covariance steering ====================
 
-    Sig0 = 0.5*np.eye(n_states[0])
-    SigT = 0.1*np.eye(n_states[0])
+    Sig0 = 0.2*np.eye(n_states[0])
+    SigT = 0.05*np.eye(n_states[0])
 
     E_linear = np.array([[1.0, 0.0], [0.0, -0.6]], dtype=np.float64)
 
@@ -127,14 +128,14 @@ if __name__=='__main__':
 
     for i in range(0, t_event):
         Acl_i = A[i] + B[i]@K_ilQG[i]
-        cov_trj_lqg[i+1] = cov_trj_lqg[i] + (Acl_i@cov_trj_lqg[i] + cov_trj_lqg[i]@Acl_i.T + B[i]@B[i].T) * dt
+        cov_trj_lqg[i+1] = cov_trj_lqg[i] + (Acl_i@cov_trj_lqg[i] + cov_trj_lqg[i]@Acl_i.T + epsilon*B[i]@B[i].T) * dt
     
     # hybrid time
     cov_trj_lqg[t_event+1] = E_linear@cov_trj_lqg[t_event]@E_linear.T
 
     for i in range(t_event+1, nt-1):
         Acl_i = A[i] + B[i]@K_ilQG[i]
-        cov_trj_lqg[i+1] = cov_trj_lqg[i] + (Acl_i@cov_trj_lqg[i] + cov_trj_lqg[i]@Acl_i.T + B[i]@B[i].T) * dt
+        cov_trj_lqg[i+1] = cov_trj_lqg[i] + (Acl_i@cov_trj_lqg[i] + cov_trj_lqg[i]@Acl_i.T + epsilon*B[i]@B[i].T) * dt
 
     
     # ======================================================
@@ -143,9 +144,35 @@ if __name__=='__main__':
     import cvxpy as cp
 
     nx1, nx2 = n_states[0], n_states[1]
-    nt1, nt2 = t_event, nt-t_event-2
-    A1, A2 = A[0:t_event], A[t_event+1:]
-    B1, B2 = B[0:t_event], B[t_event+1:]
+    nt1, nt2 = t_event+1, nt-t_event-1
+
+    A1 = np.zeros((nt1, nx1, nx1))
+    B1 = np.zeros((nt1, nx1, n_inputs[mode_1]))
+    Q1 = np.zeros((nt1, nx1, nx1))
+
+    for i in range(nt1):
+
+        A1_i = A_trj[i]
+        B1_i = B_trj[i]
+        
+        A1[i] = (A1_i-np.eye(nx1,nx1))/dt
+        B1[i] = B1_i/dt
+
+    A2 = np.zeros((nt2, nx2, nx2))
+    B2 = np.zeros((nt2, nx2, n_inputs[mode_2]))
+    Q2 = np.zeros((nt2, nx2, nx2))
+
+    for i in range(nt2):
+        ii = t_event+i+1
+
+        A2_i = A_trj[ii]
+        B2_i = B_trj[ii]
+
+        A2[i] = (A2_i - np.eye(nx2,nx2)) / dt
+        B2[i] = B2_i / dt
+
+    # A1, A2 = A[0:t_event+1], A[t_event+1:]
+    # B1, B2 = B[0:t_event+1], B[t_event+1:]
 
     Q1 = np.zeros((nt1, nx1, nx1))
     Q2 = np.zeros((nt2, nx2, nx2))
@@ -207,7 +234,7 @@ if __name__=='__main__':
         i = min(int(t / dt), nt1-1)  
         PhiA1_i = Phi_A1[i]
         B1_i = B1[i]
-        dydt = PhiA1_i @ B1_i @ B1_i.T @ PhiA1_i.T
+        dydt = epsilon*PhiA1_i @ B1_i @ B1_i.T @ PhiA1_i.T
         return dydt.flatten()  
     
     S1_0 = np.zeros((nx1, nx1)).flatten()
@@ -226,7 +253,7 @@ if __name__=='__main__':
         i = min(int(t / dt), nt2-1)  
         PhiA2_i = Phi_A2[i]
         B2_i = B2[i]
-        dydt = PhiA2_i @ B2_i @ B2_i.T @ PhiA2_i.T
+        dydt = epsilon*PhiA2_i @ B2_i @ B2_i.T @ PhiA2_i.T
         return dydt.flatten()  
     
     S2_0 = np.zeros((nx2, nx2)).flatten()
@@ -252,7 +279,7 @@ if __name__=='__main__':
     Y1 = cp.bmat([[Sig0, W1.T], [W1, Sighat_minus]])
     slack_Y2 = cp.bmat([[Sighat_plus, W2.T], [W2, SigT-Y2]])
     
-    obj_1 = cp.trace(inv_S1@Sighat_minus) - 2*cp.trace(Phi2.T@inv_S2@W2) - 2*cp.trace(Phi1.T@inv_S1@W1) + cp.trace(Phi2.T@inv_S2@Phi2@Sighat_plus)
+    obj_1 = cp.trace(inv_S1@Sighat_minus)/epsilon - 2*cp.trace(Phi2.T@inv_S2@W2)/epsilon - 2*cp.trace(Phi1.T@inv_S1@W1)/epsilon + cp.trace(Phi2.T@inv_S2@Phi2@Sighat_plus)/epsilon
     obj_2 = - cp.log_det(Y1) - cp.log_det(Y2)
 
     constraints = [Sighat_plus==E@Sighat_minus@E.T,
@@ -417,7 +444,7 @@ if __name__=='__main__':
         # Compute Acl_i
         Acl_i = A1_i + B1_i @ K1_i
         
-        d_cov_j_dt = Acl_i @ cov_j + cov_j @ Acl_i.T + B1_i @ B1_i.T
+        d_cov_j_dt = Acl_i @ cov_j + cov_j @ Acl_i.T + epsilon*B1_i @ B1_i.T
         
         return d_cov_j_dt.flatten()
 
@@ -427,10 +454,13 @@ if __name__=='__main__':
     
     cov_trj_1 = solution_cov.y.reshape((nx1, nx1, -1))
     cov_trj_1 = np.moveaxis(cov_trj_1, 2, 0)
+    cov_trj_1 = cov_trj_1[:-1,:,:]
 
     # cov_trj_1 = cov_trj_1[::-1,:,:]
     print("------------------ Sigma_minus computed by solving covariance control in [0, t^-] ------------------")
     print(cov_trj_1[-1])
+    print("Sigma plus integrated")
+    print(E_linear@cov_trj_1[-1]@E_linear.T)
 
     # ======================================== [t^+, T] ========================================
 
@@ -545,7 +575,7 @@ if __name__=='__main__':
         A2cl_i = A2_i + B2_i @ K2_i
         
         # Compute the derivative of the covariance matrix
-        d_cov_j_dt = A2cl_i @ cov_j + cov_j @ A2cl_i.T + B2_i @ B2_i.T
+        d_cov_j_dt = A2cl_i @ cov_j + cov_j @ A2cl_i.T + epsilon*B2_i @ B2_i.T
         
         # Flatten the derivative matrix back to a vector
         return d_cov_j_dt.flatten()
@@ -564,6 +594,7 @@ if __name__=='__main__':
     )
     cov_trj_2 = solution_cov2.y.reshape((nx2, nx2, -1))
     cov_trj_2 = np.moveaxis(cov_trj_2, 2, 0)
+    cov_trj_2 = cov_trj_2[:-1,:,:]
     
     print("==================== Terminal covariance computed ==================")
     print(cov_trj_2[-1])
@@ -588,10 +619,10 @@ if __name__=='__main__':
     cov_trj = np.concatenate((cov_trj_1, cov_trj_2), axis=0)
 
     # plot covariance trajecotry
-    for i in range(0, nt, 10):
+    for i in range(0, nt, 40):
         ellipse_boundary_lqg, ax1 = plot_2d_ellipsoid_boundary(states[i], cov_trj_lqg[i], ax1, 'k')
 
-    for i in range(0, nt, 10):
+    for i in range(0, nt, 40):
         ellipse_boundary, ax2 = plot_2d_ellipsoid_boundary(states[i], cov_trj[i], ax2, 'b')
 
     # ---------------------- Plot the start and goal states ----------------------
@@ -628,16 +659,51 @@ if __name__=='__main__':
     ax2.set_ylabel(r'$\dot z$', fontproperties=font_props)
     ax2.legend([ellipse_boundary, scatter_init_ax2, scatter_target_ax2,
                 init_ellipse_boundary, target_ellipse_boundary,
-                Sigma_minus_ellipse_boundary, Sigma_plus_ellipse_boundary], [r'$3-\sigma$ H-Covariance Steering', 
-                                                                  r'Initial Mean',
-                                                                  r'Target Mean',
-                                                                  r'Initial covariance $\Sigma_0$', 
-                                                                  r'Target covariance $\Sigma_T$',
-                                                                    r'$\Sigma^{-}$',
-                                                                    r'$\Sigma^{+}$'], prop={'family': 'serif', 'size': 15})
+                Sigma_minus_ellipse_boundary, Sigma_plus_ellipse_boundary
+                ], [r'$3-\sigma$ H-Covariance Steering', 
+                    r'Initial Mean',
+                    r'Target Mean',
+                    r'Initial covariance $\Sigma_0$', 
+                    r'Target covariance $\Sigma_T$',
+                    r'$\Sigma^{-}$',
+                    r'$\Sigma^{+}$'], 
+                    prop={'family': 'serif', 'size': 15})
+    
     
     fig1.tight_layout()
     fig2.tight_layout()
-    fig2.savefig(hilqr_dir+'/covariance_steering_bouncing_hcs.pdf', dpi=2000)
-    fig1.savefig(hilqr_dir+'/covariance_steering_bouncing_hilqr.pdf', dpi=2000)
+    fig2.savefig(hcs_dir+'/covariance_steering_bouncing_hcs.pdf', dpi=2000)
+    fig1.savefig(hcs_dir+'/covariance_steering_bouncing_hilqr.pdf', dpi=2000)
     plt.show()
+
+    save_cov_trj = True
+    K_hcs = np.concatenate((K1,K2),axis=0)
+    if save_cov_trj:
+
+        # Sample trajectories
+        np.random.seed(60)
+        eval_Sig0, evec_Sig0 = np.linalg.eigh(Sig0)
+        sqrtSig0 = evec_Sig0 @ np.diag(np.sqrt(eval_Sig0)) @ evec_Sig0.T
+        dt_shrinkrate = 0.9
+        n_samples = 10
+        xt_trj_samples = np.zeros((n_samples, nt, nx1))
+        for i_s in range(n_samples):
+            GaussianNoise_i = [np.random.randn(nt, n_inputs[0]), np.random.randn(nt, n_inputs[1])]
+            x0_i = init_state + sqrtSig0@np.random.randn(n_states[1])
+            (mode_trj, 
+            xt_trj, 
+            ut_cl_trj, 
+            Sk, 
+            xt_ref_actual, 
+            reset_args) = hybrid_stochastic_feedback_rollout_discrete_bouncing(init_mode, x0_i, n_inputs, states, modes, 
+                                                                                inputs, K_hcs, k_feedforward, target_state, 
+                                                                                Q_T, 0.0, dt, 
+                                                                                epsilon, GaussianNoise_i, dt_shrinkrate, 
+                                                                                reference_extension_helper, init_reset_args)
+            sample_i = np.asarray(xt_trj)
+            xt_trj_samples[i_s] = sample_i
+        cov_trj_swapped = np.transpose(cov_trj, (1, 2, 0))
+        # np.savetxt('cov_trj_bouncing.csv', cov_trj_flatten, delimiter=',')
+        scipy.io.savemat(hcs_dir+'/cov_trj_bouncing.mat', {'matrix': cov_trj_swapped})
+        scipy.io.savemat(hcs_dir+'/sample_trj_bouncing.mat', {'matrix': xt_trj_samples})
+        np.savetxt('mean_trj_bouncing.csv', states, delimiter=',')

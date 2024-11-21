@@ -4,13 +4,14 @@ from dynamics.dynamics_discrete_slip import *
 
 
 class hybrid_ilqr:
-    def __init__(self, nmodes, init_mode, target_mode, nstates,
+    def __init__(self, nmodes,init_mode,target_mode,nstates,
                  init_state,target_state,initial_guess,
                  dt,dt_shrinkrate,start_time,end_time,
                  contact_detect,smooth_dynamics,
                  Q_k,R_k,Q_T,parameters,n_iterations,
                  detect,plot_func,state_convert_func, 
-                 init_reset_args, target_reset_args, animate_func=None, verbose=True):
+                 init_reset_args, target_reset_args, 
+                 animate_func=None, verbose=True):
         
         self.nmodes_ = nmodes
         self._n_states = nstates
@@ -63,9 +64,10 @@ class hybrid_ilqr:
         self.smooth_dyn_ = smooth_dynamics
         self.detection_func_ = contact_detect
         
-        self.f_, self.A_, self.B_ = [None for _ in range(self.nmodes_)],[None for _ in range(self.nmodes_)],[None for _ in range(self.nmodes_)]
+        self.f_, self.A_func_, self.B_func_ = [None for _ in range(self.nmodes_)],[None for _ in range(self.nmodes_)],[None for _ in range(self.nmodes_)]
+        self.A_, self.B_ = [None for _ in range(self._n_timesteps)], [None for _ in range(self._n_timesteps)]
         for ii in range(self.nmodes_):
-            self.f_[ii], self.A_[ii], self.B_[ii] = smooth_dynamics[ii]()
+            self.f_[ii], self.A_func_[ii], self.B_func_[ii] = smooth_dynamics[ii]()
         
         # Weighting
         self.Q_k_ = Q_k
@@ -107,7 +109,7 @@ class hybrid_ilqr:
             current_mode = modes[ii]
             current_u = inputs[current_mode][ii].flatten()
 
-            current_cost = 0.5*current_u.T@self.R_k_[current_mode]@current_u # Right now only considering cost in input
+            current_cost = 0.5*current_u.T@self.R_k_[current_mode]@current_u 
             total_cost = total_cost+current_cost*dt
             
         # Compute terminal cost
@@ -128,6 +130,9 @@ class hybrid_ilqr:
         
         k_trj = [np.zeros((self._n_inputs[0])) for _ in range(self._n_timesteps)]
         K_trj = [np.zeros((self._n_inputs[0], self._n_states[0])) for _ in range(self._n_timesteps)]
+
+        A_trj = [None for _ in range(self._n_timesteps)]
+        B_trj = [None for _ in range(self._n_timesteps)]
         
         k_feedforward_trj_extension = []
         K_feedback_trj_extension = []
@@ -136,6 +141,17 @@ class hybrid_ilqr:
         expected_cost_reduction = 0
         expected_cost_reduction_grad = 0
         expected_cost_reduction_hess = 0
+
+        current_mode = self._modes[-1]
+        current_x = self._states[-1]
+        current_u = self._inputs[current_mode][-1]
+        # Get the jacobian of the discretized dynamics
+        A_k = self.A_func_[current_mode](current_x, current_u, self.dt_)
+        B_k = self.B_func_[current_mode](current_x, current_u, self.dt_)
+
+        A_trj[-1] = A_k
+        B_trj[-1] = B_k
+    
 
         # for loop backwards in time
         for idx in reversed(range(0, self._n_timesteps-1)):
@@ -150,12 +166,15 @@ class hybrid_ilqr:
             l_xx = self.Q_k_[current_mode] 
             l_uu = self.R_k_[current_mode]
 
-            l_x = self.Q_k_[current_mode]@np.zeros(self._n_states[current_mode]).flatten() 
+            l_x = self.Q_k_[current_mode]@current_x.flatten() 
             l_u = self.R_k_[current_mode]@(current_u).flatten()
 
             # Get the jacobian of the discretized dynamics
-            A_k = self.A_[current_mode](current_x, current_u, self.dt_)
-            B_k = self.B_[current_mode](current_x, current_u, self.dt_)
+            A_k = self.A_func_[current_mode](current_x, current_u, self.dt_)
+            B_k = self.B_func_[current_mode](current_x, current_u, self.dt_)
+
+            A_trj[idx] = A_k
+            B_trj[idx] = B_k
             
             if saltation is None:
             
@@ -225,7 +244,7 @@ class hybrid_ilqr:
         self.K_feedback_extensions_ = K_feedback_trj_extension
         self.K_feedforward_extensions_ = k_feedforward_trj_extension
         
-        return (k_trj,K_trj,expected_cost_reduction)
+        return (k_trj,K_trj,expected_cost_reduction, A_trj, B_trj)
 
     def forward_pass(self, use_feedback=True, 
                      learning_rate=1,
@@ -261,6 +280,19 @@ class hybrid_ilqr:
              v_Kfb_ext_trj_bwd_ref, v_Kfb_ext_trj_fwd_ref, 
              v_kff_ext_trj_bwd_ref, v_kff_ext_trj_fwd_ref, v_tevents_ref) = extract_extensions(self._reference_extension_helper)
 
+            # # ------------------------ Plot reference extensions ------------------------ 
+            # states_arr = np.asarray(self._states)
+            # fig, ax = plt.subplots()
+            # ax.grid(True)
+            # ax.plot(states_arr[:,0], states_arr[:,1], 'k')
+            # for i_ext_trj_bwd in v_ext_trj_bwd_ref:
+            #     i_ext_trj_bwd = v_ext_trj_bwd_ref[2]
+            #     ax.plot(i_ext_trj_bwd[:,0], i_ext_trj_bwd[:,1], 'r')
+            # for i_ext_trj_fwd in v_ext_trj_fwd_ref: 
+            #     i_ext_trj_fwd =  v_ext_trj_fwd_ref[2]
+            #     ax.plot(i_ext_trj_fwd[:,0], i_ext_trj_fwd[:,1], 'b')
+
+            # plt.show()
             if self._verbose:
                 print(f"Reference trajectory bouncing event numbers: {len(v_ext_trj_bwd_ref)}")
                 for i_bounce in range(len(v_ext_trj_bwd_ref)):
@@ -292,9 +324,9 @@ class hybrid_ilqr:
                 ref_state = self._states[ii]
                 current_mode_ref = self._modes[ii]
                 
-                # ------------------------------------------------ 
+                # -----------------------------------------------
                 #  Get the current (feedback, feedforward) gains 
-                # ------------------------------------------------ 
+                # -----------------------------------------------
                 current_feedforward = learning_rate * self.k_feedforward_[ii]
                 current_feedback = self.K_feedback_[ii]
                 
@@ -373,7 +405,9 @@ class hybrid_ilqr:
             # Only consider the transition from mode 0 to mode 1 for now
             if (mode_change[0]!=mode_change[1]):
                 if self._verbose:
-                    print(f"At Time {ii}, the system has a mode change from mode {mode_change[0]} to mode {mode_change[1]}")
+                    print(f" ===================== At Time {ii}, the system has a mode change from mode {mode_change[0]} to mode {mode_change[1]} =====================")
+                    print("-------- reset_byproduct --------")
+                    print(reset_byproduct)
                 # event_args.append(reset_byproduct)
                 event_args = reset_byproduct
                 cnt_event += 1
@@ -403,17 +437,17 @@ class hybrid_ilqr:
         
         print("===================== Finished initial rollout =====================")
         
-        show_rollout = False
+        show_rollout = True
         r0 = 1
         if show_rollout:
             self._plot_states_func(self._timespan, modes, states, inputs, 
                                     self._init_state, self._target_state, 
-                                    self._n_timesteps, reset_args=self._reset_args, step=1)
-                        
+                                    self._n_timesteps, reset_args=self._reset_args, step=200)
+            
             if self._animate_func:
                 fig, ax = self._animate_func(self._modes, self._states, self._init_mode, 
                                             self._init_state, self._target_mode, self._target_state, 
-                                            self._n_timesteps, self._reset_args, self._target_reset_args,step=20)
+                                            self._n_timesteps, self._reset_args, self._target_reset_args,step=200)
             
             plt.tight_layout()
             # fig.savefig(root_dir+'/data/figures/slip/slip_jump_setting.pdf', dpi=2000)
@@ -423,8 +457,8 @@ class hybrid_ilqr:
         #  Compute the current cost of the initial trajectory
         # ----------------------------------------------------
         current_cost = self.compute_cost(timespan,modes,states,inputs)
-        learning_speed = 0.9 # This can be modified, 0.95 is very slow
-        low_learning_rate = 0.01 # if learning rate drops to this value stop the optimization
+        learning_speed = 0.95 # This can be modified, 0.95 is very slow
+        low_learning_rate = 0.001 # if learning rate drops to this value stop the optimization
         low_expected_reduction = 1e-4 # Determines optimality
         armijo_threshold = 0.05 # Determines if current line search solve is good (this is typically labeled as "c")
         
@@ -441,10 +475,10 @@ class hybrid_ilqr:
             # --------------------------------------------------------
             # Compute the backwards pass and update the control gains
             # --------------------------------------------------------
-            (k_feedforward,K_feedback,expected_reduction) = self.backward_pass()    
+            (k_feedforward,K_feedback,expected_reduction,A_trj,B_trj) = self.backward_pass()    
             
             # --------------------------------------------------------------
-            # Compute the new trajectory extensions and the gains for them
+            #  Compute the new trajectory extensions and the gains for them
             # --------------------------------------------------------------
             self._reference_extension_helper = self.compute_trejactory_extension(self._timespan, self._states, self._hybrid_event_info)
             
@@ -467,13 +501,16 @@ class hybrid_ilqr:
                 
                 # Forward pass: line search 
                 (new_timespan, new_modes,new_states,new_inputs,
-                 new_saltations,new_mode_changes,new_hybrid_event_info,new_reset_args)=self.forward_pass(learning_rate)
+                 new_saltations,new_mode_changes,
+                 new_hybrid_event_info,new_reset_args)=self.forward_pass(learning_rate)
                 
                 # --------------------------------- Plot forward pass ---------------------------------
                 show_forwardpass = False
                 if show_forwardpass:
-                    self._plot_states_func(new_timespan, new_modes, new_states, new_inputs, 
-                                           self._init_state, self._target_state, self._n_timesteps, new_reset_args)
+                    self._plot_states_func(new_timespan, new_modes, 
+                                           new_states, new_inputs, 
+                                           self._init_state, self._target_state, 
+                                           self._n_timesteps, new_reset_args)
 
                     fig, ax = plt.subplots()
                     ax.grid(True)
@@ -547,10 +584,9 @@ class hybrid_ilqr:
         reference_extension_helper = self.compute_trejactory_extension(timespan, states, hybrid_event_info)
 
         return (timespan,modes,states,inputs,saltations,
-                k_feedforward,K_feedback,
+                k_feedforward,K_feedback, A_trj,B_trj,
                 current_cost,states_iter,
                 modechanges,reference_extension_helper,reset_args)
-        
     
     def compute_trejactory_extension(self, timespan, states, hybrid_event_info):
         # NO hybrid events
@@ -609,8 +645,17 @@ class hybrid_ilqr:
             mode_changes.append(hybrid_event_info[sorted_hybrid_index[-1]][3])
         
         # Forward and backward trajectory extensions, and (feedback, feedforward) gains for the two extensions
-        for ii, tevent_i in enumerate(t_events[1:-1], start=1):
-            i_event_i = i_events[ii]
+        for ii, _ in enumerate(t_events[1:-1], start=1):
+            if ii < len(t_events[1:-1]):
+                i_event_next = i_events[ii+1]
+            else:
+                i_event_next = len(timespan)
+            if ii > 1:
+                i_event_prev = i_events[ii-1]
+            else:
+                i_event_prev = 0
+                
+            i_event = i_events[ii]
             x_event_i = x_events[ii]
             x_reset_i = x_resets[ii]
             current_mode_i = mode_changes[ii][0]
@@ -630,8 +675,8 @@ class hybrid_ilqr:
             # ============================== forward trajectory extension ==============================
             # ---- [t_event, t_trj_ext_fwd] ----
             # timespan_ext_fwd = np.arange(tevent_i, t_ext_fwd_i, self.dt_)
-            # timespan[i_event_i+1] has two states simultaneously: the x_event and the x_reset. 
-            timespan_ext_fwd = timespan[i_event_i+1:]
+            # timespan[i_event+1] has two states simultaneously: the x_event and the x_reset. 
+            timespan_ext_fwd = timespan[i_event+1:]
             nt_ext_fwd = len(timespan_ext_fwd)
             xtrj_ext_fwd_i = np.zeros((nt_ext_fwd, self._n_states[current_mode_i]))
             xtrj_ext_fwd_i[0] = np.asarray(x_event_i)
@@ -654,7 +699,7 @@ class hybrid_ilqr:
                 
                 next_state, _, _, _, _, _, _ = self.detection_func_(current_mode_i, current_state, current_input, t_jj, dt, 
                                                                     self._dtshrinkrate, self._reset_args[jj], detection=False)
-             
+
                 # Store states and inputs
                 xtrj_ext_fwd_i[jj+1] = next_state
             
@@ -663,22 +708,22 @@ class hybrid_ilqr:
             # time_span_ext_fwd_padding = np.arange(0, tevent_i, self.dt_)
             
             # Pad the forward trajectory extension
-            time_span_ext_fwd_padding = timespan[:i_event_i+1]
+            time_span_ext_fwd_padding = timespan[:i_event+1]
             nt_ext_padding_fwd = len(time_span_ext_fwd_padding)
             xtrj_ext_padding_fwd_i = np.zeros((nt_ext_padding_fwd, self._n_states[current_mode_i]))
-            xtrj_ext_padding_fwd_i[:i_event_i+1] = np.asarray(states[:i_event_i+1])
+            xtrj_ext_padding_fwd_i[i_event_prev+1:i_event+1] = np.asarray(states[i_event_prev+1:i_event+1])
             xtrj_ext_fwd_i = np.vstack((xtrj_ext_padding_fwd_i, xtrj_ext_fwd_i))
             
             # ============================== backward trajectory extension ==============================
             # ---- [t_trj_ext_bwd: t_event] ----
-            timespan_ext_bwd = timespan[:i_event_i+1][::-1]
+            timespan_ext_bwd = timespan[:i_event+1][::-1]
             # timespan_ext_bwd = np.arange(0, tevent_i, self.dt_)[::-1]
             
             # time span lengths
             nt_ext_bwd = len(timespan_ext_bwd)
             xtrj_ext_bwd_i = np.zeros((nt_ext_bwd, self._n_states[next_mode_i]))
             xtrj_ext_bwd_i[0] = x_reset_i
-                 
+            
             K_feedback_ext_bwd_i = np.tile(K_feedback_bwd_extension_i, (self._n_timesteps, 1, 1))
             k_feedforward_ext_bwd_i = np.tile(k_feedforward_bwd_extension_i, (self._n_timesteps, 1))
             
@@ -709,10 +754,10 @@ class hybrid_ilqr:
             xtrj_ext_bwd_i = xtrj_ext_bwd_i[::-1]
             
             # --------------------- padding ---------------------
-            time_span_ext_bwd_padding = timespan[i_event_i+1:]
+            time_span_ext_bwd_padding = timespan[i_event+1:]
             nt_ext_padding_bwd = len(time_span_ext_bwd_padding)
             xtrj_ext_padding_bwd_i = np.zeros((nt_ext_padding_bwd, self._n_states[next_mode_i]))   
-            xtrj_ext_padding_bwd_i = np.asarray(states[i_event_i+1:])
+            xtrj_ext_padding_bwd_i[:i_event_next-i_event] = np.asarray(states[i_event+1:i_event_next+1])
             xtrj_ext_bwd_i = np.vstack((xtrj_ext_bwd_i, xtrj_ext_padding_bwd_i))
             
             # ------------------------ collect the trajectory extensions ------------------------
@@ -720,22 +765,8 @@ class hybrid_ilqr:
                                               "Trajectory Extensions": {current_mode_i:xtrj_ext_fwd_i, next_mode_i:xtrj_ext_bwd_i}, 
                                               "Feedback gains": {current_mode_i:K_feedback_ext_fwd_i, next_mode_i:K_feedback_ext_bwd_i}, 
                                               "Feedforward gains": {current_mode_i:k_feedforward_ext_fwd_i, next_mode_i:k_feedforward_ext_bwd_i}, 
-                                              "event index":  i_event_i
+                                              "event index":  i_event
                                               })
-        
-        
-        # fig, axes = plt.subplots(2,1)
-        # ax1, ax2 = axes.flatten()
-        
-        # ax1.grid(True)
-        # ax2.grid(True)    
-        
-        # states = np.asarray(states)
-        # ax1.plot(states[:, 1], 'k')
-        # ax1.plot(xtrj_ext_fwd_i[:, 1], 'r')
-        # ax1.plot(xtrj_ext_bwd_i[:, 1], 'b')
-        
-        # plt.show()
         
         return reference_extension_helper
 

@@ -106,7 +106,7 @@ def guard_condition_slip_padding(xt, xt_next, current_mode):
 
 @jax.jit
 def guard_true_func_slip_padding(args):
-    print("slip_cond: True")
+    # print("slip_cond: True")
     (xt_current, current_mode, u, t, xt_next, dt_int, dt_shrinkrate, RandN, eps, reset_arg) = args
     
     def while_cond(vars):
