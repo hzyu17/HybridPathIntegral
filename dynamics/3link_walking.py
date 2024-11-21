@@ -729,15 +729,34 @@ def demo():
 
         t = sol.t
         x = sol.y.T
-        tout.extend(t[1:])
-        xout.extend(x[1:])
+        tout.extend(t[0:])
+        xout.extend(x[0:])
         if sol.t_events:
             teout.extend(sol.t_events[0])
             xeout.extend(sol.y_events[0])
-
+        
+        # 2D limit cycle plot
+        xout_arr = np.array(xout)
+        fig, ax = plt.subplots()
+        
+        ax.plot(xout_arr[:, 1], xout_arr[:, 2], linewidth=2, color='blue')
+        
+        # for k in range(xout_arr.shape[0]):
+        #     ax.scatter(xout_arr[k, 1], xout_arr[k, 2], linewidth=2, color='blue')
+        #     plt.pause(0.01)
+        #     plt.draw()
+            
+        ax.set_xlabel(r'$\theta_2$')
+        ax.set_ylabel(r'$\theta_3$')
+        plt.title('2D Limit Cycle')
+        plt.grid()
+        fig.tight_layout()
+        
         # Set new initial conditions after impact
         x0 = resetmap_3link(x[-1])
         print(f"Step: {i + 1}, Impact ratio: {x0[6] / x0[7]}")
+        
+        plt.show()
 
         x0 = x0[:6]
         tstart = t[-1]
@@ -766,13 +785,27 @@ def demo():
     plt.title('Joint Velocities')
     plt.xlabel('Time (sec)')
     plt.grid()
-    plt.show()
+    
+    # Create the figure
+    fig_hl = plt.figure(figsize=(6, 8)) 
+    fig_hl.subplots_adjust(left=0.125, right=0.9, top=0.9, bottom=0.1)
 
-    # Additional plots (forces, control signals, outputs)
-    # Replace placeholder data `force`, `torque`, and `y` with actual simulation data
+    # First subplot: Forces on the stance leg
+    ax1 = fig_hl.add_subplot(211)
+    force = np.asarray(force)
+    
+    ax1.plot(t_2, force[:, 0], '-b', label=r'$F_{tan}, (N)$') 
+    ax1.plot(t_2, force[:, 1], '--r', label=r'$F_{norm}, (N)$') 
+    ax1.legend(loc='best')
+    ax1.grid(True)
+    ax1.set_title('Forces on End of Stance Leg')
 
-    # Animation (if defined)
-    anim(tout, xout, 1/30, speed=1)
+    # Second subplot: Ratio of forces
+    ax2 = fig_hl.add_subplot(212) 
+    ax2.plot(t_2, force[:, 0] / force[:, 1])
+    ax2.set_ylabel(r'$F_{tan} / F_{norm}$')  
+    ax2.set_xlabel('time (sec)') 
+    ax2.grid(True)  
     
     # 2D limit cycle plot
     fig, ax = plt.subplots()
@@ -782,22 +815,10 @@ def demo():
     plt.title('2D Limit Cycle')
     plt.grid()
     fig.tight_layout()
-    plt.show()
     
-    # 2D limit cycle plot
-    fig, ax = plt.subplots()
-    ax.plot(xout[:, 1], xout[:, 2], linewidth=2)
-    ax.set_xlabel(r'$\theta_2$')
-    ax.set_ylabel(r'$\theta_3$')
-    plt.title('2D Limit Cycle')
-    plt.grid()
-    fig.tight_layout()
-    plt.show()
-
     # 3D limit cycle plot
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')  
-    # ax.plot(xout[:, 0], xout[:, 3], xout[:, 5], linewidth=2)
     ax.plot3D(xout[:, 0], xout[:, 1], xout[:, 2], linewidth=2)
     ax.set_xlabel(r'$\theta_1$')
     ax.set_ylabel(r'$\theta_2$')
@@ -805,19 +826,21 @@ def demo():
     plt.title('Limit Cycle')
     plt.grid()
     fig.tight_layout()
+    
     plt.show()
-
+    
+    anim(tout, xout, 1/30, speed=1)
 
 from scipy.interpolate import interp1d
 
 def even_sample(t, x, Fs):
     # Obtain the process related parameters
-    N = x.shape[1]  # number of signals to be interpolated
-    M = t.shape[0]  # number of samples provided
-    t0 = t[0]    # initial time
-    tf = t[-1]   # final time
-    EM = int((tf - t0) * Fs)  # number of samples in the evenly sampled case
-    Et = np.linspace(t0, tf, EM)  # generate evenly spaced time values
+    N = x.shape[1]
+    M = t.shape[0]
+    t0 = t[0]
+    tf = t[-1]
+    EM = int((tf - t0) * Fs)
+    Et = np.linspace(t0, tf, EM)
 
     # Re-sample each signal using linear interpolation
     Ex = np.zeros((EM, N))  # initialize the output array
