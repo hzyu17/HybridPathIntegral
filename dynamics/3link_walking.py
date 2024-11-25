@@ -1,14 +1,17 @@
-import jax.numpy as jnp
 import numpy as np
+import jax
+import jax.numpy as jnp
+from jax import grad, jacfwd 
+jax.config.update("jax_enable_x64", True)
+
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch, Polygon
 from matplotlib.lines import Line2D
 from scipy.integrate import solve_ivp
 from mpl_toolkits.mplot3d import Axes3D
+from saltation_matrix import saltation_matrix
 
-# Dynamics of a 3-link walking robot with rigid impact
-
-# ================ parameters ================
+# ================ dynamics parameters ================
 l = 0.5 # torso length
 r = 1.0 # leg length
 MT = 10.0 # torso mass
@@ -16,58 +19,143 @@ MH = 15.0 # hip mass
 m = 5.0 # leg mass
 g0 = 9.8 # gravity
 
-def Ds(x):
-    th1, th2, th3, _, _, _ = x
-    D_s = np.zeros((6, 6))
-    D_s[0, 0] = (1.25*m + MH + MT)*r**2
-    D_s[0, 1] = -0.5*m*r**2*np.cos(th1-th2)
-    D_s[0, 2] = MT*r*l*np.cos(th1-th3)
-    D_s[1, 1] = 0.25*m*r**2
-    D_s[2, 2] = MT*l*l
+# Optimization parameters
+a = [0.512, 0.073, 0.035, -0.819, -2.27, 3.26, 3.11, 1.89]
     
-    # Get other entries by symmetry
-    D_s = (D_s + D_s.T) / 2
-    
-    return D_s
-    
-    
-def Cs(x):
-    th1, th2, th3, dth1, dth2, dth3 = x
-    C_s = np.zeros((6, 6))
-    C_s[0,1] = -0.5*m*r**2*np.sin(th1-th2)*dth2
-    C_s[0,2] = -MT*r*l*np.sin(-th1+th3)*dth3
-    C_s[1,0] = 1/2*r^2*np.sin(th1-th2)*m*dth1
-    C_s[2,0] = MT*r*l*np.sin(-th1+th3)*dth1
-    
-    return C_s
-
-
-def Gs(x):
-    th1, th2, th3, dth1, dth2, dth3 = x
-    G = np.zeros((3,1))
-    G[0] = -3/2*r*np.sin(th1)*m*g0-r*np.sin(th1)*MH*g0-r*np.sin(th1)*MT*g0
-    G[1] = 1/2*r*np.sin(th2)*m*g0
-    G[2] = -l*np.sin(th3)*MT*g0
-    
-    return G
-
-
-def Bs(x):
-    # th1, th2, th3, dth1, dth2, dth3 = x
-    B=np.zeros((3,2))
-    B[0,0] = -1
-    B[1,1] = -1
-    B[2,0] = 1
-    B[2,1] = 1
-    
-    return B
-
-
 # Define global variables
 t_2 = []
 torque = []
 y = []
 force = []
+
+# guard function: swing leg touches the ground, and the swing leg is in front of the stance leg.
+# p2_v(q) = 0; assuming r = 1
+def guard_3link_jax(t, x_event):
+    th1, th2 = x_event[0], x_event[1]
+    return jnp.cos(th1) - jnp.cos(th2)
+
+gt_3link = jax.jit(jacfwd(lambda t, x: guard_3link_jax(t, x), 0))
+gx_3link = jax.jit(jacfwd(lambda t, x: guard_3link_jax(t, x), 1))
+
+def resetmap_3link(x): 
+    # Unpack state variables
+    th1, th2, th3 = x[:3]
+
+    # De matrix
+    De = np.zeros((5, 5))
+    De[0, 0] = (r**2 * (4 * MH + 4 * MT + 5 * m)) / 4
+    De[0, 1] = -(m * r**2 * (np.cos(th1) * np.cos(th2) + np.sin(th1) * np.sin(th2))) / 2
+    De[0, 2] = l * MT * r * (np.cos(th1) * np.cos(th3) + np.sin(th1) * np.sin(th3))
+    De[0, 3] = (r * np.cos(th1) * (2 * MH + 2 * MT + 3 * m)) / 2
+    De[0, 4] = -(r * np.sin(th1) * (2 * MH + 2 * MT + 3 * m)) / 2
+    De[1, 0] = De[0, 1]
+    De[1, 1] = (m * r**2) / 4
+    De[1, 3] = -(m * r * np.cos(th2)) / 2
+    De[1, 4] = (m * r * np.sin(th2)) / 2
+    De[2, 0] = De[0, 2]
+    De[2, 2] = l**2 * MT
+    De[2, 3] = l * MT * np.cos(th3)
+    De[2, 4] = -l * MT * np.sin(th3)
+    De[3, 0] = De[0, 3]
+    De[3, 1] = De[1, 3]
+    De[3, 2] = De[2, 3]
+    De[3, 3] = MH + MT + 2 * m
+    De[4, 0] = De[0, 4]
+    De[4, 1] = De[1, 4]
+    De[4, 2] = De[2, 4]
+    De[4, 4] = MH + MT + 2 * m
+
+    # E matrix
+    E = np.zeros((2, 5))
+    E[0, 0] = r * np.cos(th1)
+    E[0, 1] = -r * np.cos(th2)
+    E[0, 3] = 1
+    E[1, 0] = -r * np.sin(th1)
+    E[1, 1] = r * np.sin(th2)
+    E[1, 4] = 1
+
+    # Solve for the transition using the equation from Grizzle's paper
+    A = np.block([[De, -E.T], [E, np.zeros((2, 2))]])
+    b = np.hstack([De @ np.hstack([x[3:6], [0, 0]]), [0, 0]])
+    tmp_vec = np.linalg.solve(A, b)
+
+    # Update state vector after impact
+    x_new = np.zeros(6)
+    x_new[0] = x[1]
+    x_new[1] = x[0]
+    x_new[2] = x[2]
+    x_new[3] = tmp_vec[1]
+    x_new[4] = tmp_vec[0]
+    x_new[5] = tmp_vec[2]
+    # x_new[6] = tmp_vec[5]
+    # x_new[7] = tmp_vec[6]
+
+    z2_new = tmp_vec[4]
+
+    return x_new
+
+
+def resetmap_3link_jax(t, x): 
+    # Unpack state variables
+    th1, th2, th3 = x[:3]
+
+    # De matrix
+    De = jnp.zeros((5, 5))
+    De.at[0, 0].set((r**2 * (4 * MH + 4 * MT + 5 * m)) / 4)
+    De.at[0, 1].set(-(m * r**2 * (jnp.cos(th1) * jnp.cos(th2) + jnp.sin(th1) * jnp.sin(th2))) / 2)
+    De.at[0, 2].set(l * MT * r * (jnp.cos(th1) * jnp.cos(th3) + jnp.sin(th1) * jnp.sin(th3)))
+    De.at[0, 3].set((r * jnp.cos(th1) * (2 * MH + 2 * MT + 3 * m)) / 2)
+    De.at[0, 4].set(-(r * jnp.sin(th1) * (2 * MH + 2 * MT + 3 * m)) / 2)
+    De.at[1, 0].set(De[0, 1])
+    De.at[1, 1].set((m * r**2) / 4)
+    De.at[1, 3].set(-(m * r * jnp.cos(th2)) / 2)
+    De.at[1, 4].set((m * r * jnp.sin(th2)) / 2)
+    De.at[2, 0].set(De[0, 2])
+    De.at[2, 2].set(l**2 * MT)
+    De.at[2, 3].set(l * MT * jnp.cos(th3))
+    De.at[2, 4].set(-l * MT * jnp.sin(th3))
+    De.at[3, 0].set(De[0, 3])
+    De.at[3, 1].set(De[1, 3])
+    De.at[3, 2].set(De[2, 3])
+    De.at[3, 3].set(MH + MT + 2 * m)
+    De.at[4, 0].set(De[0, 4])
+    De.at[4, 1].set(De[1, 4])
+    De.at[4, 2].set(De[2, 4])
+    De.at[4, 4].set(MH + MT + 2 * m)
+
+    # E matrix
+    E = jnp.zeros((2, 5))
+    
+    E.at[0, 0].set(r * jnp.cos(th1))
+    E.at[0, 1].set(-r * jnp.cos(th2))
+    E.at[0, 3].set(1)
+    E.at[1, 0].set(-r * jnp.sin(th1))
+    E.at[1, 1].set(r * jnp.sin(th2))
+    E.at[1, 4].set(1)
+
+    # Solve for the transition using the equation from Grizzle's paper
+    A = jnp.block([[De, -E.T], [E, jnp.zeros((2, 2))]])
+    b = jnp.hstack([De @ jnp.hstack([x[3:6], [0, 0]]), [0, 0]])
+    tmp_vec = jnp.linalg.solve(A, b)
+
+    # Update state vector after impact
+    x_new = jnp.zeros(6)
+    
+    x_new.at[0].set(x[1])
+    x_new.at[1].set(x[0])
+    x_new.at[2].set(x[2])
+    x_new.at[3].set(tmp_vec[1])
+    x_new.at[4].set(tmp_vec[0])
+    x_new.at[5].set(tmp_vec[2])
+    # x_new.at[6].set(tmp_vec[5])
+    # x_new.at[7].set(tmp_vec[6])
+
+    # z2_new = tmp_vec[4]
+
+    return x_new
+
+Rt_3link = jax.jit(jacfwd(lambda t, x: resetmap_3link_jax(t, x), 0))
+Rx_3link = jax.jit(jacfwd(lambda t, x: resetmap_3link_jax(t, x), 1))
 
 
 def dynamics_three_link(x, a):
@@ -190,6 +278,190 @@ def dynamics_three_link(x, a):
     return D, C, G, B, K, dV, dVl, Al, Bl, H, LfH, dLfH
 
 
+def dynamics_three_link_jax(x, a):
+    """
+    Model of a three-link biped walker.
+
+    Parameters:
+        x : array-like
+            State vector (size 6).
+        a : array-like
+            Coefficients for the dynamics.
+
+    Returns:
+        D, C, G, B, K, dV, dVl, Al, Bl, H, LfH, dLfH : tuple of arrays
+            Matrices and vectors representing the system dynamics.
+    """
+    # Retrieve model and control parameters
+    th3d, th1d, alpha, epsilon = control_params_three_link()
+    
+    # Unpack state variables
+    th1, th2, th3 = x[0], x[1], x[2]
+    dth1, dth2, dth3 = x[3], x[4], x[5]
+
+    # D matrix
+    D = jnp.zeros((3, 3))
+    D = D.at[0, 0].set(MH * r**2 + MT * r**2 + (5 * m * r**2) / 4)
+    D = D.at[0, 1].set(-(m * r**2 * jnp.cos(th1 - th2)) / 2)
+    D = D.at[0, 2].set(l * MT * r * jnp.cos(th1 - th3))
+    D = D.at[1, 0].set(D[0, 1])
+    D = D.at[1, 1].set((m * r**2) / 4)
+    D = D.at[2, 0].set(D[0, 2])
+    D = D.at[2, 2].set(l**2 * MT)
+
+    # C matrix
+    C = jnp.zeros((3, 3))
+    C = C.at[0, 1].set(-(dth2 * m * r**2 * jnp.sin(th1 - th2)) / 2)
+    C = C.at[0, 2].set(l * MT * dth3 * r * jnp.sin(th1 - th3))
+    C = C.at[1, 0].set((dth1 * m * r**2 * jnp.sin(th1 - th2)) / 2)
+    C = C.at[2, 0].set(-l * MT * dth1 * r * jnp.sin(th1 - th3))
+
+    # G matrix
+    G = jnp.zeros(3)
+    G = G.at[0].set(-MH * g0 * r * jnp.sin(th1) - MT * g0 * r * jnp.sin(th1) - (3 * g0 * m * r * jnp.sin(th1)) / 2)
+    G = G.at[1].set((g0 * m * r * jnp.sin(th2)) / 2)
+    G = G.at[2].set(-l * MT * g0 * jnp.sin(th3))
+
+    # B matrix
+    B = jnp.zeros((3, 2))
+    B = B.at[0, 0].set(-1)
+    B = B.at[1, 1].set(-1)
+    B = B.at[2, 0].set(1)
+    B = B.at[2, 1].set(1)
+
+    # K matrix
+    K = jnp.zeros((2, 4))
+    K = K.at[0, 0].set(156)
+    K = K.at[0, 2].set(25)
+    K = K.at[1, 1].set(110)
+    K = K.at[1, 3].set(21)
+
+    # dV matrix
+    dV = jnp.zeros((1, 6))
+    dV = dV.at[0, 0].set((184 * th1) / 77 - 10 * dth2 - 10 * dth1 + (184 * th2) / 77)
+    dV = dV.at[0, 1].set(dV[0, 0])
+    dV = dV.at[0, 2].set((4515147318722739 * th3) / 2251799813685248 - 10 * dth3 - \
+                    (4515147318722739 * th3d) / 4503599627370496 - \
+                    (4515147318722739 * th3d) / 4503599627370496)
+    dV = dV.at[0, 3].set((370 * dth1) / 7 + (370 * dth2) / 7 - 10 * th1 - 10 * th2)
+    dV = dV.at[0, 4].set(dV[0, 3])
+    dV = dV.at[0, 5].set((4419157134357289 * dth3) / 70368744177664 - 10 * th3 + 5 * th3d + 5 * th3d)
+
+    # dVl matrix
+    dVl = jnp.zeros((1, 4))
+    dVl = dVl.at[0, 0].set((4515147318722739 * th3) / 2251799813685248 - 10 * dth3 - \
+                (4515147318722739 * th3d) / 2251799813685248)
+    dVl = dVl.at[0, 1].set(dV[0, 0])
+    dVl = dVl.at[0, 2].set((4419157134357289 * dth3) / 70368744177664 - 10 * th3 + 10 * th3d)
+    dVl = dVl.at[0, 3].set((370 * dth1) / 7 + (370 * dth2) / 7 - 10 * th1 - 10 * th2)
+
+    # Al matrix
+    Al = jnp.zeros((4, 4))
+    Al = Al.at[0, 2].set(1)
+    Al = Al.at[1, 3].set(1)
+
+    # Bl matrix
+    Bl = jnp.zeros((4, 2))
+    Bl = Bl.at[2, 0].set(1)
+    Bl = Bl.at[3, 1].set(1)
+
+    # Extract coefficients
+    a01, a11, a21, a31 = a[:4]
+    a02, a12, a22, a32 = a[4:]
+
+    # H matrix
+    H = jnp.zeros((2, 1))
+    H = H.at[0, 0].set(th3 - a01 - a11 * th1 - a21 * th1**2 - a31 * th1**3)
+    H = H.at[1, 0].set(th1 + th2 - (th1 + th1d) * (th1 - th1d) * (a02 + a12 * th1 + a22 * th1**2 + a32 * th1**3))
+
+    # LfH matrix
+    LfH = jnp.zeros((2, 1))
+    LfH = LfH.at[0, 0].set(dth3 - dth1 * (a11 + 2 * a21 * th1 + 3 * a31 * th1**2))
+    LfH = LfH.at[1, 0].set(dth2 - dth1 * ((th1 - th1d) * (a02 + a12 * th1 + a22 * th1**2 + a32 * th1**3) +
+                    (th1 + th1d) * (a02 + a12 * th1 + a22 * th1**2 + a32 * th1**3) +
+                    (th1 + th1d) * (th1 - th1d) * (a12 + 2 * a22 * th1 + 3 * a32 * th1**2) - 1))
+
+    # dLfH matrix
+    dLfH = jnp.zeros((2, 6))
+    dLfH = dLfH.at[0, 0].set(-dth1 * (2 * a21 + 6 * a31 * th1))
+    dLfH = dLfH.at[0, 3].set(-(a11 + 2 * a21 * th1 + 3 * a31 * th1**2))
+    dLfH = dLfH.at[0, 5].set(1)
+    dLfH = dLfH.at[1, 0].set(-dth1 * (2 * a02 + 2 * (th1 + th1d) * (a12 + 2 * a22 * th1 + 3 * a32 * th1**2) +
+                          2 * a12 * th1 + 2 * (th1 - th1d) * (a12 + 2 * a22 * th1 + 3 * a32 * th1**2) +
+                          2 * a22 * th1**2 + 2 * a32 * th1**3 +
+                          (th1 + th1d) * (2 * a22 + 6 * a32 * th1) * (th1 - th1d)))
+    dLfH = dLfH.at[1, 3].set(1 - (th1 + th1d) * (a02 + a12 * th1 + a22 * th1**2 + a32 * th1**3) - \
+                 (th1 + th1d) * (th1 - th1d) * (a12 + 2 * a22 * th1 + 3 * a32 * th1**2) - \
+                 (th1 - th1d) * (a02 + a12 * th1 + a22 * th1**2 + a32 * th1**3))
+    dLfH = dLfH.at[1, 4].set(1)
+
+    return D, C, G, B, K, dV, dVl, Al, Bl, H, LfH, dLfH
+
+
+def Ds(x):
+    th1, th2, th3, _, _, _ = x
+    D_s = np.zeros((6, 6))
+    D_s[0, 0] = (1.25*m + MH + MT)*r**2
+    D_s[0, 1] = -0.5*m*r**2*np.cos(th1-th2)
+    D_s[0, 2] = MT*r*l*np.cos(th1-th3)
+    D_s[1, 1] = 0.25*m*r**2
+    D_s[2, 2] = MT*l*l
+    
+    # Get other entries by symmetry
+    D_s = (D_s + D_s.T) / 2
+    
+    return D_s
+    
+    
+def Cs(x):
+    th1, th2, th3, dth1, dth2, dth3 = x
+    C_s = np.zeros((6, 6))
+    C_s[0,1] = -0.5*m*r**2*np.sin(th1-th2)*dth2
+    C_s[0,2] = -MT*r*l*np.sin(-th1+th3)*dth3
+    C_s[1,0] = 1/2*r^2*np.sin(th1-th2)*m*dth1
+    C_s[2,0] = MT*r*l*np.sin(-th1+th3)*dth1
+    
+    return C_s
+
+
+def Gs(x):
+    th1, th2, th3, dth1, dth2, dth3 = x
+    G = np.zeros((3,1))
+    G[0] = -3/2*r*np.sin(th1)*m*g0-r*np.sin(th1)*MH*g0-r*np.sin(th1)*MT*g0
+    G[1] = 1/2*r*np.sin(th2)*m*g0
+    G[2] = -l*np.sin(th3)*MT*g0
+    
+    return G
+
+
+def Bs(x):
+    # th1, th2, th3, dth1, dth2, dth3 = x
+    B=np.zeros((3,2))
+    B[0,0] = -1
+    B[1,1] = -1
+    B[2,0] = 1
+    B[2,1] = 1
+    
+    return B
+
+def control_params_three_link():
+    # Replace with the actual implementation
+    th3d=np.pi/6.0   
+    th1d = np.pi/8.0 
+    alpha=0.9  
+    epsilon=0.1
+
+    return th3d, th1d, alpha, epsilon
+
+
+def switching_leg_events(t, x, args):
+    # Retrieve parameters
+    th3d, th1d, alpha, epsilon = control_params_three_link()
+    
+    return th1d - x[0]
+switching_leg_events.terminal = True 
+switching_leg_events.direction = 0
+
 def control_three_link(H, LfH):
     """
     Calculate the control for the feedback linearized three-link biped walker.
@@ -225,7 +497,7 @@ def control_three_link(H, LfH):
     return v
 
 
-def fxgu(t, x, a):
+def fxgu_nom(t, x, a):
     """
     Compute the state derivative (dx/dt) for the three-link walker.
 
@@ -249,8 +521,6 @@ def fxgu(t, x, a):
     # Compute Fx and Gx
     Fx = np.linalg.solve(D, -C @ x[3:6] - G)
     Gx = np.linalg.solve(D, B)
-
-    # Compute control input using the Bernstein-Bhat controller
     v = control_three_link(H, LfH)
 
     # Compute control signal (u) using feedback linearization
@@ -269,6 +539,28 @@ def fxgu(t, x, a):
     force.append([f_tan, f_norm])
 
     return dx
+
+
+def fxgu_3link_jax(t, x, u, a):
+    # Extract dynamics matrices and control parameters
+    D, C, G, B, K, dV, dVl, Al, Bl, H, LfH, dLfH = dynamics_three_link_jax(x[:6], a)
+    
+    # Compute Fx and Gx
+    Fx = jnp.linalg.solve(D, -C @ x[3:6] - G)
+    Gx = jnp.linalg.solve(D, B)
+
+    # Compute state derivatives
+    dx = jnp.zeros_like(x)
+    dx = dx.at[:3].set(x[3:6])
+    dx = dx.at[3:6].set(Fx + Gx @ u)
+    
+    return dx
+
+# linearizations and jacobians
+jac_fxgu_x = jax.jit(jax.jacobian(lambda t, x, u, a: fxgu_3link_jax(t, x, u, a), argnums=1))
+jac_fxgu_u = jax.jit(jax.jacobian(lambda t, x, u, a: fxgu_3link_jax(t, x, u, a), argnums=2))
+
+
 
 def stance_force_three_link(x, dx, u):
     """
@@ -363,6 +655,7 @@ def stance_force_three_link(x, dx, u):
 
     return f_tan, f_norm
 
+
 def fxgudw(x, u, dt, eps):
     D = Ds(x)
     C = Cs(x)
@@ -422,72 +715,6 @@ def sigma_three_link(omega_1_minus, a):
     x = np.array([th1, -th1, th3, dth1, dth2, dth3])
 
     return x
-
-
-def resetmap_3link(x): 
-    # Unpack state variables
-    th1, th2, th3 = x[:3]
-
-    # De matrix
-    De = np.zeros((5, 5))
-    De[0, 0] = (r**2 * (4 * MH + 4 * MT + 5 * m)) / 4
-    De[0, 1] = -(m * r**2 * (np.cos(th1) * np.cos(th2) + np.sin(th1) * np.sin(th2))) / 2
-    De[0, 2] = l * MT * r * (np.cos(th1) * np.cos(th3) + np.sin(th1) * np.sin(th3))
-    De[0, 3] = (r * np.cos(th1) * (2 * MH + 2 * MT + 3 * m)) / 2
-    De[0, 4] = -(r * np.sin(th1) * (2 * MH + 2 * MT + 3 * m)) / 2
-    De[1, 0] = De[0, 1]
-    De[1, 1] = (m * r**2) / 4
-    De[1, 3] = -(m * r * np.cos(th2)) / 2
-    De[1, 4] = (m * r * np.sin(th2)) / 2
-    De[2, 0] = De[0, 2]
-    De[2, 2] = l**2 * MT
-    De[2, 3] = l * MT * np.cos(th3)
-    De[2, 4] = -l * MT * np.sin(th3)
-    De[3, 0] = De[0, 3]
-    De[3, 1] = De[1, 3]
-    De[3, 2] = De[2, 3]
-    De[3, 3] = MH + MT + 2 * m
-    De[4, 0] = De[0, 4]
-    De[4, 1] = De[1, 4]
-    De[4, 2] = De[2, 4]
-    De[4, 4] = MH + MT + 2 * m
-
-    # E matrix
-    E = np.zeros((2, 5))
-    E[0, 0] = r * np.cos(th1)
-    E[0, 1] = -r * np.cos(th2)
-    E[0, 3] = 1
-    E[1, 0] = -r * np.sin(th1)
-    E[1, 1] = r * np.sin(th2)
-    E[1, 4] = 1
-
-    # Solve for the transition using the equation from Grizzle's paper
-    A = np.block([[De, -E.T], [E, np.zeros((2, 2))]])
-    b = np.hstack([De @ np.hstack([x[3:6], [0, 0]]), [0, 0]])
-    tmp_vec = np.linalg.solve(A, b)
-
-    # Update state vector after impact
-    x_new = np.zeros(8)
-    x_new[0] = x[1]
-    x_new[1] = x[0]
-    x_new[2] = x[2]
-    x_new[3] = tmp_vec[1]
-    x_new[4] = tmp_vec[0]
-    x_new[5] = tmp_vec[2]
-    x_new[6] = tmp_vec[5]
-    x_new[7] = tmp_vec[6]
-
-    z2_new = tmp_vec[4]
-
-    return x_new
-
-
-# guard function: swing leg touches the ground, and the swing leg is in front of the stance leg.
-# p2_v(q) = 0;
-# p2_h(q) > 0; 
-def guard_3link(q, pH_horiz):
-    pFoot1, pFoot2, pH, pT = limb_position(q, pH_horiz)
-    return (pFoot2[1] == 0) and (pFoot2[0] > 0)
 
 
 def limb_position(q, pH_horiz):
@@ -570,8 +797,6 @@ def anim(t, x, ts, speed):
     mass1_y = ymass_legs + (pH[1] - pFoot1[1]) / 2
     mass1 = Polygon(np.column_stack((mass1_x, mass1_y)), closed=True, color=leg1_color)
     ax.add_patch(mass1)
-    # mass1 = Patch(color='g')
-    # ax.add_patch(mass1)
 
     # Draw leg two
     leg2_color = 'red'  # Color for leg two
@@ -582,7 +807,7 @@ def anim(t, x, ts, speed):
     ax.add_patch(mass2)
 
     # Draw torso
-    torso_color = 'blue'  # Color for the torso
+    torso_color = 'blue' 
     torso, = ax.plot([pH[0], pT[0]], [pH[1], pT[1]], color='b', linewidth=2)
     # Add torso mass
     mass_torso_x = xmass_torso + pT[0]
@@ -624,24 +849,6 @@ def anim(t, x, ts, speed):
     plt.show()
     
     
-def control_params_three_link():
-    # Replace with the actual implementation
-    th3d=np.pi/6.0   
-    th1d = np.pi/8.0 
-    alpha=0.9  
-    epsilon=0.1
-
-    return th3d, th1d, alpha, epsilon
-
-def switching_leg_events(t, x, args):
-    # Retrieve parameters
-    th3d, th1d, alpha, epsilon = control_params_three_link()
-    
-    return th1d - x[0]
-switching_leg_events.terminal = True    # Stop the integration when the event occurs
-switching_leg_events.direction = 0
-    
-    
 def events(t, x):
     """
     Event function to handle simulation events.
@@ -674,8 +881,8 @@ def events(t, x):
         th1d - x[0],          # When stance leg attains angle of th1d
         r * np.cos(x[0]) - 0.5 * r  # Hips get too close to the ground
     ]
-    is_terminal = [1, 1]  # Stop simulation for these events
-    direction = [-1, -1]  # Detect decreasing direction
+    is_terminal = [1, 1]  
+    direction = [-1, -1] 
 
     return value, is_terminal, direction
     
@@ -691,14 +898,11 @@ def demo():
 
     tstart = 0
     tfinal = 13
-
-    # Optimization parameters
-    a = [0.512, 0.073, 0.035, -0.819, -2.27, 3.26, 3.11, 1.89]
-
+    
     omega_1 = 1.55
     x0 = sigma_three_link(omega_1, a)
     x0 = resetmap_3link(x0).T
-    x0 = x0[:6]
+    # x0 = x0[:6]
 
     options = {
         'events': switching_leg_events, 
@@ -714,11 +918,18 @@ def demo():
 
     print("(impact ratio is the ratio of tangential to normal forces of the tip of the swing leg at impact)")
 
+    num_steps = 2
+    t_events = []
+    x_events = []
+    x_resets = []
+    saltations = []
+    
+    
     # Run five steps
-    for i in range(5):  
+    for i in range(num_steps):  
         # Solve until the first terminal event
         sol = solve_ivp(
-            fxgu,
+            fxgu_nom,
             [tstart, tfinal],
             x0,
             args=(a,),
@@ -729,36 +940,42 @@ def demo():
 
         t = sol.t
         x = sol.y.T
-        tout.extend(t[0:])
-        xout.extend(x[0:])
+        tout.extend(t[:-1])
+        xout.extend(x[:-1])
+        
         if sol.t_events:
-            teout.extend(sol.t_events[0])
-            xeout.extend(sol.y_events[0])
-        
-        # 2D limit cycle plot
-        xout_arr = np.array(xout)
-        fig, ax = plt.subplots()
-        
-        ax.plot(xout_arr[:, 1], xout_arr[:, 2], linewidth=2, color='blue')
-        
-        # for k in range(xout_arr.shape[0]):
-        #     ax.scatter(xout_arr[k, 1], xout_arr[k, 2], linewidth=2, color='blue')
-        #     plt.pause(0.01)
-        #     plt.draw()
             
-        ax.set_xlabel(r'$\theta_2$')
-        ax.set_ylabel(r'$\theta_3$')
-        plt.title('2D Limit Cycle')
-        plt.grid()
-        fig.tight_layout()
+            # Compute the saltation matrix
+            te = sol.t_events[0][0]
+            xe = sol.y_events[0][0]
+            
+            print("Swing foot guard function value:")
+            print(guard_3link_jax(te, xe))
+            
+            F_1 = fxgu_nom(te, xe, a)
+            x_re = resetmap_3link(xe)
+            F_2 = fxgu_nom(te, x_re, a) # Important, the F2 is evaluated at the reseted state!
+            Rt = Rt_3link(te, xe)
+            Rx = Rx_3link(te, xe)
+            gt = gt_3link(te, xe)
+            gx = gx_3link(te, xe)
+            saltation = saltation_matrix(F_1, F_2, Rt, Rx, gt, gx)
+            saltations.append(saltation)
+            
+            t_events.append(te)
+            x_events.append(xe)
+            
+            # teout.extend(sol.t_events[0])
+            # xeout.extend(xe)
         
         # Set new initial conditions after impact
         x0 = resetmap_3link(x[-1])
-        print(f"Step: {i + 1}, Impact ratio: {x0[6] / x0[7]}")
+        x_resets.append(sol.y_events[0])
         
+        # print(f"Step: {i + 1}, Impact ratio: {x0[6] / x0[7]}")
         plt.show()
 
-        x0 = x0[:6]
+        # x0 = x0[:6]
         tstart = t[-1]
         if tstart >= tfinal:
             break
@@ -829,7 +1046,20 @@ def demo():
     
     plt.show()
     
-    anim(tout, xout, 1/30, speed=1)
+    # anim(tout, xout, 1/30, speed=1)
+    
+    # Get the linearized system
+    nt = tout.shape[0]
+    ui = np.zeros((2))
+    
+    # find event index
+    te_indx = []
+    for te_i in t_events:
+        te_indx.append(np.where(tout==te_i))
+    
+    for ii in range(nt):
+        Ai = jac_fxgu_x(tout[ii], xout[ii], ui, a)
+        Bi = jac_fxgu_u(tout[ii], xout[ii], ui, a)
 
 from scipy.interpolate import interp1d
 
