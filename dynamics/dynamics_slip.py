@@ -286,7 +286,7 @@ reset_maps_slip = {0:reset_map_slip_12, 1:reset_map_slip_21}
 
 def hybrid_stochastic_feedback_rollout_slip(init_mode, x0, n_inputs, xt_ref, ref_modes, 
                                             ut, Kt, kt, target_state, Q_T, t0, tf, 
-                                            epsilon, GaussianNoise, dt_shrinkingrate, 
+                                            epsilon, GaussianNoise, 
                                             ref_ext_helper, init_reset_args):
 
     (v_event_modechange, v_ext_bwd, v_ext_fwd, 
@@ -339,13 +339,12 @@ def hybrid_stochastic_feedback_rollout_slip(init_mode, x0, n_inputs, xt_ref, ref
         xref_i = xt_ref[ii_t] 
         
         if cond_mode_mismatch_slip(current_mode, ref_current_mode):
-            xref_i, K_fb_i, k_ff_i, cnt_mismatch = reaction_mode_mismatch(cond_early_arrival_slip, ii_t, 
-                                                                          current_mode, ref_current_mode, 
+            xref_i, K_fb_i, k_ff_i, cnt_mismatch = reaction_mode_mismatch(ii_t, current_mode, ref_current_mode, 
                                                                             v_ext_fwd[0], v_ext_bwd[0], 
                                                                             v_event_modechange[0],
                                                                             v_Kfb_ext_fwd[0], v_kff_ext_fwd[0],
                                                                             v_Kfb_ext_bwd[0], v_kff_ext_bwd[0],
-                                                                            cnt_mismatch)
+                                                                            cnt_mismatch, cond_early_arrival_slip)
         
         xt_ref_actual[ii_t] = xref_i
         
@@ -368,7 +367,7 @@ def hybrid_stochastic_feedback_rollout_slip(init_mode, x0, n_inputs, xt_ref, ref
         if cond_guard_function_hit_slip(xt, xt_next, current_guard): 
             
             args = (xt, current_mode, current_u, t0_i, t0_i+dt_int, xt_next, 
-                    dt_int, dt_shrinkingrate, GaussianNoise[current_mode][ii_t], epsilon, 
+                    dt_int, GaussianNoise[current_mode][ii_t], epsilon, 
                     stochastic_integration_slip, guards_slip, reset_maps_slip, reset_args[ii_t])
             
             xt_next, next_mode, dW_i, new_reset_args = event_reactive_fun(args)
@@ -392,7 +391,7 @@ def hybrid_stochastic_feedback_rollout_slip(init_mode, x0, n_inputs, xt_ref, ref
     time_span = np.arange(0, n_timestamps)
     plot_slip(time_span, mode_trj, xt_trj, ut_cl_trj, 
               x0, target_state, n_timestamps, reset_args, 
-              fig=None, axes=None, color='k', alpha=1.0, step=2)
+              figs=None, axes=None, color='k', alpha=1.0, step=2)
     
     ax.legend(loc='best', prop={'family': 'serif', 'size': 16})
     plt.show()

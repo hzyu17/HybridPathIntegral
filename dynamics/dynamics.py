@@ -161,7 +161,7 @@ def event_condition(xt, xt_next, guard):
 
 def event_reactive_fun(args):
     (xt_current, current_mode, u, 
-     t, t_next, xt_next, dt_int, dt_shrinkingrate, 
+     t, t_next, xt_next, dt_int, 
      RandN, epsilon, 
      smooth_integration_fun, guard_fun, reset_map_fun, reset_args) = args
     

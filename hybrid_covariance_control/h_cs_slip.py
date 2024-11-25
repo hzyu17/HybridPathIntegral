@@ -77,17 +77,17 @@ def linear_hybrid_stochastic_integration_euler(xt, At, Bt,
         guard_hit = guard_cond_slip_12(xt, xt_next, current_mode)
     
         if guard_hit:
-            xt_next, next_mode, dW, new_reset_arg = guard_true_func_slip_12(args_guard)
+            xt_next, next_mode, dW, new_reset_arg = guard_true_slip_12(args_guard)
         else:
-            xt_next, next_mode, dW, new_reset_arg = guard_false_func_slip_12(args_guard)
+            xt_next, next_mode, dW, new_reset_arg = guard_true_slip_12(args_guard)
             
     elif (current_mode==1):
         guard_hit = guard_cond_slip_21(xt, xt_next, current_mode)
     
         if guard_hit:
-            xt_next, next_mode, dW, new_reset_arg = guard_true_func_slip_21(args_guard)
+            xt_next, next_mode, dW, new_reset_arg = guard_true_slip_21(args_guard)
         else:
-            xt_next, next_mode, dW, new_reset_arg = guard_false_func_slip_21(args_guard)
+            xt_next, next_mode, dW, new_reset_arg = guard_true_slip_21(args_guard)
 
     return xt_next, next_mode, dW, new_reset_arg
 
@@ -267,7 +267,7 @@ if __name__ == '__main__':
     
     exp_params.update_params(n_modes, init_mode, target_mode, 
                              n_states, init_state, target_state, 
-                             start_time, end_time, dt, dt_shrink, initial_guess, 
+                             start_time, end_time, dt, initial_guess, 
                              epsilon, n_exp, n_samples, 
                              Q_k, R_k, Q_T, symbolic_dynamics, 
                              event_detect_discrete_slip, plot_slip, convert_state_21_slip, 
@@ -285,16 +285,22 @@ if __name__ == '__main__':
 
     # # ---------------------- mean trajectory under H-iLQR ----------------------------
     Noise_zero = [np.zeros((nt, n_inputs[0])), np.zeros((nt, n_inputs[1]))]
-    (mode_trj_mean, 
-    xt_trj_mean, 
-    ut_cl_trj_mean, 
-    Sk_mean, 
-    xt_ref_actual_mean, 
-    reset_args_mean) = hybrid_stochastic_feedback_rollout_discrete_slip(init_mode, init_state, n_inputs, states, modes, 
-                                                                        inputs, K_feedback, k_feedforward, target_state, 
-                                                                        Q_T, 0.0, dt, 
-                                                                        epsilon, Noise_zero, 0.9, 
-                                                                        reference_extension_helper, init_reset_args)
+    
+    xt_trj_mean = [np.array([0.0]) for _ in range(nt)]
+    ut_trj_ilqr = [np.zeros((nt, n_inputs[0])), np.zeros((nt, n_inputs[1]))]
+    
+    xt_trj_mean[0] = init_state
+    (mode_trj_ilqr, xt_trj_mean, 
+    ut_trj_ilqr, cost_ilqr, _, 
+    reset_args_ilqr) = h_stoch_fb_rollout_slip(init_mode, init_state, 
+                                                n_inputs, 
+                                                states, modes, inputs, 
+                                                K_feedback, k_feedforward, 
+                                                target_state, Q_T,
+                                                start_time, dt, 
+                                                epsilon, Noise_zero, 
+                                                reference_extension_helper,
+                                                init_reset_args)
     
     exp_data.add_nominal_data(hybrid_ilqr_result)
 
@@ -411,6 +417,7 @@ if __name__ == '__main__':
         return dydt.flatten()  
     
     S1_0 = np.zeros((nx1, nx1)).flatten()
+    
     # Solve ODE
     result_S1 = solve_ivp(ode_Phi_S1, t_span1, S1_0, method='RK23', t_eval=t_eval1)
 
@@ -921,8 +928,9 @@ if __name__ == '__main__':
     # At = At_1 + At_2
     # Bt = Bt_1 + Bt_2
 
+    n_exp = 12
     np.random.seed(70)
-    for i in range(12):
+    for i in range(n_exp):
         GaussianNoise_i = [np.random.randn(nt, n_inputs[0]), np.random.randn(nt, n_inputs[1])]
         x0_i = init_state + sqrtSig0@np.random.randn(n_states[1])
 
@@ -932,13 +940,13 @@ if __name__ == '__main__':
         ut_cl_trj, 
         Sk, 
         xt_ref_actual, 
-        reset_args) = hybrid_stochastic_feedback_rollout_discrete_slip(init_mode, x0_i, n_inputs, 
-                                                                       states, modes, 
-                                                                        inputs, 
-                                                                        K_hcs, k_feedforward, target_state, 
-                                                                        Q_T, t0, dt, 
-                                                                        epsilon, GaussianNoise_i, dt_shrinkrate, 
-                                                                        reference_extension_helper, init_reset_args)
+        reset_args) = h_stoch_fb_rollout_slip(init_mode, x0_i, n_inputs, 
+                                            states, modes, 
+                                            inputs, 
+                                            K_hcs, k_feedforward, target_state, 
+                                            Q_T, t0, dt, 
+                                            epsilon, GaussianNoise_i,
+                                            reference_extension_helper, init_reset_args)
         
         # ---------------------- Samples H-iLQR ----------------------
         (mode_trj_ilqr, 
@@ -946,23 +954,13 @@ if __name__ == '__main__':
         ut_cl_trj_ilqr, 
         Sk_ilqr, 
         xt_ref_actual_ilqr, 
-        reset_args_ilqr) = hybrid_stochastic_feedback_rollout_discrete_slip(init_mode, x0_i, n_inputs,
-                                                                            states, modes, 
-                                                                            inputs, 
-                                                                            K_feedback, k_feedforward, target_state, 
-                                                                            Q_T, t0, dt, 
-                                                                            epsilon, GaussianNoise_i, dt_shrinkrate, 
-                                                                            reference_extension_helper, init_reset_args)
-
-        # (mode_trj, 
-        # xt_trj, 
-        # ut_cl_trj, 
-        # Sk, 
-        # xt_ref_actual, 
-        # reset_args) = linearized_hybrid_stochastic_feedback_rollout_discrete(init_mode, x0_i, n_inputs, states, modes, 
-        #                                                                     inputs, K_hcs, k_feedforward, At, Bt, t0, dt, 
-        #                                                                     epsilon, GaussianNoise_i, dt_shrinkrate, 
-        #                                                                     reference_extension_helper, init_reset_args)
+        reset_args_ilqr) = h_stoch_fb_rollout_slip(init_mode, x0_i, n_inputs,
+                                                    states, modes, 
+                                                    inputs, 
+                                                    K_feedback, k_feedforward, target_state, 
+                                                    Q_T, t0, dt, 
+                                                    epsilon, GaussianNoise_i, 
+                                                    reference_extension_helper, init_reset_args)
 
         # Plot samples, H-CS
         for ii in range(0,nt,300):

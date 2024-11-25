@@ -515,33 +515,21 @@ class hybrid_ilqr:
                  new_hybrid_event_info,new_reset_args)=self.forward_pass(learning_rate)
                 
                 # --------------------------------- Plot forward pass ---------------------------------
-                show_forwardpass = False
-                if show_forwardpass:
-                    self._plot_states_func(new_timespan, new_modes, 
-                                           new_states, new_inputs, 
-                                           self._init_state, self._target_state, 
-                                           self._n_timesteps, new_reset_args)
-
-                    fig, ax = plt.subplots()
-                    ax.grid(True)
-                    for ii in range(self._n_timesteps-1):
-                        if new_modes[ii] == 0:
-                            plot_slip_flight_animate(new_states[ii].flatten(), r0, ax)
-                        elif new_modes[ii] == 1:
-                            plot_slip_stance_animate(new_states[ii].flatten(), new_reset_args[ii][0], ax)
+                show_fwdpass = True
+                if show_fwdpass:
+                    self._plot_states_func(self._timespan, modes, states, inputs, 
+                                            self._init_state, self._target_state, 
+                                            self._n_timesteps, reset_args=self._reset_args, step=200)
                     
-                    # Plot start and goal 
-                    if self._init_mode == 0:
-                        plot_slip_flight_animate(self._init_state, r0, ax, 'r-')
-                    elif self._init_mode == 1:
-                        plot_slip_stance_animate(self._init_state, self._reset_args[0], ax, 'r-')
-                        
-                    if self._target_mode == 0:
-                        plot_slip_flight_animate(self._target_state, r0, ax, 'g-')
-                    elif self._target_mode == 1:
-                        plot_slip_stance_animate(self._target_state, self._target_reset_args, ax, 'g-')
+                    if self._animate_func:
+                        fig, ax = self._animate_func(self._modes, self._states, self._init_mode, 
+                                                    self._init_state, self._target_mode, self._target_state, 
+                                                    self._n_timesteps, self._reset_args, self._target_reset_args,step=200)
                     
-                    plt.show()
+                        fig.tight_layout()
+                        ax.set_xlim(-0.4, 1.25)
+                        ax.set_ylim(-0.2, 1.65)
+                        plt.show()
                 # ------------------------------- // Plot forward pass // -------------------------------
 
                 new_cost = self.compute_cost(new_timespan, new_modes, new_states, new_inputs)
