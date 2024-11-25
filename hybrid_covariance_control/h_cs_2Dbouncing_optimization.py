@@ -37,7 +37,6 @@ if __name__=='__main__':
     dt = 0.001
     epsilon = 1.0
 
-    dt_shrink = 0.9
     start_time = 0
     end_time = 2.0
     time_span = np.arange(start_time, end_time, dt).flatten()
@@ -67,11 +66,12 @@ if __name__=='__main__':
     # ============================================================================================================
     exp_params = ExpParams()
     
-    flow_dynamics = [symbolic_dynamics_bouncing, symbolic_dynamics_bouncing]
+    flow_dynamics = [sym_dyn_bouncing, sym_dyn_bouncing]
     
     n_samples = 0
-    exp_params.update_params(n_modes, init_mode, target_mode, n_states, init_state, target_state, 
-                             start_time, end_time, dt, dt_shrink, initial_guess, 
+    exp_params.update_params(n_modes, init_mode, target_mode, 
+                             n_states, init_state, target_state, 
+                             start_time, end_time, dt, initial_guess, 
                              epsilon, n_exp, n_samples, 
                              Q_k, R_k, Q_T, flow_dynamics, 
                              event_detect_bouncing_discrete, 
@@ -83,8 +83,10 @@ if __name__=='__main__':
     print("===================== Solving for h-iLQG proposal controller =====================")
     hybrid_ilqr_result = solve_ilqr(exp_params, detect=True, verbose=False)
     
-    (timespan,modes,states,inputs, saltations,
+    (timespan,modes,states,
+     inputs, saltations,
      k_feedforward,K_feedback,
+     A_trj,B_trj,
      current_cost,states_iter,
      ref_modechanges,reference_extension_helper, ref_reset_args) = hybrid_ilqr_result
 
