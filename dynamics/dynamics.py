@@ -96,9 +96,9 @@ def extract_extensions(ref_ext_helper, start_index=0, padding=False):
     return (v_mode_change, v_ext_trj_bwd, v_ext_trj_fwd, 
             v_Kfb_ext_trj_bwd, v_Kfb_ext_trj_fwd, v_kff_ext_trj_bwd, v_kff_ext_trj_fwd, v_tevents)
 
-# ------------------------------------- 
-# Function that handles mode mismatch 
-# -------------------------------------    
+# -------------------------------------  
+#  Function that handles mode mismatch   
+# -------------------------------------  
 def reaction_mode_mismatch(current_index, 
                             current_mode, ref_current_mode, 
                             ext_trj_fwd, ext_trj_bwd, 
@@ -107,7 +107,6 @@ def reaction_mode_mismatch(current_index,
                             Kfb_ref_ext_bwd, kff_ref_ext_bwd,
                             cnt_mismatch, cond_early_arrival=None):
     # Take the first hybrid event for now. Needs to find the correct corresponding one among all hybrid events.
-    
     if (cond_early_arrival(current_mode, ref_current_mode, ref_ext_modechange)):
         extended_trj = ext_trj_bwd
         K_fb = Kfb_ref_ext_bwd
@@ -212,7 +211,7 @@ def event_reactive_fun(args):
         dt_new = t_mid - t_left
         dW_new = np.sqrt(dt_new)*RandN
         
-        x_mid = smooth_integration_fun(current_mode, x_left, u, t_span, epsilon, dW_new)
+        x_mid = smooth_integration_fun(x_left, u, t_span, epsilon, dW_new)
         
         if current_guard(t_mid, x_mid) == 0:
             return (t_mid, x_mid)  # We've found the exact root
@@ -224,7 +223,7 @@ def event_reactive_fun(args):
             t_left = t_mid  # The root is in the right half
             x_left = x_mid
             
-        print(f"t_left: {t_left}, t_right: {t_right}, midpoint: {t_mid}, x_mid: {x_mid}")  # Debug statement
+        # print(f"t_left: {t_left}, t_right: {t_right}, midpoint: {t_mid}, x_mid: {x_mid}")  # Debug statement
     
     # t_event = (t_left + t_right) / 2.0
     # x_event = (x_left + x_right) / 2.0

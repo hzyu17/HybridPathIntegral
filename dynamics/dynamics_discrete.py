@@ -42,7 +42,6 @@ def h_stoch_integr(xt, current_mode, ut,
     return xt_next, next_mode, dW, new_reset_arg
 
 
-
 def guard_true_func_deterministic(args):
     (xt_current, current_mode, u_current, t, xt_next, dt_int, smooth_dyn, guard, resetmap, reset_arg) = args
     
@@ -145,6 +144,8 @@ def event_detect_onestep_discrete(xt, ut,
             
             g_x = current_gx(t_event, x_event)
             g_t = current_gt(t_event, x_event)
+
+            next_mode = int(next_mode)
             
             next_dyn = smooth_dynamics[next_mode]
             
@@ -205,7 +206,8 @@ def h_stoch_fb_rollout(init_mode, x0, n_inputs,
         ref_current_mode = ref_modes[ii_t]
         
         K_fb_i = Kt[ii_t]
-        k_ff_i = kt[ii_t]
+        if kt is not None:
+            k_ff_i = kt[ii_t]
         xref_i = xt_ref[ii_t] 
         
         reset_args[ii_t] = event_args[cnt_event]
@@ -223,7 +225,11 @@ def h_stoch_fb_rollout(init_mode, x0, n_inputs,
         
         xt_ref_actual[ii_t] = xref_i
         delta_xt_i = xt - xref_i
-        current_u = ut[current_mode][ii_t] + K_fb_i@delta_xt_i + k_ff_i
+        if kt is None:
+            current_u = ut[current_mode][ii_t] + K_fb_i@delta_xt_i
+        else:
+            current_u = ut[current_mode][ii_t] + K_fb_i@delta_xt_i + k_ff_i
+            
         ut_cl_trj[current_mode][ii_t] = current_u
         
         noise_i = GaussianNoise[current_mode][ii_t]
@@ -241,7 +247,7 @@ def h_stoch_fb_rollout(init_mode, x0, n_inputs,
         # ============================== // One step integration // ==============================     
         
         # Collect cost: consider only the terminal state cost for now.
-        Sk += current_u.T@current_u/2.0 * dt + np.sqrt(epsilon) * np.dot(current_u.T, dW_i)
+        # Sk += current_u.T@current_u/2.0 * dt + np.sqrt(epsilon) * np.dot(current_u.T, dW_i)
         
         # Update trajectories
         xt_trj[ii_t+1] = xt_next
@@ -250,6 +256,6 @@ def h_stoch_fb_rollout(init_mode, x0, n_inputs,
     xt_ref_actual[-1] = xt_ref[-1]
     
     # Terminal cost
-    Sk += (xt-target_state)@Q_T@(xt-target_state) / 2.0
+    # Sk += (xt-target_state)@Q_T@(xt-target_state) / 2.0
     
     return mode_trj, xt_trj, ut_cl_trj, Sk, xt_ref_actual, reset_args

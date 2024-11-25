@@ -457,13 +457,12 @@ def main(epsilon, n_samples, dt):
     print(f"The value of epsilon input is: {epsilon}")
     print(f"The value of number of samples input is: {n_samples}")
     
-    n_exp = 20
-    
     n_exp = 10
     
     # save_root = '/hddscratch/hyu419/hybrid_pathintegral/exp_200'
     # save_root = '/ssdscratch/hyu419/hybrid_pathintegral/new_exp/data/slip'
-    save_file_path = '/home/hzyu/git/HybridPathIntegral/experiments/data/new_exp/slip'
+    # save_file_path = '/home/hzyu/git/HybridPathIntegral/experiments/data/new_exp/slip'
+    save_file_path = '/Users/lucasyu/git/HybridPathIntegral/experiments'
     
     if os.path.exists(save_file_path):
         print("The directory exists.")

@@ -9,6 +9,17 @@ import numpy as np
 from dynamics.dynamics_slip import *
 from dynamics.dynamics_discrete import *
 
+g = 9.81
+k = 25.0
+m = 0.5
+r0 = 1
+
+# g = 9.81
+# # k = 25.0
+# k = 5.0
+# m = 2.5
+# r0 = 1
+
 # @jax.jit
 def stoch_integr_slip(mode, x0, u, dt, eps, dW):   
     def mode0_dynamics_true_func_slip(args):
@@ -16,7 +27,7 @@ def stoch_integr_slip(mode, x0, u, dt, eps, dW):
         # flight mode
         # [x, x_dot, z, z_dot, theta] = x0
         
-        # debug: two inputs
+        # Controlled: 3 inputs
         B = np.array([[0.0, 0.0, 0.0],
                     [1.0, 0.0, 0.0],
                     [0.0, 0.0, 0.0],
@@ -38,18 +49,13 @@ def stoch_integr_slip(mode, x0, u, dt, eps, dW):
         # stance mode
         # [theta, theta_dot, r, r_dot] = x0
         
-        g = 9.81
-        k = 25.0
-        m = 0.5
-        r0 = 1
-        
         theta, theta_dot, r, r_dot = x0[0], x0[1], x0[2], x0[3]
         
         # Defining the stance dynamics of the system
         B = np.array([[0.0, 0.0], 
-                        [0.0, 0.0], 
-                        [0.0, 1/m/r/r], 
-                        [k/m, 0.0]], dtype=np.float64)
+                    [0.0, 0.0], 
+                    [0.0, 1/m/r/r], 
+                    [k/m, 0.0]], dtype=np.float64)
         
         # xt_next = x0 + np.array([theta_dot, 
         #                         u[0], 
@@ -80,6 +86,7 @@ def stoch_integr_slip(mode, x0, u, dt, eps, dW):
 # -------------------------------- From mode 1 (flight) to mode 2 (stance) --------------------------------
 def guard_cond_slip_12(xt, xt_next, current_mode):
     # assume time invariant guard for now
+    return (current_mode==0) and (guard_slip_12(0.0,xt)<0) and (guard_slip_12(0.0,xt_next)>0)
     return (current_mode==0) and (guard_slip_12(0.0,xt)<0) and (guard_slip_12(0.0,xt_next)>0)
 
 def guard_true_slip_12(args):

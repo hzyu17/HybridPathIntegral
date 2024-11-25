@@ -42,13 +42,22 @@ font_props = FontProperties(family='serif', size=16, weight='normal')
 # Debug: flight dynamics, two inputs
 def symbolic_flight_dynamics_slip_continuoustime():
     g = 9.81
+    # x,x_dot,z,z_dot,theta,u1 = sp.symbols('x x_dot z z_dot theta u1')
+
     x,x_dot,z,z_dot,theta,u1,u2,u3 = sp.symbols('x x_dot z z_dot theta u1 u2 u3')
 
     # Define the states and inputs
+    # inputs = Matrix([u1])
     inputs = Matrix([u1,u2,u3])
     states = Matrix([x, x_dot, z, z_dot, theta])
     
     # Defining the dynamics of the system
+    # f_cont = Matrix([x_dot, 
+    #                 u1,
+    #                 z_dot,
+    #                 -g,
+    #                 0.0])
+    
     f_cont = Matrix([x_dot, 
                     u1,
                     z_dot,
@@ -86,7 +95,6 @@ def dyn_flight_slip(t, x, *args):
     
     return f_flight_cont_func(x, u).flatten()
 
-# debug: two inputs
 def gdWt_flight_slip(x0, dWt, eps):
     B = np.array([[0, 0, 0],[1, 0, 0],[0, 0, 0],[0, 1, 0],[0, 0, 1.0]], dtype=np.float64)
     return np.sqrt(eps) * B@dWt
@@ -98,16 +106,26 @@ def gdWt_flight_slip(x0, dWt, eps):
 # ---------------------------
 #  Discrete-time definition
 # ---------------------------
-# Debug: two inputs
+
 def symbolic_flight_dynamics_slip():
     g = 9.81
     x,x_dot,z,z_dot,theta,u1,u2,u3,dt = sp.symbols('x x_dot z z_dot theta u1 u2 u3 dt')
 
+    # x,x_dot,z,z_dot,theta,u1,dt = sp.symbols('x x_dot z z_dot theta u1 dt')
+
     # Define the states and inputs
     inputs = Matrix([u1,u2,u3])
+
+    # inputs = Matrix([u1])
     states = Matrix([x, x_dot, z, z_dot, theta])
     
     # Defining the dynamics of the system
+    # f = Matrix([x_dot, 
+    #             u1,
+    #             z_dot,
+    #             -g,
+    #             0.0])
+    
     f = Matrix([x_dot, 
                 u1,
                 z_dot,
@@ -126,36 +144,6 @@ def symbolic_flight_dynamics_slip():
     B_disc_func = sp.lambdify((states,inputs,dt),B_disc)
     
     return (f_disc_func,A_disc_func,B_disc_func)
-
-
-# def symbolic_flight_dynamics_slip():
-#     g = 9.81
-#     x,x_dot,z,z_dot,theta,u,dt = sp.symbols('x x_dot z z_dot theta u dt')
-
-#     # Define the states and inputs
-#     inputs = Matrix([u])
-#     states = Matrix([x, x_dot, z, z_dot, theta])
-    
-#     # Defining the dynamics of the system
-#     f = Matrix([x_dot, 
-#                 0,
-#                 z_dot,
-#                 -g,
-#                 u])
-
-#     # Discretize the dynamics usp.sing euler integration
-#     f_disc = states+f*dt
-    
-#     # Take the jacobian with respect to states and inputs
-#     A_disc = f_disc.jacobian(states)
-#     B_disc = f_disc.jacobian(inputs)
-
-#     f_disc_func = sp.lambdify((states,inputs,dt),f_disc)
-#     A_disc_func = sp.lambdify((states,inputs,dt),A_disc)
-#     B_disc_func = sp.lambdify((states,inputs,dt),B_disc)
-    
-#     return (f_disc_func,A_disc_func,B_disc_func)
-
 
 # =================================
 # Stance dynamics Definitions
@@ -684,12 +672,19 @@ def plot_slip(time_span, modes,
             flight_mode_states[i] = convert_state_21_slip(states[i], reset_args[i][0]).flatten()
     
     # ax11.plot(time_span[::step], modes[::step], color=color)   
-    ax11.plot(time_span[::step], flight_mode_states[::step,0], linewidth=0.2, color=color, alpha=alpha, label=trj_label)
-    ax12.plot(time_span[::step], flight_mode_states[::step,1], linewidth=0.2, color=color, alpha=alpha, label=trj_label)
-    ax13.plot(time_span[::step], flight_mode_states[::step,2], linewidth=0.2, color=color, alpha=alpha, label=trj_label)
-    ax14.plot(time_span[::step], flight_mode_states[::step,3], linewidth=0.2, color=color, alpha=alpha, label=trj_label)
-    ax15.plot(time_span[::step], flight_mode_states[::step,4], linewidth=0.2, color=color, alpha=alpha, label=trj_label)
+    ax11.plot(time_span[::step], flight_mode_states[::step,0], linewidth=0.8, color=color, alpha=alpha, label=trj_label)
+    ax12.plot(time_span[::step], flight_mode_states[::step,1], linewidth=0.8, color=color, alpha=alpha, label=trj_label)
+    ax13.plot(time_span[::step], flight_mode_states[::step,2], linewidth=0.8, color=color, alpha=alpha, label=trj_label)
+    ax14.plot(time_span[::step], flight_mode_states[::step,3], linewidth=0.8, color=color, alpha=alpha, label=trj_label)
+    ax15.plot(time_span[::step], flight_mode_states[::step,4], linewidth=0.8, color=color, alpha=alpha, label=trj_label)
     
+    ax11.plot(time_span[::step], modes[::step], linewidth=0.8, color='r', alpha=alpha, label=trj_label)
+    ax12.plot(time_span[::step], modes[::step], linewidth=0.8, color='r', alpha=alpha, label=trj_label)
+    ax13.plot(time_span[::step], modes[::step], linewidth=0.8, color='r', alpha=alpha, label=trj_label)
+    ax14.plot(time_span[::step], modes[::step], linewidth=0.8, color='r', alpha=alpha, label=trj_label)
+    ax15.plot(time_span[::step], modes[::step], linewidth=0.8, color='r', alpha=alpha, label=trj_label)
+   
+
     # --------------------------------------- 
     #  Collect the mode 1 states and inputs
     # ---------------------------------------
@@ -736,13 +731,13 @@ def plot_slip(time_span, modes,
         ax3.set_ylim(np.min(mode0_inputs)-1, np.max(mode0_inputs)+1)
     
     # plot mode 1
-    ax21.plot(mode1_timestamps[::step], mode1_states[::step, 0], linewidth=0.2, color=color, alpha=alpha, label=trj_label)
-    ax22.plot(mode1_timestamps[::step], mode1_states[::step, 1], linewidth=0.2, color=color, alpha=alpha, label=trj_label)
-    ax23.plot(mode1_timestamps[::step], mode1_states[::step, 2], linewidth=0.2, color=color, alpha=alpha, label=trj_label)
-    ax24.plot(mode1_timestamps[::step], mode1_states[::step, 3], linewidth=0.2, color=color, alpha=alpha, label=trj_label)
-    
-    ax4.plot(mode1_timestamps[::step], mode1_inputs[::step, 0], linewidth=0.4, color='b', label=r'$u_1$')
-    ax4.plot(mode1_timestamps[::step], mode1_inputs[::step, 1], linewidth=0.4, color='r', label=r'$u_2$')
+    ax21.plot(mode1_timestamps[::step], mode1_states[::step, 0], linewidth=0.8, color=color, alpha=alpha, label=trj_label)
+    ax22.plot(mode1_timestamps[::step], mode1_states[::step, 1], linewidth=0.8, color=color, alpha=alpha, label=trj_label)
+    ax23.plot(mode1_timestamps[::step], mode1_states[::step, 2], linewidth=0.8, color=color, alpha=alpha, label=trj_label)
+    ax24.plot(mode1_timestamps[::step], mode1_states[::step, 3], linewidth=0.8, color=color, alpha=alpha, label=trj_label)
+
+    ax4.plot(mode1_timestamps[::step], mode1_inputs[::step, 0], linewidth=0.8, color='b', label=r'$u_1$')
+    ax4.plot(mode1_timestamps[::step], mode1_inputs[::step, 1], linewidth=0.8, color='r', label=r'$u_2$')
     
     # ----------- Plot the start and goal states -----------
     if (modes[0] == 1):
@@ -842,7 +837,8 @@ def plot_slip_flight_animate(state_flight, r0, ax=None, spring_color='k-'):
     z_spring_rot = z_spring_rot + z - 0.7*r0*np.sin(theta)
     
     # Plot the spring
-    ax.plot(x_spring_rot, z_spring_rot, spring_color, lw=3.5)
+    # ax.plot(x_spring_rot, z_spring_rot, spring_color, lw=2.0)
+    ax.plot(x_spring_rot, z_spring_rot, spring_color, lw=2.0, alpha=0.2)
     
     # Plot the line connecting the ends of the spring
     t1_x = np.linspace(x_spring_rot[-1], x, 1000)
@@ -853,23 +849,30 @@ def plot_slip_flight_animate(state_flight, r0, ax=None, spring_color='k-'):
     t2_x = np.linspace(x_tail, x_spring_rot[0], 1000)
     t2_z = np.linspace(z_tail, z_spring_rot[0], 1000)
     
-    ax.plot(t2_x, t2_z, spring_color, lw=3.5)
-    ax.plot(t1_x, t1_z, spring_color, lw=3.5)
+    ax.plot(t2_x, t2_z, spring_color, lw=2.0, alpha=0.2)
+    ax.plot(t1_x, t1_z, spring_color, lw=2.0, alpha=0.2)
 
     # Calculate spring end position    
     ball_x = x 
     ball_y = z 
     
-    ball = plt.Circle((ball_x, ball_y), ball_radius, color='k')
+    ball = plt.Circle((ball_x, ball_y), ball_radius, color='k',alpha=0.2)
     ax.add_patch(ball)
     
-    colors = ['r', 'g', 'b', 'k']
-    labels = ['Start', 'Goal', 'Stance', 'Flight']
-    proxy_artists = [plt.Line2D([0], [0], color=color, lw=3.5) for color in colors]
-    ax.legend(proxy_artists, labels, loc='best', prop={'family': 'serif', 'size': 20})
+    # colors = ['r', 'g', 'k', 'b']
+    # labels = ['Start', 'Goal', 'Flight', 'Stance']
+    colors = ['r', 'k', 'b']
+    labels = ['Start', 'Flight', 'Stance']
+    proxy_artists = [plt.Line2D([0], [0], color=color, lw=2.0) for color in colors]
+    # proxy_artists = [proxy_artists, 
+    #                  plt.Line2D([0], [0], marker='D', color='r', markerfacecolor='green', markersize=10)
+    #                 #  plt.Line2D([0], [0], marker='D', color='g', markerfacecolor='red', markersize=10)
+    #                  ]
     
-    ax.set_xlim(-0.5, 1.5)
-    ax.set_ylim(-0.2, 1.8)
+    ax.legend(proxy_artists, labels, loc='best', prop={'family': 'serif', 'size': 12})
+    
+    # ax.set_xlim(-0.5, 1.5)
+    # ax.set_ylim(-0.5, 2.0)
     
     plt.tight_layout()
     
@@ -895,7 +898,8 @@ def plot_slip_stance_animate(state_stance, xp, ax=None, spring_color='b-'):
     x_spring_rot = x_spring_rot + xp
     
     # Plot the spring
-    ax.plot(x_spring_rot, z_spring_rot, spring_color, lw=3.5)
+    # ax.plot(x_spring_rot, z_spring_rot, spring_color, lw=2.0)
+    ax.plot(x_spring_rot, z_spring_rot, spring_color, lw=2.0, alpha=0.2)
 
     # Calculate spring end position
     spring_end_x = xp + r * np.cos(theta)
@@ -910,13 +914,13 @@ def plot_slip_stance_animate(state_stance, xp, ax=None, spring_color='b-'):
     t2_x = np.linspace(x_tail, x_spring_rot[0], 1000)
     t2_z = np.linspace(z_tail, z_spring_rot[0], 1000)
     
-    ax.plot(t2_x, t2_z, spring_color, lw=3.5)
-    ax.plot(t1_x, t1_z, spring_color, lw=3.5)
+    ax.plot(t2_x, t2_z, spring_color, lw=2.0, alpha=0.2)
+    ax.plot(t1_x, t1_z, spring_color, lw=2.0, alpha=0.2)
     
     ball_x = spring_end_x
     ball_y = spring_end_z
     
-    ball = plt.Circle((ball_x, ball_y), ball_radius, color='k')
+    ball = plt.Circle((ball_x, ball_y), ball_radius, color='k', alpha=0.2)
     ax.add_patch(ball)
     
     plt.tight_layout()
@@ -964,7 +968,10 @@ if __name__ == '__main__':
     plt.show()
     
     
-def animate_slip(modes, states, init_mode, init_state, target_mode, target_state, nt, reset_args, target_reset_args,step=1):
+def animate_slip(modes, states, 
+                 init_mode, init_state, 
+                 target_mode, target_state, nt, 
+                 reset_args, target_reset_args,step=1):
     r0 = 1
     fig, ax = plt.subplots(figsize=(8,9))
     # Define the desired font properties
@@ -986,6 +993,12 @@ def animate_slip(modes, states, init_mode, init_state, target_mode, target_state
         elif modes[ii] == 1:
             plot_slip_stance_animate(states[ii].flatten(), reset_args[ii][0], ax)
     
+    ii_end = nt-1
+    if modes[ii_end] == 0:
+        plot_slip_flight_animate(states[ii_end].flatten(), r0, ax)
+    elif modes[ii_end] == 1:
+        plot_slip_stance_animate(states[ii_end].flatten(), reset_args[ii_end][0], ax)
+
     # Plot start and goal 
 
     if init_mode == 0:
@@ -1000,6 +1013,6 @@ def animate_slip(modes, states, init_mode, init_state, target_mode, target_state
         plot_slip_stance_animate(target_state, target_reset_args, ax, 'g-')
         
     # Draw the ground
-    ax.hlines(y=0, xmin=-0.5, xmax=1.5, color='k', linestyle='-', linewidth=5)
+    ax.hlines(y=0, xmin=-0.5, xmax=1.5, color='k', linestyle='-', linewidth=3)
     
     return fig, ax

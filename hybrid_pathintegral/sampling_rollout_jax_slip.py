@@ -147,7 +147,7 @@ def sample_slip_jax(i_exp, n_samples,
         
         # -------------------- // inputs // ------------------------- 
         
-        # --------------------------------
+        # -------------------------------- 
         #  Define scan and vmap functions
         # -------------------------------- 
         feedback_cost_scan_fun = partial(feedback_cost_slip_jax, 

@@ -68,7 +68,7 @@ def reset_map_slip_12(t, x_event, current_mode, args_reset):
     args = (x_event, current_mode)
     x_reset = jax.lax.cond(stance_cond, stance_true_fun, stance_false_fun, args)
     
-    return x_reset, 1, (x_event[0], )
+    return x_reset, 1, (x_event[0]-jnp.cos(x_event[4]), )
 
 
 # reset map from flight mode to stance mode
@@ -114,18 +114,6 @@ def reset_map_slip_12_padding(t, x_event, current_mode, args_reset):
 def guard_slip_21(t, x):
     r0 = 1
     return x[2] - r0
-
-
-# # debug: linear reset map
-# def reset_map_slip_21(t, x_event, current_mode, args_reset):
-#     xp = args_reset[0]
-#     r0 = 1
-#     theta, theta_dot, r, r_dot = x_event
-    
-#     # # debug: linear system
-#     # x_reset = jnp.array([0.8*theta, 0.8*theta_dot, 0.8*r, 0.8*r_dot, 0.8*theta])
-    
-#     return x_reset, 0, args_reset
 
 
 # reset map from stance mode to flight mode
