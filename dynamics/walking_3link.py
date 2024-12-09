@@ -4,12 +4,13 @@ import jax.numpy as jnp
 from jax import grad, jacfwd 
 jax.config.update("jax_enable_x64", True)
 
+from dynamics import *
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch, Polygon
 from matplotlib.lines import Line2D
 from scipy.integrate import solve_ivp
 from mpl_toolkits.mplot3d import Axes3D
-from saltation_matrix import saltation_matrix
+from saltation_matrix import *
 
 # ================ dynamics parameters ================
 l = 0.5 # torso length
@@ -886,8 +887,8 @@ def events(t, x):
 
     return value, is_terminal, direction
     
-    
-def demo():
+
+def solve_limitcycles(n_steps=2):
     global t_2, torque, y, force
 
     # Reset global variables
@@ -902,12 +903,12 @@ def demo():
     omega_1 = 1.55
     x0 = sigma_three_link(omega_1, a)
     x0 = resetmap_3link(x0).T
-    # x0 = x0[:6]
 
     options = {
         'events': switching_leg_events, 
         'rtol': 1e-5,
-        'atol': 1e-6
+        'atol': 1e-6,
+        
     }
 
     tout = [tstart]
@@ -918,15 +919,14 @@ def demo():
 
     print("(impact ratio is the ratio of tangential to normal forces of the tip of the swing leg at impact)")
 
-    num_steps = 2
     t_events = []
     x_events = []
     x_resets = []
     saltations = []
     
-    
     # Run five steps
-    for i in range(num_steps):  
+    for i in range(n_steps):  
+
         # Solve until the first terminal event
         sol = solve_ivp(
             fxgu_nom,
@@ -940,8 +940,6 @@ def demo():
 
         t = sol.t
         x = sol.y.T
-        tout.extend(t[:-1])
-        xout.extend(x[:-1])
         
         if sol.t_events:
             
@@ -965,17 +963,22 @@ def demo():
             t_events.append(te)
             x_events.append(xe)
             
-            # teout.extend(sol.t_events[0])
-            # xeout.extend(xe)
-        
+        # down sampling and interpolation
+        t, x = down_sample(np.array(t), np.array(x), Fs=20)
+        t, x = t.tolist(), x.tolist()
+
         # Set new initial conditions after impact
         x0 = resetmap_3link(x[-1])
+        x[-1] = x0
+
         x_resets.append(sol.y_events[0])
+
+        tout.extend(t[1:])
+        xout.extend(x[1:])
         
         # print(f"Step: {i + 1}, Impact ratio: {x0[6] / x0[7]}")
         plt.show()
 
-        # x0 = x0[:6]
         tstart = t[-1]
         if tstart >= tfinal:
             break
@@ -983,6 +986,15 @@ def demo():
     # Convert to NumPy arrays for plotting
     tout = np.array(tout)
     xout = np.array(xout)
+
+    return tout, xout, t_events, x_events, saltations
+
+    
+def demo():
+
+    global t_2, torque, y, force
+
+    tout, xout, t_events, x_events, saltations = solve_limitcycles()
 
     # Plotting results
     plt.figure(figsize=(6, 9))
@@ -1040,26 +1052,14 @@ def demo():
     ax.set_xlabel(r'$\theta_1$')
     ax.set_ylabel(r'$\theta_2$')
     ax.set_zlabel(r'$\theta_3$')
-    plt.title('Limit Cycle')
+    plt.title('3D Limit Cycle')
     plt.grid()
     fig.tight_layout()
     
     plt.show()
     
-    # anim(tout, xout, 1/30, speed=1)
+    anim(tout, xout, 1/30, speed=1)
     
-    # Get the linearized system
-    nt = tout.shape[0]
-    ui = np.zeros((2))
-    
-    # find event index
-    te_indx = []
-    for te_i in t_events:
-        te_indx.append(np.where(tout==te_i))
-    
-    for ii in range(nt):
-        Ai = jac_fxgu_x(tout[ii], xout[ii], ui, a)
-        Bi = jac_fxgu_u(tout[ii], xout[ii], ui, a)
 
 from scipy.interpolate import interp1d
 
@@ -1077,6 +1077,36 @@ def even_sample(t, x, Fs):
     for s in range(N):
         interp_func = interp1d(t[:], x[:, s], kind='linear')
         Ex[:, s] = interp_func(Et)
+
+    return Et, Ex
+
+# Down sampling between every 2 neighbouring time stamps
+def down_sample(t, x, Fs):
+    # Obtain the process related parameters
+    N = x.shape[1]
+    M = t.shape[0]
+
+    Et = np.array([t[0]])
+    Ex = x[0]
+
+    for ii in range(M-1):
+        t0 = t[ii]
+        tf = t[ii+1]
+
+        Et_i = np.linspace(t0, tf, Fs)
+
+        # Re-sample each signal using linear interpolation
+        Ex_i = np.zeros((Fs, N))  # initialize the output array
+        for s in range(N):
+            interp_func = interp1d(t[:], x[:, s], kind='linear')
+            Ex_i[:, s] = interp_func(Et_i)
+
+        # Concatenate
+        Et = np.concatenate((Et, Et_i[1:]))
+        Ex = np.vstack((Ex, Ex_i[1:]))
+
+    # Et = Et[1:]
+    # Ex = Ex[1:]
 
     return Et, Ex
 
