@@ -10,7 +10,7 @@ sys.path.append(root_dir)
 
 
 # Import iLQR class
-from hybrid_ilqr.h_ilqr import solve_ilqr
+from hybrid_ilqr.h_ilqr_jax import *
 # Import 3 link walker dynamics
 from dynamics.walking_3link import *
 # Import experiment parameter class
@@ -64,21 +64,26 @@ if __name__ == '__main__':
     # ====================================
     #   Solve for hybrid ilqr proposal
     # ====================================
-    exp_params = ExpParams()
     
     initial_guess = [0.5*np.ones((np.shape(time_span)[0],n_inputs[0])), 0.5*np.ones((np.shape(time_span)[0],n_inputs[1]))]
     
-    flow_dynamics = [sym_dyn_bouncing, sym_dyn_bouncing]
+    smooth_flow = [fxgu_3link_jax]
     
-    exp_params.update_params(n_modes, init_mode, target_mode, n_states, init_state, target_state, 
-                             start_time, end_time, dt, dt_shrink, initial_guess, 
-                             epsilon, n_exp, n_samples, 
-                             Q_k, R_k, Q_T, flow_dynamics, 
-                             event_detect_bouncing, 
-                             plot_bouncingball, 
-                             convert_state_21_bouncing, 
-                             init_reset_args, target_reset_args)
-    exp_data = ExpData(exp_params)
+    target_hipvel = 2.0
+    runningcost_arg = target_hipvel
+    terminalcost_arg = init_state
+    
+    niters = 20
+
+    hilqr_obj = hybrid_ilqr_jax(n_states, init_state, target_state, initial_guess, 
+                                dt, start_time, end_time, 
+                                niters, 
+                                detect=True, 
+                                detect_func=detet_3link, smooth_dynamics=smooth_flow, 
+                                running_cost=hipmoving_cost, cost_args=runningcost_arg,
+                                terminal_cost=statedeviation_norm_cost, terminal_cost_args=init_state, 
+                                verbose=True
+                                )
     
     hybrid_ilqr_result = solve_ilqr(exp_params, detect=True)
     

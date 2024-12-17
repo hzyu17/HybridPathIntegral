@@ -3,7 +3,7 @@
 
 import numpy as np
 
-def saltation_matrix(F1, F2, Rt, Rx, gt, gx):
+def compute_saltation(F1, F2, Rt, Rx, gt, gx):
     """
     Definition of a saltation matrix, given the jacobians it needs to compute.
 

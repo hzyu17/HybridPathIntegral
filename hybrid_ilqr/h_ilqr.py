@@ -4,13 +4,15 @@ import matplotlib.pyplot as plt
 
 
 class hybrid_ilqr:
-    def __init__(self, nmodes, init_mode, target_mode, nstates,
-                 init_state,target_state,initial_guess,
+    def __init__(self, nmodes, init_mode, target_mode, 
+                 nstates, init_state,target_state,
+                 initial_guess, 
                  dt,start_time,end_time,
                  contact_detect,smooth_dynamics,
                  Q_k,R_k,Q_T,parameters,n_iterations,
                  detect,plot_func,state_convert_func, 
-                 init_reset_args, target_reset_args, animate_func=None, verbose=True):
+                 init_reset_args, target_reset_args, 
+                 animate_func=None, verbose=True):
         
         self.nmodes_ = nmodes
         self._n_states = nstates

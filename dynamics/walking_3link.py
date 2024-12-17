@@ -22,23 +22,52 @@ g0 = 9.8 # gravity
 
 # Optimization parameters
 a = [0.512, 0.073, 0.035, -0.819, -2.27, 3.26, 3.11, 1.89]
-    
+
 # Define global variables
 t_2 = []
 torque = []
 y = []
 force = []
 
+# mode 1: (vertical) hip velocity < 0, and before the swing foot touches the ground
+# mode 2: from the touching to (vertical) hip velocity < 0.
 # guard function: swing leg touches the ground, and the swing leg is in front of the stance leg.
 # p2_v(q) = 0; assuming r = 1
-def guard_3link_jax(t, x_event):
+
+# Guard function from mode 1 to mode 2 (direction = 1 for the 3-link)
+def guard_3link_12(t, x_event):
     th1, th2 = x_event[0], x_event[1]
+    # swing_foot_vV = -x_event[3]*jnp.sin(x_event[0]) + x_event[4]*jnp.sin(x_event[1])
+    # # The swing foot reach the ground from under the ground for 3-link... For 5-link will be normal guard.
+    return np.cos(th1) - np.cos(th2)
+
+def guard_3link_12_jax(t, x_event):
+    th1, th2 = x_event[0], x_event[1]
+    # swing_foot_vV = -x_event[3]*jnp.sin(x_event[0]) + x_event[4]*jnp.sin(x_event[1])
+    # # The swing foot reach the ground from under the ground for 3-link... For 5-link will be normal guard.
     return jnp.cos(th1) - jnp.cos(th2)
 
-gt_3link = jax.jit(jacfwd(lambda t, x: guard_3link_jax(t, x), 0))
-gx_3link = jax.jit(jacfwd(lambda t, x: guard_3link_jax(t, x), 1))
+# Guard function from mode 2 to mode 1 (direction = -1)
+def guard_3link_21(t, x_event):
+    return hipvel_V_pt(x_event)
 
-def resetmap_3link(x): 
+def guard_3link_21_jax(t, x_event):
+    return hipvel_V_pt_jax(x_event)
+
+gt_3link_12 = jax.jit(jacfwd(lambda t, x: guard_3link_12_jax(t, x), 0))
+gx_3link_12 = jax.jit(jacfwd(lambda t, x: guard_3link_12_jax(t, x), 1))
+
+gt_3link_21 = jax.jit(jacfwd(lambda t, x: guard_3link_21_jax(t, x), 0))
+gx_3link_21 = jax.jit(jacfwd(lambda t, x: guard_3link_21_jax(t, x), 1))
+
+
+def resetmap_3link_21(x):
+    return x
+
+def resetmap_3link_21_jax(x):
+    return x
+
+def resetmap_3link_12(x): 
     # Unpack state variables
     th1, th2, th3 = x[:3]
 
@@ -96,7 +125,7 @@ def resetmap_3link(x):
     return x_new
 
 
-def resetmap_3link_jax(t, x): 
+def resetmap_3link_12_jax(t, x): 
     # Unpack state variables
     th1, th2, th3 = x[:3]
 
@@ -155,11 +184,41 @@ def resetmap_3link_jax(t, x):
 
     return x_new
 
-Rt_3link = jax.jit(jacfwd(lambda t, x: resetmap_3link_jax(t, x), 0))
-Rx_3link = jax.jit(jacfwd(lambda t, x: resetmap_3link_jax(t, x), 1))
+Rt_3link_12 = jax.jit(jacfwd(lambda t, x: resetmap_3link_12_jax(t, x), 0))
+Rx_3link_12 = jax.jit(jacfwd(lambda t, x: resetmap_3link_12_jax(t, x), 1))
+
+Rt_3link_21 = jax.jit(jacfwd(lambda t, x: resetmap_3link_21_jax(t, x), 0))
+Rx_3link_21 = jax.jit(jacfwd(lambda t, x: resetmap_3link_21_jax(t, x), 1))
 
 
-def dynamics_three_link(x, a):
+def onestep_detect_3link(x0, u, t0, tf, current_mode, reset_args, detection=True, backwards=False):
+    guard_3link_12.terminal=True
+    guard_3link_12.direction=-1
+    
+    guard_3link_21.terminal=True
+    guard_3link_21.direction=-1
+    
+    smooth_dynamics_3link = {0:dyn_3link, 1:dyn_3link}
+    
+    Rxs_3link = {0:Rx_3link_12, 1:Rx_3link_21}
+    Rts_3link = {0:Rt_3link_12, 1:Rt_3link_21}
+    
+    gxs_3link = {0:gx_3link_12, 1:gx_3link_21}
+    gts_3link = {0:gt_3link_12, 1:gt_3link_21}
+    
+    guards_3link = {0:guard_3link_12, 1: guard_3link_21}
+    resetmaps_3link = {0:resetmap_3link_12, 1:resetmap_3link_21}
+    
+    return event_detect_onestep(x0, u, 
+                                t0, tf, 
+                                current_mode, 
+                                smooth_dynamics_3link, 
+                                guards_3link, gxs_3link, gts_3link,
+                                resetmaps_3link, Rxs_3link, Rts_3link,
+                                reset_args, detection, backwards)
+
+
+def dyn_3link(x, a):
     """
     Model of a three-link biped walker.
 
@@ -279,7 +338,7 @@ def dynamics_three_link(x, a):
     return D, C, G, B, K, dV, dVl, Al, Bl, H, LfH, dLfH
 
 
-def dynamics_three_link_jax(x, a):
+def dyn_3link_jax(x, a):
     """
     Model of a three-link biped walker.
 
@@ -517,7 +576,7 @@ def fxgu_nom(t, x, a):
     global t_2, torque, y, force
 
     # Extract dynamics matrices and control parameters
-    D, C, G, B, K, dV, dVl, Al, Bl, H, LfH, dLfH = dynamics_three_link(x[:6], a)
+    D, C, G, B, K, dV, dVl, Al, Bl, H, LfH, dLfH = dyn_3link(x[:6], a)
     
     # Compute Fx and Gx
     Fx = np.linalg.solve(D, -C @ x[3:6] - G)
@@ -544,24 +603,30 @@ def fxgu_nom(t, x, a):
 
 def fxgu_3link_jax(t, x, u, a):
     # Extract dynamics matrices and control parameters
-    D, C, G, B, K, dV, dVl, Al, Bl, H, LfH, dLfH = dynamics_three_link_jax(x[:6], a)
+    D, C, G, B, K, dV, dVl, Al, Bl, H, LfH, dLfH = dyn_3link_jax(x[:6], a)
     
     # Compute Fx and Gx
     Fx = jnp.linalg.solve(D, -C @ x[3:6] - G)
     Gx = jnp.linalg.solve(D, B)
 
     # Compute state derivatives
-    dx = jnp.zeros_like(x)
-    dx = dx.at[:3].set(x[3:6])
-    dx = dx.at[3:6].set(Fx + Gx @ u)
+    Fx = jnp.zeros_like(x)
+    Fx = Fx.at[:3].set(x[3:6])
+    Fx = Fx.at[3:6].set(Fx + Gx @ u)
     
-    return dx
+    return Fx
 
 # linearizations and jacobians
 jac_fxgu_x = jax.jit(jax.jacobian(lambda t, x, u, a: fxgu_3link_jax(t, x, u, a), argnums=1))
 jac_fxgu_u = jax.jit(jax.jacobian(lambda t, x, u, a: fxgu_3link_jax(t, x, u, a), argnums=2))
 
 
+def hip_moving_cost(x, u, target_hipvel= 2.0):
+    hipvelocity = hipvel_H_jax(x)
+    return jnp.linalg.norm(hipvelocity-target_hipvel) + jnp.linalg.norm(u)
+
+def statedeviation_norm_cost(x, x_tar):
+    return jnp.linalg.norm(x-x_tar)
 
 def stance_force_three_link(x, dx, u):
     """
@@ -727,14 +792,49 @@ def limb_position(q, pH_horiz):
 
     return pFoot1, pFoot2, pH, pT
 
+def hipheight_pt_jax(x):
+    # Estimate the height of hips, assuming r=1
+    pV = jnp.cos(x[0])
+    return pV
+
+def hipheight_jax(x):
+    # Estimate the height of hips, assuming r=1
+    pV = jnp.cos(x[:, 0])
+    return pV
 
 # Convert angle velocities to hip velocities
 def hip_vel(x):
-    vV = np.zeros(len(x))
+    vV = -np.sin(x[:, 0]) * x[:, 3]
     # Estimate the horizontal velocity of hips, assuming r=1
     vH = np.cos(x[:, 0]) * x[:, 3]
     return vV, vH
 
+def hipvel_H_jax(x):
+    # Estimate the horizontal velocity of hips, assuming r=1
+    return jnp.cos(x[:, 0]) * x[:, 3]
+
+def hipvel_V_jax(x):
+    # Estimate the vertical velocity of hips, assuming r=1
+    return -jnp.sin(x[:, 0]) * x[:, 3]
+
+def hipvel_H_pt_jax(x):
+    # Estimate the horizontal velocity of hips, assuming r=1
+    vH = jnp.cos(x[0]) * x[3]
+    return vH
+
+def hipvel_V_pt(x):
+    # Estimate the vertical velocity of hips, assuming r=1
+    return -np.sin(x[0]) * x[3]
+
+def hipvel_V_pt_jax(x):
+    # Estimate the vertical velocity of hips, assuming r=1
+    return -jnp.sin(x[0]) * x[3]
+
+def swingfoot_height_jax(x):
+    return jnp.cos(x[:, 0]) - jnp.cos(x[:, 1])
+
+def swingfoot_vel_vertical_jax(x):
+    return -x[:,3]*jnp.sin(x[:, 0]) + x[:,4]*jnp.sin(x[:, 1])
 
 def anim(t, x, ts, speed):
     # Retrieve the size of x
@@ -902,7 +1002,7 @@ def solve_limitcycles(n_steps=2):
     
     omega_1 = 1.55
     x0 = sigma_three_link(omega_1, a)
-    x0 = resetmap_3link(x0).T
+    x0 = resetmap_3link_12(x0).T
 
     options = {
         'events': switching_leg_events, 
@@ -948,16 +1048,16 @@ def solve_limitcycles(n_steps=2):
             xe = sol.y_events[0][0]
             
             print("Swing foot guard function value:")
-            print(guard_3link_jax(te, xe))
+            print(guard_3link_12_jax(te, xe))
             
             F_1 = fxgu_nom(te, xe, a)
-            x_re = resetmap_3link(xe)
+            x_re = resetmap_3link_12(xe)
             F_2 = fxgu_nom(te, x_re, a) # Important, the F2 is evaluated at the reseted state!
-            Rt = Rt_3link(te, xe)
-            Rx = Rx_3link(te, xe)
-            gt = gt_3link(te, xe)
-            gx = gx_3link(te, xe)
-            saltation = saltation_matrix(F_1, F_2, Rt, Rx, gt, gx)
+            Rt = Rt_3link_12(te, xe)
+            Rx = Rx_3link_12(te, xe)
+            gt = gt_3link_12(te, xe)
+            gx = gx_3link_12(te, xe)
+            saltation = compute_saltation(F_1, F_2, Rt, Rx, gt, gx)
             saltations.append(saltation)
             
             t_events.append(te)
@@ -968,7 +1068,7 @@ def solve_limitcycles(n_steps=2):
         t, x = t.tolist(), x.tolist()
 
         # Set new initial conditions after impact
-        x0 = resetmap_3link(x[-1])
+        x0 = resetmap_3link_12(x[-1])
         x[-1] = x0
 
         x_resets.append(sol.y_events[0])
@@ -996,7 +1096,7 @@ def demo():
 
     tout, xout, t_events, x_events, saltations = solve_limitcycles()
 
-    # Plotting results
+    # Plotting states
     plt.figure(figsize=(6, 9))
     plt.subplot(2, 1, 1)
     plt.plot(tout, xout[:, 0], label=r'$\theta_1$')
@@ -1012,6 +1112,46 @@ def demo():
     plt.plot(tout, xout[:, 5], '-.', label=r'$\dot{\theta}_3$')
     plt.legend(loc="best", fontsize=10)
     plt.title('Joint Velocities')
+    plt.xlabel('Time (sec)')
+    plt.grid()
+
+    plt.figure(figsize=(6, 9))
+    plt.subplot(2,1,1)
+    swingfoot_height = swingfoot_height_jax(xout)
+    plt.plot(tout, swingfoot_height, label=r"Swing Foot Height")
+    plt.legend(loc="best", fontsize=10)
+    plt.title('Swing Foot Height')
+    plt.grid()
+
+    plt.subplot(2,1,2)
+    swingfoot_vertical_vel = swingfoot_vel_vertical_jax(xout)
+    plt.plot(tout, swingfoot_vertical_vel, label=r"Swing Foot Vertical Velocity")
+    plt.legend(loc="best", fontsize=10)
+    plt.title('Swing Foot Vertical Velocity')
+    plt.grid()
+
+    # Plotting hip pos and vel
+    plt.figure(figsize=(6, 9))
+    plt.subplot(3, 1, 1)
+    hip_trj = hipheight_jax(xout)
+    plt.plot(tout, hip_trj, label=r'Hip height')
+    plt.legend(loc="best", fontsize=10)
+    plt.title('Hip Heights')
+    plt.grid()
+
+    plt.subplot(3, 1, 2)
+    hipvel_trj = hipvel_H_jax(xout)
+    plt.plot(tout, hipvel_trj, label=r'Hip horizontal vel')
+    plt.legend(loc="best", fontsize=10)
+    plt.title('Hip Horizontal Velocities')
+    plt.xlabel('Time (sec)')
+    plt.grid()
+
+    plt.subplot(3, 1, 3)
+    hipvel_trj_v = hipvel_V_jax(xout)
+    plt.plot(tout, hipvel_trj_v, label=r'Hip vertical vel')
+    plt.legend(loc="best", fontsize=10)
+    plt.title('Hip Vertical Velocities')
     plt.xlabel('Time (sec)')
     plt.grid()
     

@@ -1,44 +1,55 @@
 # Allows for general nonlinear cost functions and 
 # jacobian computations using jax automatic differentiations 
+# Only considering 1 same smooth flow (stance mode dynamics) in all the modes.
 
-# Only considering 1 mode for now.
+# For walking robot, we assume 2 modes: divided by the swing foot height and velocity sign.
+
+import os
+import sys
+file_path = os.path.abspath(__file__)
+current_dir = os.path.dirname(file_path)
+root_dir = os.path.abspath(os.path.join(current_dir, '..'))
+sys.path.append(root_dir)
+
 
 import jax
 from jax import grad, jacfwd, hessian
 import numpy as np
 import matplotlib.pyplot as plt
+from functools import partial
 
 from dynamics.trajectory_extension import *
 # Import 3 link walker dynamics
 from dynamics.walking_3link import *
 
 class hybrid_ilqr_jax:
-    def __init__(self, nmodes, nstates, 
-                 init_state,target_state,initial_guess,
+    def __init__(self, nstates, 
+                 init_state,target_state,
+                 initial_guess,
                  dt,start_time,end_time, 
-                 contact_detect,smooth_dynamics,
+                 n_iterations, is_detect, 
+                 detect_func,smooth_dynamics,
                  running_cost,cost_args,
-                 terminal_cost,terminal_cost_args,
-                 n_iterations,detect, verbose=True):
+                 terminal_cost,terminal_cost_args):
         
-        self.nmodes_ = nmodes
-        self._n_states = nstates
-        self._init_state = init_state
-        self._target_state = target_state
+        self._nx = nstates
+        self._nu = np.shape(initial_guess)[1]
+
+        self._initstate = init_state
+        self._tarstate = target_state
         self._inputs = initial_guess
-        self._n_inputs = np.shape(initial_guess)[1]
-        self._verbose = verbose
+        self._verbose = is_detect
         
         # time definitions
-        self.dt_ = dt
-        self.start_time_ = start_time
-        self.end_time_ = end_time
-        self.time_span_ = np.arange(start_time, end_time, dt).flatten()
-        self._nt = np.shape(self.time_span_)[0]
+        self._dt = dt
+        self._starttime = start_time
+        self._endtime = end_time
+        self._timespan = np.arange(start_time, end_time, dt).flatten()
+        self._nt = np.shape(self._timespan)[0]
         
         # feedback and feedforward
-        self._k_ff = [np.zeros((self._n_inputs[0])) for _ in range(self._nt)]
-        self._K_fb = [np.zeros((self._n_inputs[0], self._n_states[0])) for _ in range(self._nt)]
+        self._k_ff = [np.zeros((self._nu[0])) for _ in range(self._nt)]
+        self._K_fb = [np.zeros((self._nu[0], self._nx[0])) for _ in range(self._nt)]
         
         # hybrid events and mode changes
         self._saltations = [np.array([None]) for i in range(self._nt)]
@@ -52,14 +63,14 @@ class hybrid_ilqr_jax:
         self._K_fb_ext = [[None], [None]]
         
         # ------------------------------------------------------------------------------------------------------------------ 
-        # Map that maps the index at hybrid event to the event informations (t_event, x_event, x_reset, mode_change). 
+        #   Map that maps the index at hybrid event to the event informations (t_event, x_event, x_reset, mode_change). 
         # ------------------------------------------------------------------------------------------------------------------ 
         self._event_info = {}
         self._refext_helper = []
         
         # Dynamics
-        self.smooth_dyn_ = smooth_dynamics
-        self.detection_func_ = contact_detect
+        self._smooth_dyn = smooth_dynamics
+        self._detectfunc = partial(detect_func, detect=is_detect)
 
         # Jacobians of the smooth dynamics
         self._A = jax.jit(grad(lambda x, u: smooth_dynamics(x, u), 0))
@@ -86,23 +97,19 @@ class hybrid_ilqr_jax:
         # Max iterations
         self._niters = n_iterations
         
-        # Flag detection
-        self.detect_ = detect
 
     def rollout(self):        
 
         (modes,states,inputs,
          saltations,mode_changes,
-         hybrid_event_info) = self.forward_pass(use_feedback=False,
-                                                           learning_rate=1,
-                                                           check_modemismatch=False)
+         event_info) = self.forward_pass(use_feedback=False, learning_rate=1, check_modemismatch=False)
 
         # Store the trajectory(states, inputs)
         self._states = states
         self._inputs = inputs
         self._saltations = saltations
         self._modes = modes
-        self._event_info = hybrid_event_info
+        self._event_info = event_info
         
         return modes, states, inputs, saltations, mode_changes
 
@@ -119,19 +126,19 @@ class hybrid_ilqr_jax:
         total_cost = total_cost + self._terminal_cost(states[-1])
 
         # terminal_state = states[-1]
-        # terminal_difference = (self._target_state - terminal_state).flatten()
+        # terminal_difference = (self._tarstate - terminal_state).flatten()
         # terminal_cost = 0.5*terminal_difference.T@self.Q_T_@terminal_difference
         # total_cost = total_cost+terminal_cost
         return total_cost
 
-    def backwards_pass(self):
-        end_difference = (self._states[-1] - self._target_state).flatten()
+    def backward_pass(self):
+        end_difference = (self._states[-1] - self._tarstate).flatten()
 
         V_xx = self._terminal_cost_xx(end_difference)
         V_x = self._terminal_cost_x(end_difference)
 
-        k_trj = [np.zeros((self._n_inputs[0])) for _ in range(self._nt)]
-        K_trj = [np.zeros((self._n_inputs[0], self._n_states[0])) for _ in range(self._nt)]
+        k_trj = [np.zeros((self._nu[0])) for _ in range(self._nt)]
+        K_trj = [np.zeros((self._nu[0], self._nx[0])) for _ in range(self._nt)]
         
         k_feedforward_trj_extension = []
         K_feedback_trj_extension = []
@@ -154,45 +161,45 @@ class hybrid_ilqr_jax:
             l_xx = self._cost_xx # For now zeros, can add in a target to track later on
             l_uu = self._cost_uu
 
-            l_x = self._cost_x@np.zeros(self._n_states).flatten() # For now zeros, can add in a target to track later on
+            l_x = self._cost_x@np.zeros(self._nx).flatten() # For now zeros, can add in a target to track later on
             l_u = self._cost_u@(current_u).flatten()
 
             # Get the jacobian of the discretized dynamics
-            A_k = self._A(current_x, current_u, self.dt_)
-            B_k = self._B(current_x, current_u, self.dt_)
+            A_k = self._A(current_x, current_u, self._dt)
+            B_k = self._B(current_x, current_u, self._dt)
             
             if saltation is None:
-                Q_x = l_x*self.dt_ + A_k.T@V_x
-                Q_u = l_u*self.dt_+ B_k.T@V_x
+                Q_x = l_x*self._dt + A_k.T@V_x
+                Q_u = l_u*self._dt+ B_k.T@V_x
                 Q_ux = B_k.T@V_xx@A_k
-                Q_uu = l_uu*self.dt_ + B_k.T@V_xx@B_k
-                Q_xx = l_xx*self.dt_ + A_k.T@V_xx@A_k
+                Q_uu = l_uu*self._dt + B_k.T@V_xx@B_k
+                Q_xx = l_xx*self._dt + A_k.T@V_xx@A_k
                 
                 # Compute gains           
                 k = -np.linalg.solve(Q_uu, Q_u)
-                K = -np.linalg.solve(Q_uu, Q_ux).reshape((self._n_inputs, self._n_states))
+                K = -np.linalg.solve(Q_uu, Q_ux).reshape((self._nu, self._nx))
 
             else:
                 # print("Found contact dynamics! Computing the gains with saltation matrix.")
-                Q_x = l_x*self.dt_ + A_k.T @ saltation.T @ V_x
-                Q_u = l_u*self.dt_ + B_k.T @ saltation.T @ V_x
+                Q_x = l_x*self._dt + A_k.T @ saltation.T @ V_x
+                Q_u = l_u*self._dt + B_k.T @ saltation.T @ V_x
                 Q_ux = B_k.T @ saltation.T @ V_xx @ saltation @ A_k
-                Q_uu = l_uu*self.dt_ + B_k.T @ saltation.T @ V_xx @ saltation @ B_k
-                Q_xx = l_xx*self.dt_ + A_k.T @ saltation.T @ V_xx @ saltation @ A_k    
+                Q_uu = l_uu*self._dt + B_k.T @ saltation.T @ V_xx @ saltation @ B_k
+                Q_xx = l_xx*self._dt + A_k.T @ saltation.T @ V_xx @ saltation @ A_k    
                 
                 # Compute gains           
                 k = -np.linalg.solve(Q_uu, Q_u)
-                K = -np.linalg.solve(Q_uu, Q_ux).reshape((self._n_inputs, self._n_states))
+                K = -np.linalg.solve(Q_uu, Q_ux).reshape((self._nu, self._nx))
 
                 # Compute the (gains for the forward extension, gains for the backward extension): use the gain at the immediate next state (reseted)
                 k_feedforward_trj_extension.append((k, k_trj[idx+1]))
                 K_feedback_trj_extension.append((K, K_trj[idx+1]))
                 
                 # update the hybrid dynamics information
-                previous_hybrid_event_info = list(self._event_info[idx])
-                previous_hybrid_event_info[4] = [K, K_trj[idx+1]]
-                previous_hybrid_event_info[5] = [k, k_trj[idx+1]]
-                self._event_info[idx] = tuple(previous_hybrid_event_info)
+                previous_event_info = list(self._event_info[idx])
+                previous_event_info[4] = [K, K_trj[idx+1]]
+                previous_event_info[5] = [k, k_trj[idx+1]]
+                self._event_info[idx] = tuple(previous_event_info)
 
             # Store gains
             k_trj[idx] = k
@@ -230,9 +237,7 @@ class hybrid_ilqr_jax:
         
         return (k_trj,K_trj,expected_cost_reduction)
 
-    def forward_pass(self, use_feedback=True, 
-                     learning_rate=1,
-                     check_modemismatch=True):
+    def forward_pass(self, use_feedback=True, learning_rate=1, check_modemismatch=True):
         
         if self._verbose:
             if (not use_feedback):
@@ -242,13 +247,13 @@ class hybrid_ilqr_jax:
         
         # Lists to collect the current forward pass trajectories (Dimensions might vary so use list)
         states = [np.array([0.0]) for _ in range(self._nt)]
-        inputs = [np.zeros((self._nt, self._n_inputs[0])), np.zeros((self._nt, self._n_inputs[1]))]
+        inputs = [np.zeros((self._nt, self._nu[0])), np.zeros((self._nt, self._nu[1]))]
         modes = [0 for _ in range(self._nt)]
         saltations = [None for i in range(self._nt)]
         mode_changess = np.tile(np.array([0, 0]), (self._nt, 1))
         
         # Set the first state to be the initial
-        current_state = self._init_state
+        current_state = self._initstate
         current_mode = self._init_mode
         
         modes[0] = self._init_mode
@@ -257,7 +262,7 @@ class hybrid_ilqr_jax:
         
         # Extend reference trj, if a hybrid event is hit.
         hybrid_index = set()
-        hybrid_event_info = {} # The dictionary that stores all the information of the jump dynamics and states.
+        event_info = {} # The dictionary that stores all the information of the jump dynamics and states.
         
         if use_feedback:
             # Reference hybrid events and extensions from the last iteration
@@ -280,7 +285,7 @@ class hybrid_ilqr_jax:
         
         for ii in range(self._nt-1):
             
-            current_state = states[ii]
+            x_i = states[ii]
             current_mode = modes[ii]
             
             # ------------------- 
@@ -344,18 +349,16 @@ class hybrid_ilqr_jax:
                     if self._verbose:
                         print("current_nominal_input: ", current_input)
                 
-                current_feedback_input = current_feedback@(current_state-ref_state)
+                current_feedback_input = current_feedback@(x_i-ref_state)
                 current_input = current_input + current_feedback_input + current_feedforward
             
             # =================
             # Simulate forward
             # =================
-            t_ii = self.time_span_[ii]
+            t_ii = self._timespan[ii]
             
             (next_state, saltation, mode_change, 
-             t_event, x_event, x_reset, reset_byproduct) = self.detection_func_(current_state, current_input, 
-                                                                                t_ii, t_ii+self.dt_, 
-                                                                                current_mode, self.detect_)
+             t_event, x_event, x_reset, reset_byproduct) = self._detectfunc(x_i, current_input, t_ii, t_ii+self._dt, current_mode)
             
             # ------------------------------
             # Update the hybrid information
@@ -363,7 +366,7 @@ class hybrid_ilqr_jax:
             if saltation is not None:
                 hybrid_index.add(ii)
                 saltations[ii] = saltation
-                hybrid_event_info[ii] = (t_event, x_event, x_reset, mode_change, self._K_fb_ext[hybrid_index_ref], self._k_ff_ext[hybrid_index_ref])
+                event_info[ii] = (t_event, x_event, x_reset, mode_change, self._K_fb_ext[hybrid_index_ref], self._k_ff_ext[hybrid_index_ref])
             
             # Only consider the transition from mode 0 to mode 1 for now
             if (mode_change[0]!=mode_change[1]):
@@ -384,169 +387,8 @@ class hybrid_ilqr_jax:
         if self._verbose:
             print(f"--------------------- Total number of contacts: {cnt_event} ---------------------" )
         
-        return (modes,states,inputs,saltations,mode_changess,hybrid_event_info)
+        return (modes,states,inputs,saltations,mode_changess,event_info)
     
-    
-    def compute_trejactory_extension(self, hybrid_event_info):
-        
-        # NO hybrid events
-        if len(hybrid_event_info.keys()) == 0:
-            return []
-        
-        # hybrid_event_info:
-        sorted_hybrid_index = sorted(hybrid_event_info.keys())
-        ref_ext_helper = []
-        
-        i_events = []
-        t_events = []
-        x_events = []
-        x_resets = []
-        K_fb_fwd_extensions = []
-        k_ff_fwd_extensions = []
-        K_fb_bwd_extensions = []
-        k_ff_bwd_extensions = []
-        
-        mode_changes = []
-        
-        i_events.append(0)
-        t_events.append(self.start_time_)
-        x_events.append(self._init_state)
-        x_resets.append(self._init_state)
-        K_fb_fwd_extensions.append(np.zeros(1))
-        K_fb_bwd_extensions.append(np.zeros(1))
-        k_ff_fwd_extensions.append(np.zeros(1))
-        k_ff_bwd_extensions.append(np.zeros(1))
-        mode_changes.append(np.array([0, 0]))
-        
-        # hybrid_event_info[i_key] = (t_event, x_event, x_reset, mode_change, K_feedback_extensions, K_feedforward_extensions)
-        for i_key in sorted_hybrid_index:
-            i_events.append(i_key)
-            t_events.append(hybrid_event_info[i_key][0])
-            x_events.append(hybrid_event_info[i_key][1])
-            x_resets.append(hybrid_event_info[i_key][2])
-            mode_changes.append(hybrid_event_info[i_key][3])
-            
-            K_fb_fwd_extensions.append(hybrid_event_info[i_key][4][0])
-            K_fb_bwd_extensions.append(hybrid_event_info[i_key][4][1])
-            
-            k_ff_fwd_extensions.append(hybrid_event_info[i_key][5][0])
-            k_ff_bwd_extensions.append(hybrid_event_info[i_key][5][1])
-        
-        i_events.append(self._nt)
-        t_events.append(self.end_time_)
-        x_events.append(self._target_state)
-        x_resets.append(self._target_state)
-        K_fb_fwd_extensions.append(np.zeros(1))
-        K_fb_bwd_extensions.append(np.zeros(1))
-        k_ff_fwd_extensions.append(np.zeros(1))
-        k_ff_bwd_extensions.append(np.zeros(1))
-        
-        if hybrid_event_info.keys():
-            mode_changes.append(hybrid_event_info[sorted_hybrid_index[-1]][3])
-        
-        # Forward and backward trajectory extensions and (feedback, feedforward) gains for the two extensions
-        for ii, tevent_i in enumerate(t_events[1:-1], start=1):
-            i_event_i = i_events[ii]
-            x_event_i = x_events[ii]
-            x_reset_i = x_resets[ii]
-            current_mode_i = mode_changes[ii][0]
-            next_mode_i = mode_changes[ii][1]
-            
-            K_feedback_fwd_extension_i = K_fb_fwd_extensions[ii]
-            k_feedforward_fwd_extension_i = k_ff_fwd_extensions[ii]
-            
-            K_feedback_bwd_extension_i = K_fb_bwd_extensions[ii]
-            k_feedforward_bwd_extension_i = k_ff_bwd_extensions[ii]
-            
-            # --------------------------------------
-            # Choose a time span for the extensions
-            # --------------------------------------
-            t_ext_fwd_i = self.end_time_
-            
-            # [0, t_event] for padding
-            time_span_ext_fwd_padding = np.arange(0, tevent_i, self.dt_)
-            # [t_event, t_trj_ext_fwd]
-            timespan_ext_fwd = np.arange(tevent_i, t_ext_fwd_i, self.dt_)
-            # [t_trj_ext_bwd: t_event]
-            timespan_ext_bwd = np.arange(0, tevent_i, self.dt_)[::-1]
-            
-            # time span lengths
-            nt_ext_fwd = len(timespan_ext_fwd)
-            nt_ext_bwd = len(timespan_ext_bwd)
-            nt_ext_padding_fwd = len(time_span_ext_fwd_padding)
-            nt_ext_padding_bwd = nt_ext_fwd
-            
-            xtrj_ext_padding_fwd_i = np.zeros((nt_ext_padding_fwd, self._n_states[current_mode_i]))
-            xtrj_ext_fwd_i = np.zeros((nt_ext_fwd, self._n_states[current_mode_i]))
-            xtrj_ext_fwd_i[0] = x_event_i
-            
-            xtrj_ext_bwd_i = np.zeros((nt_ext_bwd, self._n_states[next_mode_i]))
-            xtrj_ext_padding_bwd_i = np.zeros((nt_ext_padding_bwd, self._n_states[next_mode_i]))    
-            
-            # Use the same gain for the whole extensions, and padding it to the whole time span
-            K_feedback_ext_fwd_i = np.tile(K_feedback_fwd_extension_i, (self._nt, 1, 1))
-            k_feedforward_ext_fwd_i = np.tile(k_feedforward_fwd_extension_i, (self._nt, 1))
-            
-            K_feedback_ext_bwd_i = np.tile(K_feedback_bwd_extension_i, (self._nt, 1, 1))
-            k_feedforward_ext_bwd_i = np.tile(k_feedforward_bwd_extension_i, (self._nt, 1))
-            
-            # ----------------------------------
-            # simulate the forward extension
-            # ----------------------------------
-            current_state = x_event_i
-            for jj in range(nt_ext_fwd-1):
-                t_jj = timespan_ext_fwd[jj]
-                
-                # Using zero control, modify if needed.
-                current_input = np.zeros(self._n_inputs[current_mode_i])
-                
-                next_state, _, _, _, _, _, _ = self.detection_func_(current_state, current_input, 
-                                                                    t_jj, t_jj+self.dt_, 
-                                                                    current_mode_i, detection=False)
-                
-                # Store states and inputs
-                xtrj_ext_fwd_i[jj+1] = next_state
-
-                # Update the current state
-                current_state = next_state
-            
-            xtrj_ext_fwd_i = np.vstack((xtrj_ext_padding_fwd_i, xtrj_ext_fwd_i))
-            
-            # ----------------------------------
-            #   Simulate the backward extension
-            # ----------------------------------
-            xtrj_ext_bwd_i[0] = x_reset_i
-            current_state = x_reset_i
-            for jj in range(nt_ext_bwd-1):
-                t_jj = timespan_ext_bwd[jj]
-                
-                # modify if needed
-                current_input = np.zeros(self._n_inputs[next_mode_i])
-                
-                next_state, _, _, _, _, _, _ = self.detection_func_(current_state, current_input, t_jj, t_jj-self.dt_, next_mode_i, detection=False)
-                
-                # Store states and inputs
-                xtrj_ext_bwd_i[jj+1] = next_state
-
-                # Update the current state
-                current_state = next_state
-            
-            # -------------------------------
-            # reverse the backward extension 
-            # -------------------------------   
-            xtrj_ext_bwd_i = xtrj_ext_bwd_i[::-1]
-            
-            # --------------------- padding ---------------------
-            xtrj_ext_bwd_i = np.vstack((xtrj_ext_bwd_i, xtrj_ext_padding_bwd_i))
-            
-            # ------------------------ collect the trajectory extensions ------------------------
-            ref_ext_helper.append((np.array([current_mode_i, next_mode_i]), 
-                                      {current_mode_i:xtrj_ext_fwd_i, next_mode_i:xtrj_ext_bwd_i}, 
-                                      {current_mode_i:K_feedback_ext_fwd_i, next_mode_i:K_feedback_ext_bwd_i}, 
-                                      {current_mode_i:k_feedforward_ext_fwd_i, next_mode_i:k_feedforward_ext_bwd_i}, 
-                                      i_event_i))
-            
-        return ref_ext_helper
     
     
     def solve(self):
@@ -569,7 +411,7 @@ class hybrid_ilqr_jax:
         # ----------------------------------------------------
         # Compute the current cost of the initial trajectory
         # ----------------------------------------------------
-        current_cost = self.compute_cost(states,inputs,self.dt_)
+        current_cost = self.compute_cost(states,inputs,self._dt)
         
         learning_speed = 0.9 # This can be modified, 0.95 is very slow
         low_learning_rate = 0.01 # if learning rate drops to this value stop the optimization
@@ -586,12 +428,14 @@ class hybrid_ilqr_jax:
             # --------------------------------------------------------
             # Compute the backwards pass and update the control gains
             # --------------------------------------------------------
-            (k_feedforward,K_feedback,expected_reduction) = self.backwards_pass()    
+            (k_feedforward,K_feedback,expected_reduction) = self.backward_pass()    
             
             # --------------------------------------------------------------
             # Compute the new trajectory extensions and the gains for them
             # --------------------------------------------------------------
-            self._refext_helper = self.compute_trejactory_extension(self._event_info)
+            self._refext_helper = compute_trejactory_extension(self._event_info, self._starttime, self._endtime,
+                                                               self._nt, self._dt, self._nx, self._nu,
+                                                               self._initstate, self._tarstate, self._detectfunc)
             
             print('-------- Expected cost reduction: ',expected_reduction, ' --------')
             
@@ -605,12 +449,12 @@ class hybrid_ilqr_jax:
             # Forward pass under the updated control gains
             # ---------------------------------------------
             (new_modes,new_states,new_inputs,
-             new_saltations,mode_changes,new_hybrid_event_info)=self.forward_pass(learning_rate)
+             new_saltations,mode_changes,new_event_info)=self.forward_pass(learning_rate)
             
             # ---------------------------------------------------------
             # Compute new costs and check the optimality conditions
             # ---------------------------------------------------------
-            new_cost = self.compute_cost(new_states, new_inputs, self.dt_)
+            new_cost = self.compute_cost(new_states, new_inputs, self._dt)
             
             # Execute linesearch until the armijo condition is met (for
             # now just check if the cost decreased) TODO add real
@@ -621,13 +465,13 @@ class hybrid_ilqr_jax:
                 
                 # Forward pass: line search 
                 (new_modes,new_states,new_inputs,
-                 new_saltations,mode_changes,new_hybrid_event_info)=self.forward_pass(learning_rate)
+                 new_saltations,mode_changes,new_event_info)=self.forward_pass(learning_rate)
                 
                 show_forwardpass = False
                 if show_forwardpass:
                     pass
             
-                new_cost = self.compute_cost(new_states, new_inputs, self.dt_)
+                new_cost = self.compute_cost(new_states, new_inputs, self._dt)
                 
                 print("new_cost: ", new_cost)
                 
@@ -647,8 +491,8 @@ class hybrid_ilqr_jax:
                     self._saltations = new_saltations
                     self._modechanges = mode_changes
                     self._modes = new_modes
-                    self._event_info = new_hybrid_event_info
-                    self._refext_helper = self.compute_trejactory_extension(new_hybrid_event_info)
+                    self._event_info = new_event_info
+                    self._refext_helper = self.compute_trejactory_extension(new_event_info)
                     states_iter.append(new_states)
                     
             if(learning_rate<low_learning_rate):
@@ -662,10 +506,10 @@ class hybrid_ilqr_jax:
                 self._saltations = new_saltations
                 self._modechanges = mode_changes
                 self._modes = new_modes
-                self._event_info = new_hybrid_event_info
+                self._event_info = new_event_info
                 
                 # Update the hybrid event maps
-                self._refext_helper = self.compute_trejactory_extension(new_hybrid_event_info)
+                self._refext_helper = self.compute_trejactory_extension(new_event_info)
                 
                 states_iter.append(new_states)
                     
@@ -679,12 +523,12 @@ class hybrid_ilqr_jax:
         states = self._states
         inputs = self._inputs
         modechanges = self._modechanges
-        hybrid_event_info = self._event_info
+        event_info = self._event_info
         show_results = False
         if show_results:
             pass
 
-        ref_ext_helper = self.compute_trejactory_extension(hybrid_event_info)
+        ref_ext_helper = self.compute_trejactory_extension(event_info)
 
         return (modes,states,inputs,
                 k_feedforward,K_feedback,
@@ -706,9 +550,10 @@ if __name__ == '__main__':
     # generate initial state
     omega_1 = 1.55
     init_state = sigma_three_link(omega_1, a)
-    init_state = resetmap_3link(init_state).T
+    init_state = resetmap_3link_12(init_state).T
 
-    target_state = init_state  # A limit cycle hopes to go back to the initial state
+    # Target is to go back to the initial state
+    target_state = init_state  
     
     init_mode = 0
 
@@ -720,20 +565,37 @@ if __name__ == '__main__':
     n_inputs = [2]
 
     # ---------------------------- 
-    # Define weighting matrices
+    #   Define weighting matrices
     # ----------------------------
-    Q_k = [np.zeros((n_states[0],n_states[0])), np.zeros((n_states[1],n_states[1]))] # zero weight to penalties along a strajectory since we are finding a trajectory
-    R_k = [np.eye(n_inputs[0]), np.eye(n_inputs[1])]
 
-    # ---------------------------- Set the terminal cost ----------------------------
-    target_mode = 0
-    Q_T = 200*np.eye(n_states[0])
-    Q_T[0,0] = 2000.0
+    # Q_k = np.zeros((n_states[0],n_states[0]))
+    # Q_k = [np.zeros((n_states[0],n_states[0])), np.zeros((n_states[1],n_states[1]))] # zero weight to penalties along a strajectory since we are finding a trajectory
+    # R_k = [np.eye(n_inputs[0]), np.eye(n_inputs[1])]
+
+    # # ---------------------------- Set the terminal cost ----------------------------
+    # target_mode = 0
+    # Q_T = 200*np.eye(n_states[0])
+    # Q_T[0,0] = 2000.0
 
     n_exp = 1
     n_samples = 10
-    
-    #   Solve for hybrid ilqr proposal
+    n_iters = 20
+    is_detect = True
+
     # ====================================
-    #     
-    initial_guess = [0.5*np.ones((np.shape(time_span)[0],n_inputs[0])), 0.5*np.ones((np.shape(time_span)[0],n_inputs[1]))]        
+    #    Solve for hybrid ilqr proposal
+    # ====================================
+
+    initial_guess = [0.5*np.ones((np.shape(time_span)[0],n_inputs[0])), 0.5*np.ones((np.shape(time_span)[0],n_inputs[1]))] 
+
+    target_hip_velocity = 2.0
+    h_ilqr_solver = hybrid_ilqr_jax(n_states, init_state, target_state, 
+                                    initial_guess, dt, 
+                                    start_time, end_time, 
+                                    n_iters, is_detect, 
+                                    onestep_detect_3link, dyn_3link, 
+                                    hip_moving_cost, target_hip_velocity,
+                                    statedeviation_norm_cost, target_state,
+                                    verbose=True)
+    
+    h_ilqr_results = h_ilqr_solver.solve()

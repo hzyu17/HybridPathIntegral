@@ -151,7 +151,7 @@ def event_detect_onestep_discrete(xt, ut,
             
             F_1 = current_dyn(t_event, x_event)
             F_2 = next_dyn(t_event, x_reset) # Important, the F2 is evaluated at the reseted state!
-            saltation = saltation_matrix(F_1, F_2, R_t, R_x, g_t, g_x)        
+            saltation = compute_saltation(F_1, F_2, R_t, R_x, g_t, g_x)        
             xt_next = x_reset
         
     mode_mapping = np.array([current_mode, next_mode])

@@ -6,8 +6,8 @@ current_dir = os.path.dirname(file_path)
 root_dir = os.path.abspath(os.path.join(current_dir, '..'))
 sys.path.append(root_dir)
 
-from dynamics.trajectory_extension import *
-from dynamics.guard_reset_bouncing import *
+from trajectory_extension import *
+from guard_reset_bouncing import *
 import scipy
 import numpy as np
 
@@ -160,13 +160,8 @@ def event_reactive_fun(args):
 
 def event_detect_onestep(x0, u, t0, tf, current_mode, 
                          smooth_dynamics, 
-                         guards,
-                         gxs,
-                         gts,
-                         reset_maps,
-                        #  reset_controls,
-                         Rxs,
-                         Rts,
+                         guards, gxs, gts,
+                         reset_maps, Rxs, Rts,
                          reset_args, detection=True, backwards=False):
     """Integrate controlled dynamics in a short period of time with hybrid event detection.
 
@@ -230,7 +225,7 @@ def event_detect_onestep(x0, u, t0, tf, current_mode,
                                             t_span=t_span, y0=x0, method='RK45', 
                                             t_eval=t_eval, dense_output=True, 
                                             events=current_guard, vectorized=False)
-    
+        
         # Hit guard
         if len(solution.t_events[0]) > 0:
             t_event = solution.t_events[0][0]
@@ -249,10 +244,10 @@ def event_detect_onestep(x0, u, t0, tf, current_mode,
             
             F_1 = current_dyn(t_event, x_event)
             F_2 = next_dyn(t_event, x_reset) # Important, the F2 is evaluated at the reseted state!
-            saltation = saltation_matrix(F_1, F_2, R_t, R_x, g_t, g_x)
+            saltation = compute_saltation(F_1, F_2, R_t, R_x, g_t, g_x)
             
             t0 = t_event
-                        
+            
             x_next = x_reset.flatten()
         
         # Had no contact
@@ -265,7 +260,7 @@ def event_detect_onestep(x0, u, t0, tf, current_mode,
             f_disc = solution.sol(t) 
             
             x_next = f_disc[:, -1]
-            
+    
     else: # Do not detect contact 
         solution = scipy.integrate.solve_ivp(fun=dyn_fun, 
                                             t_span=t_span, y0=x0, method='RK45', 

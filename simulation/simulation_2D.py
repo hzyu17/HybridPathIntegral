@@ -77,7 +77,7 @@ def simulation_2d_saltation(z0, vz0, t0, tf, nt,
             g_t = gt(t_event, x_event)
             F_1 = dyn_1(t_event, x_event)
             F_2 = dyn_2(t_event, x_reset) # Important, the F2 is evaluated at the reseted state!
-            saltation = saltation_matrix(F_1, F_2, R_t, R_x, g_t, g_x)
+            saltation = compute_saltation(F_1, F_2, R_t, R_x, g_t, g_x)
             saltations.append(saltation)
             
             X_event = xX_event[2:6].reshape([2, 2])
