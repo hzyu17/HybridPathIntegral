@@ -895,7 +895,12 @@ def anim(t, x, ts, speed):
     pFoot1, pFoot2, pH, pT = limb_position(q, pH_horiz[0])
 
     # Set up the plot
-    fig, ax = plt.subplots(figsize=(5, 4))
+    if fig is None:
+        fig, ax = plt.subplots(figsize=(5, 4))
+        
+    else:
+        ax = plt.subplot(2, 3, 6)
+        
     ax.set_xlim(-2.2, 2.2)
     ax.set_ylim(-2.2, 2.2)
     ax.axis('off')
@@ -969,7 +974,7 @@ def anim(t, x, ts, speed):
         torso_mass.set_xy(np.array([pT[0], pT[1]]).reshape((-1,2)))
 
         # Update axis and labels
-        ax.set_xlim(-2.2 + pH[0], 2.2 + pH[0])
+        plt.xlim(-2.2 + pH[0], 2.2 + pH[0])
 
         for j, (label, tick) in enumerate(zip(ref_label, ref_tick)):
             if j - buffer - 1.05 < ax.get_xlim()[0] or j - buffer - 1 > ax.get_xlim()[1]:
@@ -1165,7 +1170,7 @@ def demo():
     plt.title('Joint Positions')
     plt.grid()
 
-    plt.subplot(2, 1, 2)
+    plt.subplot(2, 3, 2)
     plt.plot(tout, xout[:, 3], label=r'$\dot{\theta}_1$')
     plt.plot(tout, xout[:, 4], '--', label=r'$\dot{\theta}_2$')
     plt.plot(tout, xout[:, 5], '-.', label=r'$\dot{\theta}_3$')
@@ -1245,10 +1250,10 @@ def demo():
     ax2.grid(True)  
     
     # 2D limit cycle plot
-    fig, ax = plt.subplots()
-    ax.plot(xout[:, 0], xout[:, 1], linewidth=2)
-    ax.set_xlabel(r'$\theta_1$')
-    ax.set_ylabel(r'$\theta_2$')
+    plt.subplot(2, 3, 5)
+    plt.plot(xout[:, 0], xout[:, 1], linewidth=2)
+    plt.xlabel(r'$\theta_1$')
+    plt.ylabel(r'$\theta_2$')
     plt.title('2D Limit Cycle')
     plt.grid()
     fig.tight_layout()
