@@ -735,7 +735,7 @@ def hip_vel(x):
     return vV, vH
 
 
-def anim(t, x, ts, speed):
+def anim(t, x, ts, speed, fig=None):
     # Retrieve the size of x
     n, m = x.shape
 
@@ -757,7 +757,12 @@ def anim(t, x, ts, speed):
     pFoot1, pFoot2, pH, pT = limb_position(q, pH_horiz[0])
 
     # Set up the plot
-    fig, ax = plt.subplots(figsize=(5, 4))
+    if fig is None:
+        fig, ax = plt.subplots(figsize=(5, 4))
+        
+    else:
+        ax = plt.subplot(2, 3, 6)
+        
     ax.set_xlim(-2.2, 2.2)
     ax.set_ylim(-2.2, 2.2)
     ax.axis('off')
@@ -831,7 +836,7 @@ def anim(t, x, ts, speed):
         torso_mass.set_xy(np.array([pT[0], pT[1]]).reshape((-1,2)))
 
         # Update axis and labels
-        ax.set_xlim(-2.2 + pH[0], 2.2 + pH[0])
+        plt.xlim(-2.2 + pH[0], 2.2 + pH[0])
 
         for j, (label, tick) in enumerate(zip(ref_label, ref_tick)):
             if j - buffer - 1.05 < ax.get_xlim()[0] or j - buffer - 1 > ax.get_xlim()[1]:
@@ -902,7 +907,6 @@ def demo():
     omega_1 = 1.55
     x0 = sigma_three_link(omega_1, a)
     x0 = resetmap_3link(x0).T
-    # x0 = x0[:6]
 
     options = {
         'events': switching_leg_events, 
@@ -965,9 +969,6 @@ def demo():
             t_events.append(te)
             x_events.append(xe)
             
-            # teout.extend(sol.t_events[0])
-            # xeout.extend(xe)
-        
         # Set new initial conditions after impact
         x0 = resetmap_3link(x[-1])
         x_resets.append(sol.y_events[0])
@@ -985,8 +986,9 @@ def demo():
     xout = np.array(xout)
 
     # Plotting results
-    plt.figure(figsize=(6, 9))
-    plt.subplot(2, 1, 1)
+    fig1 = plt.figure(figsize=(16, 9))
+    
+    plt.subplot(2, 3, 1)
     plt.plot(tout, xout[:, 0], label=r'$\theta_1$')
     plt.plot(tout, xout[:, 1], '--', label=r'$\theta_2$')
     plt.plot(tout, xout[:, 2], '-.', label=r'$\theta_3$')
@@ -994,7 +996,7 @@ def demo():
     plt.title('Joint Positions')
     plt.grid()
 
-    plt.subplot(2, 1, 2)
+    plt.subplot(2, 3, 2)
     plt.plot(tout, xout[:, 3], label=r'$\dot{\theta}_1$')
     plt.plot(tout, xout[:, 4], '--', label=r'$\dot{\theta}_2$')
     plt.plot(tout, xout[:, 5], '-.', label=r'$\dot{\theta}_3$')
@@ -1003,50 +1005,46 @@ def demo():
     plt.xlabel('Time (sec)')
     plt.grid()
     
-    # Create the figure
-    fig_hl = plt.figure(figsize=(6, 8)) 
-    fig_hl.subplots_adjust(left=0.125, right=0.9, top=0.9, bottom=0.1)
-
-    # First subplot: Forces on the stance leg
-    ax1 = fig_hl.add_subplot(211)
+    plt.subplot(2, 3, 3)
     force = np.asarray(force)
     
-    ax1.plot(t_2, force[:, 0], '-b', label=r'$F_{tan}, (N)$') 
-    ax1.plot(t_2, force[:, 1], '--r', label=r'$F_{norm}, (N)$') 
-    ax1.legend(loc='best')
-    ax1.grid(True)
-    ax1.set_title('Forces on End of Stance Leg')
-
-    # Second subplot: Ratio of forces
-    ax2 = fig_hl.add_subplot(212) 
-    ax2.plot(t_2, force[:, 0] / force[:, 1])
-    ax2.set_ylabel(r'$F_{tan} / F_{norm}$')  
-    ax2.set_xlabel('time (sec)') 
-    ax2.grid(True)  
+    plt.plot(t_2, force[:, 0], '-b', label=r'$F_{tan}, (N)$') 
+    plt.plot(t_2, force[:, 1], '--r', label=r'$F_{norm}, (N)$') 
+    plt.legend(loc='best')
+    plt.grid(True)
+    plt.title('Forces on End of Stance Leg')
+    
+    plt.subplot(2, 3, 4)
+    force = np.asarray(force)
+    
+    plt.plot(t_2, force[:, 0] / force[:, 1])
+    plt.ylabel(r'$F_{tan} / F_{norm}$')  
+    plt.xlabel('time (sec)') 
+    plt.grid(True)  
+    
     
     # 2D limit cycle plot
-    fig, ax = plt.subplots()
-    ax.plot(xout[:, 0], xout[:, 1], linewidth=2)
-    ax.set_xlabel(r'$\theta_1$')
-    ax.set_ylabel(r'$\theta_2$')
+    plt.subplot(2, 3, 5)
+    plt.plot(xout[:, 0], xout[:, 1], linewidth=2)
+    plt.xlabel(r'$\theta_1$')
+    plt.ylabel(r'$\theta_2$')
     plt.title('2D Limit Cycle')
     plt.grid()
-    fig.tight_layout()
     
-    # 3D limit cycle plot
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')  
-    ax.plot3D(xout[:, 0], xout[:, 1], xout[:, 2], linewidth=2)
-    ax.set_xlabel(r'$\theta_1$')
-    ax.set_ylabel(r'$\theta_2$')
-    ax.set_zlabel(r'$\theta_3$')
-    plt.title('Limit Cycle')
-    plt.grid()
-    fig.tight_layout()
+    # # 3D limit cycle plot
+    # fig = plt.figure()
+    # ax = fig.add_subplot(111, projection='3d')  
+    # ax.plot3D(xout[:, 0], xout[:, 1], xout[:, 2], linewidth=2)
+    # ax.set_xlabel(r'$\theta_1$')
+    # ax.set_ylabel(r'$\theta_2$')
+    # ax.set_zlabel(r'$\theta_3$')
+    # plt.title('Limit Cycle')
+    # plt.grid()
+    # fig.tight_layout()
+    
+    anim(tout, xout, 1/30, speed=1, fig=fig1)
     
     plt.show()
-    
-    # anim(tout, xout, 1/30, speed=1)
     
     # Get the linearized system
     nt = tout.shape[0]
