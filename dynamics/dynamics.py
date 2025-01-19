@@ -6,6 +6,7 @@ current_dir = os.path.dirname(file_path)
 root_dir = os.path.abspath(os.path.join(current_dir, '..'))
 sys.path.append(root_dir)
 
+from saltation_matrix import compute_saltation
 from trajectory_extension import *
 from guard_reset_bouncing import *
 import scipy
@@ -242,8 +243,8 @@ def event_detect_onestep(x0, u, t0, tf, current_mode,
             
             next_dyn = smooth_dynamics[next_mode]
             
-            F_1 = current_dyn(t_event, x_event)
-            F_2 = next_dyn(t_event, x_reset) # Important, the F2 is evaluated at the reseted state!
+            F_1 = current_dyn(t_event, x_event, u)
+            F_2 = next_dyn(t_event, x_reset, u) # Important, the F2 is evaluated at the reseted state!
             saltation = compute_saltation(F_1, F_2, R_t, R_x, g_t, g_x)
             
             t0 = t_event

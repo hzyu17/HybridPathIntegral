@@ -115,9 +115,7 @@ def compute_trejactory_extension(event_info, start_time, end_time, nt, dt,
                 # Using zero control, modify if needed.
                 current_input = np.zeros(nu[mode_i])
                 
-                next_state, _, _, _, _, _, _ = self.detection_func_(x_i, current_input, 
-                                                                    t_jj, t_jj+dt, 
-                                                                    mode_i, detection=False)
+                next_state, _, _, _, _, _, _ = detection_func(x_i, current_input, t_jj, t_jj+dt, mode_i, detect=False, reset_args=None)
                 
                 # Store states and inputs
                 xtrj_ext_fwd_i[jj+1] = next_state
@@ -138,7 +136,7 @@ def compute_trejactory_extension(event_info, start_time, end_time, nt, dt,
                 # modify if needed
                 current_input = np.zeros(nu[next_mode_i])
                 
-                next_state, _, _, _, _, _, _ = detection_func(x_i, current_input, t_jj, t_jj-dt, next_mode_i, detection=False)
+                next_state, _, _, _, _, _, _ = detection_func(x_i, current_input, t_jj, t_jj-dt, next_mode_i, detect=False, reset_args=None)
                 
                 # Store states and inputs
                 xtrj_ext_bwd_i[jj+1] = next_state
@@ -155,11 +153,11 @@ def compute_trejactory_extension(event_info, start_time, end_time, nt, dt,
             xtrj_ext_bwd_i = np.vstack((xtrj_ext_bwd_i, xtrj_ext_padding_bwd_i))
             
             # ------------------------ collect the trajectory extensions ------------------------
-            ref_ext_helper.append((np.array([mode_i, next_mode_i]), 
-                                      {mode_i:xtrj_ext_fwd_i, next_mode_i:xtrj_ext_bwd_i}, 
-                                      {mode_i:K_feedback_ext_fwd_i, next_mode_i:K_feedback_ext_bwd_i}, 
-                                      {mode_i:k_feedforward_ext_fwd_i, next_mode_i:k_feedforward_ext_bwd_i}, 
-                                      i_event_i))
+            ref_ext_helper.append({"Mode Change": np.array([mode_i, next_mode_i]), 
+                                    "Trajectory Extensions": {mode_i:xtrj_ext_fwd_i, next_mode_i:xtrj_ext_bwd_i}, 
+                                    "Feedback gains": {mode_i:K_feedback_ext_fwd_i, next_mode_i:K_feedback_ext_bwd_i}, 
+                                    "Feedforward gains": {mode_i:k_feedforward_ext_fwd_i, next_mode_i:k_feedforward_ext_bwd_i}, 
+                                    "event index": i_event_i})
             
         return ref_ext_helper
 
