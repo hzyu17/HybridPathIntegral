@@ -873,7 +873,7 @@ def swingfoot_height_jax(x):
 def swingfoot_vel_vertical_jax(x):
     return -x[:,3]*jnp.sin(x[:, 0]) + x[:,4]*jnp.sin(x[:, 1])
 
-def anim(t, x, ts, speed):
+def anim(t, x, ts, speed, fig=None):
     # Retrieve the size of x
     n, m = x.shape
 
@@ -899,7 +899,7 @@ def anim(t, x, ts, speed):
         fig, ax = plt.subplots(figsize=(5, 4))
         
     else:
-        ax = plt.subplot(2, 3, 6)
+        ax = plt.subplot(3,4,12)
         
     ax.set_xlim(-2.2, 2.2)
     ax.set_ylim(-2.2, 2.2)
@@ -1161,8 +1161,8 @@ def demo():
     tout, xout, uout, t_events, x_events, saltations = solve_limitcycles()
 
     # Plotting states
-    plt.figure(figsize=(6, 9))
-    plt.subplot(2, 1, 1)
+    fig1 = plt.figure(figsize=(16, 9))
+    plt.subplot(3, 4, 1)
     plt.plot(tout, xout[:, 0], label=r'$\theta_1$')
     plt.plot(tout, xout[:, 1], '--', label=r'$\theta_2$')
     plt.plot(tout, xout[:, 2], '-.', label=r'$\theta_3$')
@@ -1170,7 +1170,7 @@ def demo():
     plt.title('Joint Positions')
     plt.grid()
 
-    plt.subplot(2, 3, 2)
+    plt.subplot(3, 4, 2)
     plt.plot(tout, xout[:, 3], label=r'$\dot{\theta}_1$')
     plt.plot(tout, xout[:, 4], '--', label=r'$\dot{\theta}_2$')
     plt.plot(tout, xout[:, 5], '-.', label=r'$\dot{\theta}_3$')
@@ -1179,8 +1179,8 @@ def demo():
     plt.xlabel('Time (sec)')
     plt.grid()
 
-    plt.figure(figsize=(6, 6))
-    plt.subplot(1, 1, 1)
+    # plt.figure(figsize=(6, 6))
+    plt.subplot(3, 4, 3)
     plt.plot(tout, uout[:, 0], label=r'$u_1$')
     plt.plot(tout, uout[:, 1], label=r'$u_2$')
     plt.legend(loc="best", fontsize=10)
@@ -1188,15 +1188,15 @@ def demo():
     plt.xlabel('Time (sec)')
     plt.grid()
 
-    plt.figure(figsize=(6, 9))
-    plt.subplot(2,1,1)
+    # plt.figure(figsize=(6, 9))
+    plt.subplot(3, 4, 4)
     swingfoot_height = swingfoot_height_jax(xout)
     plt.plot(tout, swingfoot_height, label=r"Swing Foot Height")
     plt.legend(loc="best", fontsize=10)
     plt.title('Swing Foot Height')
     plt.grid()
 
-    plt.subplot(2,1,2)
+    plt.subplot(3, 4, 5)
     swingfoot_vertical_vel = swingfoot_vel_vertical_jax(xout)
     plt.plot(tout, swingfoot_vertical_vel, label=r"Swing Foot Vertical Velocity")
     plt.legend(loc="best", fontsize=10)
@@ -1204,15 +1204,15 @@ def demo():
     plt.grid()
 
     # Plotting hip pos and vel
-    plt.figure(figsize=(6, 9))
-    plt.subplot(3, 1, 1)
+    # plt.figure(figsize=(6, 9))
+    plt.subplot(3, 4, 6)
     hip_trj = hipheight_jax(xout)
     plt.plot(tout, hip_trj, label=r'Hip height')
     plt.legend(loc="best", fontsize=10)
     plt.title('Hip Heights')
     plt.grid()
 
-    plt.subplot(3, 1, 2)
+    plt.subplot(3, 4, 7)
     hipvel_trj = hipvel_H_jax(xout)
     plt.plot(tout, hipvel_trj, label=r'Hip horizontal vel')
     plt.legend(loc="best", fontsize=10)
@@ -1220,7 +1220,7 @@ def demo():
     plt.xlabel('Time (sec)')
     plt.grid()
 
-    plt.subplot(3, 1, 3)
+    plt.subplot(3, 4, 8)
     hipvel_trj_v = hipvel_V_jax(xout)
     plt.plot(tout, hipvel_trj_v, label=r'Hip vertical vel')
     plt.legend(loc="best", fontsize=10)
@@ -1229,13 +1229,13 @@ def demo():
     plt.grid()
     
     # Create the figure
-    fig_hl = plt.figure(figsize=(6, 8)) 
-    fig_hl.subplots_adjust(left=0.125, right=0.9, top=0.9, bottom=0.1)
+    # fig_hl = plt.figure(figsize=(6, 8)) 
+    # fig_hl.subplots_adjust(left=0.125, right=0.9, top=0.9, bottom=0.1)
 
     # First subplot: Forces on the stance leg
-    ax1 = fig_hl.add_subplot(211)
+    # ax1 = fig_hl.add_subplot(211)
     force = np.asarray(force)
-    
+    ax1 = plt.subplot(3, 4, 9)
     ax1.plot(t_2, force[:, 0], '-b', label=r'$F_{tan}, (N)$') 
     ax1.plot(t_2, force[:, 1], '--r', label=r'$F_{norm}, (N)$') 
     ax1.legend(loc='best')
@@ -1243,36 +1243,36 @@ def demo():
     ax1.set_title('Forces on End of Stance Leg')
 
     # Second subplot: Ratio of forces
-    ax2 = fig_hl.add_subplot(212) 
+    # ax2 = fig_hl.add_subplot(212) 
+    ax2 = plt.subplot(3, 4, 10)
     ax2.plot(t_2, force[:, 0] / force[:, 1])
     ax2.set_ylabel(r'$F_{tan} / F_{norm}$')  
     ax2.set_xlabel('time (sec)') 
     ax2.grid(True)  
     
     # 2D limit cycle plot
-    plt.subplot(2, 3, 5)
+    plt.subplot(3, 4, 11)
     plt.plot(xout[:, 0], xout[:, 1], linewidth=2)
     plt.xlabel(r'$\theta_1$')
     plt.ylabel(r'$\theta_2$')
     plt.title('2D Limit Cycle')
     plt.grid()
-    fig.tight_layout()
+    plt.tight_layout()
     
-    # 3D limit cycle plot
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')  
-    ax.plot3D(xout[:, 0], xout[:, 1], xout[:, 2], linewidth=2)
-    ax.set_xlabel(r'$\theta_1$')
-    ax.set_ylabel(r'$\theta_2$')
-    ax.set_zlabel(r'$\theta_3$')
-    plt.title('3D Limit Cycle')
-    plt.grid()
-    fig.tight_layout()
+    # # 3D limit cycle plot
+    # fig2 = plt.figure()
+    # ax = fig.add_subplot(111, projection='3d')  
+    # ax.plot3D(xout[:, 0], xout[:, 1], xout[:, 2], linewidth=2)
+    # ax.set_xlabel(r'$\theta_1$')
+    # ax.set_ylabel(r'$\theta_2$')
+    # ax.set_zlabel(r'$\theta_3$')
+    # plt.title('3D Limit Cycle')
+    # plt.grid()
+    # fig.tight_layout()
+    
+    anim(tout, xout, 1/30, speed=1, fig=fig1)
     
     plt.show()
-    
-    anim(tout, xout, 1/30, speed=1)
-    
 
 from scipy.interpolate import interp1d
 
