@@ -1,20 +1,12 @@
 # Helper functions to handle reference trajectory extensions
 import numpy as np
 
-def compute_trejactory_extension(event_info, 
-                                 timespan,
-                                 nx, nu, 
-                                 init_state, target_state, 
-                                 detection_func):
+def compute_trejactory_extension(event_info, start_time, end_time, nt, dt,
+                                  nx, nu, init_state, target_state, detection_func):
         
         # NO hybrid events
         if len(event_info.keys()) == 0:
             return []
-        
-        start_time = timespan[0]
-        end_time = timespan[-1]
-        nt = len(timespan)
-        dt = timespan[1:] - timespan[:-1]
         
         # event_info:
         sorted_hybrid_index = sorted(event_info.keys())
@@ -89,16 +81,11 @@ def compute_trejactory_extension(event_info,
                 dt_i = dt[i_event_i]
                 
                 # [0, t_event] for padding
-                time_span_ext_fwd_padding = timespan[:i_event_i]
-                # time_span_ext_fwd_padding = np.arange(0, tevent_i, dt_i)
-                
-                # # [t_event, t_trj_ext_fwd]
-                timespan_ext_fwd = timespan[i_event_i:]
-                # timespan_ext_fwd = np.arange(tevent_i, t_ext_fwd_i, dt_i)
-                
-                # # [t_trj_ext_bwd: t_event]
-                timespan_ext_bwd = timespan[:i_event_i][::-1]
-                # timespan_ext_bwd = np.arange(0, tevent_i, dt_i)[::-1]
+                time_span_ext_fwd_padding = np.arange(0, tevent_i, dt_i)
+                # [t_event, t_trj_ext_fwd]
+                timespan_ext_fwd = np.arange(tevent_i, t_ext_fwd_i, dt_i)
+                # [t_trj_ext_bwd: t_event]
+                timespan_ext_bwd = np.arange(0, tevent_i, dt_i)[::-1]
                 
                 
             else:
@@ -106,11 +93,8 @@ def compute_trejactory_extension(event_info,
             
                 # [0, t_event] for padding
                 time_span_ext_fwd_padding = np.arange(0, tevent_i, dt_i)
-                
                 # [t_event, t_trj_ext_fwd]
                 timespan_ext_fwd = np.arange(tevent_i, t_ext_fwd_i, dt_i)
-                
-                
                 # [t_trj_ext_bwd: t_event]
                 timespan_ext_bwd = np.arange(0, tevent_i, dt_i)[::-1]
             

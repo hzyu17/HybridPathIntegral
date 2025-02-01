@@ -4,6 +4,13 @@ import jax.numpy as jnp
 from jax import grad, jacfwd 
 jax.config.update("jax_enable_x64", True)
 
+import os
+import sys
+file_path = os.path.abspath(__file__)
+exp_dir = os.path.dirname(file_path)
+script_filename = os.path.splitext(os.path.basename(file_path))[0]
+root_dir = os.path.abspath(os.path.join(exp_dir, '..'))
+sys.path.append(root_dir)
 
 from dynamics import *
 import matplotlib.pyplot as plt
@@ -11,7 +18,9 @@ from matplotlib.patches import Patch, Polygon
 from matplotlib.lines import Line2D
 from scipy.integrate import solve_ivp
 from mpl_toolkits.mplot3d import Axes3D
-from saltation_matrix import compute_saltation
+from dynamics.saltation_matrix import compute_saltation
+from dynamics.dynamics import *
+
 
 # ================ dynamics parameters ================
 l = 0.5 # torso length
@@ -195,7 +204,7 @@ Rt_3link_21 = jax.jit(jacfwd(lambda t, x, mode, byproduct: resetmap_3link_21_jax
 Rx_3link_21 = jax.jit(jacfwd(lambda t, x, mode, byproduct: resetmap_3link_21_jax(t, x), 1))
 
 
-def onestep_detect_3link(x0, u, t0, tf, current_mode, reset_args, detect=True, backwards=False):
+def detect_3link(x0, u, t0, tf, current_mode, reset_args, detect=True, backwards=False):
     guard_3link_12.terminal=True
     guard_3link_12.direction=-1
     
@@ -638,7 +647,7 @@ def dyn_control_3link_discrete_jax(x, u, dt):
     return x + f*dt
 
 
-def fxgu_3link_jax(t, x, u, a):
+def fxgu_3link_jax(x, u):
     # Extract dynamics matrices and control parameters
     D, C, G, B, K, dV, dVl, Al, Bl, H, LfH, dLfH = sysmat_3link_jax(x[:6], a)
     
@@ -660,9 +669,9 @@ jac_fxgu_u = jax.jit(jax.jacobian(lambda t, x, u, a: fxgu_3link_jax(t, x, u, a),
 
 def hip_moving_cost(x, u, target_hipvel= 2.0):
     hipvelocity = hipvel_H_pt_jax(x)
-    return jnp.linalg.norm(hipvelocity-target_hipvel) + u.T@u/2
+    return 0.01*jnp.linalg.norm(hipvelocity-target_hipvel) + u.T@u/2
 
-def statedeviation_norm_cost(x, x_tar):
+def deltx_norm_cost(x, x_tar):
     return jnp.linalg.norm(x-x_tar)
 
 def stance_force_three_link(x, dx, u):
@@ -1030,7 +1039,7 @@ def events(t, x):
     return value, is_terminal, direction
     
 
-def solve_limitcycles(n_steps=2):
+def solve_limcycle_3link(n_steps=2):
     global t_2, torque, y, force, u_trj
 
     # Reset global variables
@@ -1153,15 +1162,10 @@ def solve_limitcycles(n_steps=2):
 
     return tout, xout, uout, t_events, x_events, saltations
 
-    
-def demo():
 
-    global t_2, torque, y, force
-
-    tout, xout, uout, t_events, x_events, saltations = solve_limitcycles()
-
+def plot_3link_states(tout, xout, uout):
     # Plotting states
-    fig1 = plt.figure(figsize=(16, 9))
+    
     plt.subplot(3, 4, 1)
     plt.plot(tout, xout[:, 0], label=r'$\theta_1$')
     plt.plot(tout, xout[:, 1], '--', label=r'$\theta_2$')
@@ -1227,6 +1231,16 @@ def demo():
     plt.title('Hip Vertical Velocities')
     plt.xlabel('Time (sec)')
     plt.grid()
+    
+def demo():
+
+    global t_2, torque, y, force
+
+    tout, xout, uout, t_events, x_events, saltations = solve_limcycle_3link()
+
+    fig1 = plt.figure(figsize=(16, 9))
+    
+    plot_3link_states(tout, xout, uout)
     
     # Create the figure
     # fig_hl = plt.figure(figsize=(6, 8)) 

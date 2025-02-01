@@ -6,9 +6,10 @@ current_dir = os.path.dirname(file_path)
 root_dir = os.path.abspath(os.path.join(current_dir, '..'))
 sys.path.append(root_dir)
 
-from saltation_matrix import compute_saltation
-from trajectory_extension import *
-from guard_reset_bouncing import *
+from dynamics.saltation_matrix import compute_saltation
+from dynamics.trajectory_extension import *
+from dynamics.guard_reset_bouncing import *
+
 import scipy
 import numpy as np
 
