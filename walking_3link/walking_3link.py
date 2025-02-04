@@ -4,13 +4,23 @@ import jax.numpy as jnp
 from jax import grad, jacfwd 
 jax.config.update("jax_enable_x64", True)
 
+import os
+import sys
+file_path = os.path.abspath(__file__)
+exp_dir = os.path.dirname(file_path)
+script_filename = os.path.splitext(os.path.basename(file_path))[0]
+root_dir = os.path.abspath(os.path.join(exp_dir, '..'))
+sys.path.append(root_dir)
+
 from dynamics import *
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch, Polygon
 from matplotlib.lines import Line2D
 from scipy.integrate import solve_ivp
 from mpl_toolkits.mplot3d import Axes3D
-from saltation_matrix import *
+from dynamics.saltation_matrix import compute_saltation
+from dynamics.dynamics import *
+
 
 # ================ dynamics parameters ================
 l = 0.5 # torso length
@@ -28,6 +38,7 @@ t_2 = []
 torque = []
 y = []
 force = []
+u_trj = []
 
 # mode 1: (vertical) hip velocity < 0, and before the swing foot touches the ground
 # mode 2: from the touching to (vertical) hip velocity < 0.
@@ -61,13 +72,13 @@ gt_3link_21 = jax.jit(jacfwd(lambda t, x: guard_3link_21_jax(t, x), 0))
 gx_3link_21 = jax.jit(jacfwd(lambda t, x: guard_3link_21_jax(t, x), 1))
 
 
-def resetmap_3link_21(x):
+def resetmap_3link_21(t,x,cur_mode=1,args=None):
+    return x, 0, None
+
+def resetmap_3link_21_jax(t,x,cur_mode=1,args=None):
     return x
 
-def resetmap_3link_21_jax(x):
-    return x
-
-def resetmap_3link_12(x): 
+def resetmap_3link_12(t,x,cur_mode=0,reset_args=None): 
     # Unpack state variables
     th1, th2, th3 = x[:3]
 
@@ -121,11 +132,13 @@ def resetmap_3link_12(x):
     # x_new[7] = tmp_vec[6]
 
     z2_new = tmp_vec[4]
+    nextmode = 1
+    byproduct = None
 
-    return x_new
+    return x_new, nextmode, byproduct
 
 
-def resetmap_3link_12_jax(t, x): 
+def resetmap_3link_12_jax(t, x, cur_mode=0, reset_args=None): 
     # Unpack state variables
     th1, th2, th3 = x[:3]
 
@@ -184,21 +197,21 @@ def resetmap_3link_12_jax(t, x):
 
     return x_new
 
-Rt_3link_12 = jax.jit(jacfwd(lambda t, x: resetmap_3link_12_jax(t, x), 0))
-Rx_3link_12 = jax.jit(jacfwd(lambda t, x: resetmap_3link_12_jax(t, x), 1))
+Rt_3link_12 = jax.jit(jacfwd(lambda t, x, mode, byproduct: resetmap_3link_12_jax(t, x), 0))
+Rx_3link_12 = jax.jit(jacfwd(lambda t, x, mode, byproduct: resetmap_3link_12_jax(t, x), 1))
 
-Rt_3link_21 = jax.jit(jacfwd(lambda t, x: resetmap_3link_21_jax(t, x), 0))
-Rx_3link_21 = jax.jit(jacfwd(lambda t, x: resetmap_3link_21_jax(t, x), 1))
+Rt_3link_21 = jax.jit(jacfwd(lambda t, x, mode, byproduct: resetmap_3link_21_jax(t, x), 0))
+Rx_3link_21 = jax.jit(jacfwd(lambda t, x, mode, byproduct: resetmap_3link_21_jax(t, x), 1))
 
 
-def onestep_detect_3link(x0, u, t0, tf, current_mode, reset_args, detection=True, backwards=False):
+def detect_3link(x0, u, t0, tf, current_mode, reset_args, detect=True, backwards=False):
     guard_3link_12.terminal=True
     guard_3link_12.direction=-1
     
     guard_3link_21.terminal=True
     guard_3link_21.direction=-1
     
-    smooth_dynamics_3link = {0:dyn_3link, 1:dyn_3link}
+    smoothdyn_3link = {0:dyn_control_3link, 1:dyn_control_3link}
     
     Rxs_3link = {0:Rx_3link_12, 1:Rx_3link_21}
     Rts_3link = {0:Rt_3link_12, 1:Rt_3link_21}
@@ -212,13 +225,13 @@ def onestep_detect_3link(x0, u, t0, tf, current_mode, reset_args, detection=True
     return event_detect_onestep(x0, u, 
                                 t0, tf, 
                                 current_mode, 
-                                smooth_dynamics_3link, 
+                                smoothdyn_3link, 
                                 guards_3link, gxs_3link, gts_3link,
                                 resetmaps_3link, Rxs_3link, Rts_3link,
-                                reset_args, detection, backwards)
+                                reset_args, detect, backwards)
 
 
-def dyn_3link(x, a):
+def sysmat_3link(x, a):
     """
     Model of a three-link biped walker.
 
@@ -338,7 +351,7 @@ def dyn_3link(x, a):
     return D, C, G, B, K, dV, dVl, Al, Bl, H, LfH, dLfH
 
 
-def dyn_3link_jax(x, a):
+def sysmat_3link_jax(x, a):
     """
     Model of a three-link biped walker.
 
@@ -556,7 +569,7 @@ def control_three_link(H, LfH):
 
     return v
 
-
+# compute u inside the function using feedback linearization
 def fxgu_nom(t, x, a):
     """
     Compute the state derivative (dx/dt) for the three-link walker.
@@ -573,10 +586,10 @@ def fxgu_nom(t, x, a):
         dx : ndarray
             Time derivative of the state vector.
     """
-    global t_2, torque, y, force
+    global t_2, torque, y, force, u_trj
 
     # Extract dynamics matrices and control parameters
-    D, C, G, B, K, dV, dVl, Al, Bl, H, LfH, dLfH = dyn_3link(x[:6], a)
+    D, C, G, B, K, dV, dVl, Al, Bl, H, LfH, dLfH = sysmat_3link(x[:6], a)
     
     # Compute Fx and Gx
     Fx = np.linalg.solve(D, -C @ x[3:6] - G)
@@ -601,9 +614,42 @@ def fxgu_nom(t, x, a):
     return dx
 
 
-def fxgu_3link_jax(t, x, u, a):
+# fx+gu 
+def dyn_control_3link(t, x, u):
     # Extract dynamics matrices and control parameters
-    D, C, G, B, K, dV, dVl, Al, Bl, H, LfH, dLfH = dyn_3link_jax(x[:6], a)
+    D, C, G, B, K, dV, dVl, Al, Bl, H, LfH, dLfH = sysmat_3link(x[:6], a)
+    
+    # Compute Fx and Gx
+    Fx = np.linalg.solve(D, -C @ x[3:6] - G)
+    Gx = np.linalg.solve(D, B)
+
+    # Compute state derivatives
+    dx = np.zeros_like(x)
+    dx[:3] = x[3:6]
+    dx[3:6] = Fx + Gx @ u
+
+    return dx
+
+# x + f*dt
+def dyn_control_3link_discrete_jax(x, u, dt):
+    # Extract dynamics matrices and control parameters
+    D, C, G, B, K, dV, dVl, Al, Bl, H, LfH, dLfH = sysmat_3link_jax(x[:6], a)
+    
+    # Compute Fx and Gx
+    Fx = jnp.linalg.solve(D, -C @ x[3:6] - G)
+    Gx = jnp.linalg.solve(D, B)
+
+    # Compute state derivatives
+    f = jnp.zeros_like(x)
+    f = f.at[:3].set(x[3:6])
+    f = f.at[3:6].set(Fx + Gx @ u)
+
+    return x + f*dt
+
+
+def fxgu_3link_jax(x, u):
+    # Extract dynamics matrices and control parameters
+    D, C, G, B, K, dV, dVl, Al, Bl, H, LfH, dLfH = sysmat_3link_jax(x[:6], a)
     
     # Compute Fx and Gx
     Fx = jnp.linalg.solve(D, -C @ x[3:6] - G)
@@ -622,10 +668,10 @@ jac_fxgu_u = jax.jit(jax.jacobian(lambda t, x, u, a: fxgu_3link_jax(t, x, u, a),
 
 
 def hip_moving_cost(x, u, target_hipvel= 2.0):
-    hipvelocity = hipvel_H_jax(x)
-    return jnp.linalg.norm(hipvelocity-target_hipvel) + jnp.linalg.norm(u)
+    hipvelocity = hipvel_H_pt_jax(x)
+    return 0.01*jnp.linalg.norm(hipvelocity-target_hipvel) + u.T@u/2
 
-def statedeviation_norm_cost(x, x_tar):
+def deltx_norm_cost(x, x_tar):
     return jnp.linalg.norm(x-x_tar)
 
 def stance_force_three_link(x, dx, u):
@@ -836,7 +882,7 @@ def swingfoot_height_jax(x):
 def swingfoot_vel_vertical_jax(x):
     return -x[:,3]*jnp.sin(x[:, 0]) + x[:,4]*jnp.sin(x[:, 1])
 
-def anim(t, x, ts, speed):
+def anim(t, x, ts, speed, fig=None):
     # Retrieve the size of x
     n, m = x.shape
 
@@ -858,7 +904,12 @@ def anim(t, x, ts, speed):
     pFoot1, pFoot2, pH, pT = limb_position(q, pH_horiz[0])
 
     # Set up the plot
-    fig, ax = plt.subplots(figsize=(5, 4))
+    if fig is None:
+        fig, ax = plt.subplots(figsize=(5, 4))
+        
+    else:
+        ax = plt.subplot(3,4,12)
+        
     ax.set_xlim(-2.2, 2.2)
     ax.set_ylim(-2.2, 2.2)
     ax.axis('off')
@@ -932,7 +983,7 @@ def anim(t, x, ts, speed):
         torso_mass.set_xy(np.array([pT[0], pT[1]]).reshape((-1,2)))
 
         # Update axis and labels
-        ax.set_xlim(-2.2 + pH[0], 2.2 + pH[0])
+        plt.xlim(-2.2 + pH[0], 2.2 + pH[0])
 
         for j, (label, tick) in enumerate(zip(ref_label, ref_tick)):
             if j - buffer - 1.05 < ax.get_xlim()[0] or j - buffer - 1 > ax.get_xlim()[1]:
@@ -988,8 +1039,8 @@ def events(t, x):
     return value, is_terminal, direction
     
 
-def solve_limitcycles(n_steps=2):
-    global t_2, torque, y, force
+def solve_limcycle_3link(n_steps=2):
+    global t_2, torque, y, force, u_trj
 
     # Reset global variables
     torque = []
@@ -1002,7 +1053,7 @@ def solve_limitcycles(n_steps=2):
     
     omega_1 = 1.55
     x0 = sigma_three_link(omega_1, a)
-    x0 = resetmap_3link_12(x0).T
+    x0,_,_ = resetmap_3link_12(tstart,x0)
 
     options = {
         'events': switching_leg_events, 
@@ -1013,6 +1064,7 @@ def solve_limitcycles(n_steps=2):
 
     tout = [tstart]
     xout = [x0]
+    uout = []
     teout = []
     xeout = []
     ieout = []
@@ -1040,7 +1092,25 @@ def solve_limitcycles(n_steps=2):
 
         t = sol.t
         x = sol.y.T
+        u = []
+        # -------- Recover the control u --------
+        for k in range(len(sol.t)):
+            t_k = sol.t[k]
+            x_k = sol.y[:,k]
+            # Extract dynamics matrices and control parameters
+            D, C, G, B, K, dV, dVl, Al, Bl, H, LfH, dLfH = sysmat_3link(x_k[:6], a)
+            
+            # Compute Fx and Gx
+            Fx = np.linalg.solve(D, -C @ x_k[3:6] - G)
+            Gx = np.linalg.solve(D, B)
+            v = control_three_link(H, LfH)
+
+            # Compute control signal (u) using feedback linearization
+            uk = np.linalg.solve(dLfH @ np.vstack([np.zeros((3, 2)), Gx]), v.flatten() - dLfH @ np.hstack([x_k[3:6], Fx]).transpose())
+
+            u.append(uk)
         
+        # If a foot-touching event happened: compute the saltation matrix
         if sol.t_events:
             
             # Compute the saltation matrix
@@ -1051,10 +1121,10 @@ def solve_limitcycles(n_steps=2):
             print(guard_3link_12_jax(te, xe))
             
             F_1 = fxgu_nom(te, xe, a)
-            x_re = resetmap_3link_12(xe)
+            x_re, _, _ = resetmap_3link_12(te,xe)
             F_2 = fxgu_nom(te, x_re, a) # Important, the F2 is evaluated at the reseted state!
-            Rt = Rt_3link_12(te, xe)
-            Rx = Rx_3link_12(te, xe)
+            Rt = Rt_3link_12(te, xe, 0, None)
+            Rx = Rx_3link_12(te, xe, 0, None)
             gt = gt_3link_12(te, xe)
             gx = gx_3link_12(te, xe)
             saltation = compute_saltation(F_1, F_2, Rt, Rx, gt, gx)
@@ -1064,17 +1134,19 @@ def solve_limitcycles(n_steps=2):
             x_events.append(xe)
             
         # down sampling and interpolation
-        t, x = down_sample(np.array(t), np.array(x), Fs=20)
-        t, x = t.tolist(), x.tolist()
+        _, x = down_sample(np.array(t), np.array(x), Fs=20)
+        t, u = down_sample(np.array(t), np.array(u), Fs=20)
+        t, x, u = t.tolist(), x.tolist(), u.tolist()
 
         # Set new initial conditions after impact
-        x0 = resetmap_3link_12(x[-1])
+        x0,_,_ = resetmap_3link_12(t[-1],x[-1])
         x[-1] = x0
 
         x_resets.append(sol.y_events[0])
 
         tout.extend(t[1:])
         xout.extend(x[1:])
+        uout.extend(u)
         
         # print(f"Step: {i + 1}, Impact ratio: {x0[6] / x0[7]}")
         plt.show()
@@ -1086,19 +1158,15 @@ def solve_limitcycles(n_steps=2):
     # Convert to NumPy arrays for plotting
     tout = np.array(tout)
     xout = np.array(xout)
+    uout = np.array(uout[:-1])
 
-    return tout, xout, t_events, x_events, saltations
+    return tout, xout, uout, t_events, x_events, saltations
 
-    
-def demo():
 
-    global t_2, torque, y, force
-
-    tout, xout, t_events, x_events, saltations = solve_limitcycles()
-
+def plot_3link_states(tout, xout, uout):
     # Plotting states
-    plt.figure(figsize=(6, 9))
-    plt.subplot(2, 1, 1)
+    
+    plt.subplot(3, 4, 1)
     plt.plot(tout, xout[:, 0], label=r'$\theta_1$')
     plt.plot(tout, xout[:, 1], '--', label=r'$\theta_2$')
     plt.plot(tout, xout[:, 2], '-.', label=r'$\theta_3$')
@@ -1106,7 +1174,7 @@ def demo():
     plt.title('Joint Positions')
     plt.grid()
 
-    plt.subplot(2, 1, 2)
+    plt.subplot(3, 4, 2)
     plt.plot(tout, xout[:, 3], label=r'$\dot{\theta}_1$')
     plt.plot(tout, xout[:, 4], '--', label=r'$\dot{\theta}_2$')
     plt.plot(tout, xout[:, 5], '-.', label=r'$\dot{\theta}_3$')
@@ -1115,15 +1183,24 @@ def demo():
     plt.xlabel('Time (sec)')
     plt.grid()
 
-    plt.figure(figsize=(6, 9))
-    plt.subplot(2,1,1)
+    # plt.figure(figsize=(6, 6))
+    plt.subplot(3, 4, 3)
+    plt.plot(tout, uout[:, 0], label=r'$u_1$')
+    plt.plot(tout, uout[:, 1], label=r'$u_2$')
+    plt.legend(loc="best", fontsize=10)
+    plt.title('Control Input Torque')
+    plt.xlabel('Time (sec)')
+    plt.grid()
+
+    # plt.figure(figsize=(6, 9))
+    plt.subplot(3, 4, 4)
     swingfoot_height = swingfoot_height_jax(xout)
     plt.plot(tout, swingfoot_height, label=r"Swing Foot Height")
     plt.legend(loc="best", fontsize=10)
     plt.title('Swing Foot Height')
     plt.grid()
 
-    plt.subplot(2,1,2)
+    plt.subplot(3, 4, 5)
     swingfoot_vertical_vel = swingfoot_vel_vertical_jax(xout)
     plt.plot(tout, swingfoot_vertical_vel, label=r"Swing Foot Vertical Velocity")
     plt.legend(loc="best", fontsize=10)
@@ -1131,15 +1208,15 @@ def demo():
     plt.grid()
 
     # Plotting hip pos and vel
-    plt.figure(figsize=(6, 9))
-    plt.subplot(3, 1, 1)
+    # plt.figure(figsize=(6, 9))
+    plt.subplot(3, 4, 6)
     hip_trj = hipheight_jax(xout)
     plt.plot(tout, hip_trj, label=r'Hip height')
     plt.legend(loc="best", fontsize=10)
     plt.title('Hip Heights')
     plt.grid()
 
-    plt.subplot(3, 1, 2)
+    plt.subplot(3, 4, 7)
     hipvel_trj = hipvel_H_jax(xout)
     plt.plot(tout, hipvel_trj, label=r'Hip horizontal vel')
     plt.legend(loc="best", fontsize=10)
@@ -1147,7 +1224,7 @@ def demo():
     plt.xlabel('Time (sec)')
     plt.grid()
 
-    plt.subplot(3, 1, 3)
+    plt.subplot(3, 4, 8)
     hipvel_trj_v = hipvel_V_jax(xout)
     plt.plot(tout, hipvel_trj_v, label=r'Hip vertical vel')
     plt.legend(loc="best", fontsize=10)
@@ -1155,14 +1232,24 @@ def demo():
     plt.xlabel('Time (sec)')
     plt.grid()
     
+def demo():
+
+    global t_2, torque, y, force
+
+    tout, xout, uout, t_events, x_events, saltations = solve_limcycle_3link()
+
+    fig1 = plt.figure(figsize=(16, 9))
+    
+    plot_3link_states(tout, xout, uout)
+    
     # Create the figure
-    fig_hl = plt.figure(figsize=(6, 8)) 
-    fig_hl.subplots_adjust(left=0.125, right=0.9, top=0.9, bottom=0.1)
+    # fig_hl = plt.figure(figsize=(6, 8)) 
+    # fig_hl.subplots_adjust(left=0.125, right=0.9, top=0.9, bottom=0.1)
 
     # First subplot: Forces on the stance leg
-    ax1 = fig_hl.add_subplot(211)
+    # ax1 = fig_hl.add_subplot(211)
     force = np.asarray(force)
-    
+    ax1 = plt.subplot(3, 4, 9)
     ax1.plot(t_2, force[:, 0], '-b', label=r'$F_{tan}, (N)$') 
     ax1.plot(t_2, force[:, 1], '--r', label=r'$F_{norm}, (N)$') 
     ax1.legend(loc='best')
@@ -1170,36 +1257,36 @@ def demo():
     ax1.set_title('Forces on End of Stance Leg')
 
     # Second subplot: Ratio of forces
-    ax2 = fig_hl.add_subplot(212) 
+    # ax2 = fig_hl.add_subplot(212) 
+    ax2 = plt.subplot(3, 4, 10)
     ax2.plot(t_2, force[:, 0] / force[:, 1])
     ax2.set_ylabel(r'$F_{tan} / F_{norm}$')  
     ax2.set_xlabel('time (sec)') 
     ax2.grid(True)  
     
     # 2D limit cycle plot
-    fig, ax = plt.subplots()
-    ax.plot(xout[:, 0], xout[:, 1], linewidth=2)
-    ax.set_xlabel(r'$\theta_1$')
-    ax.set_ylabel(r'$\theta_2$')
+    plt.subplot(3, 4, 11)
+    plt.plot(xout[:, 0], xout[:, 1], linewidth=2)
+    plt.xlabel(r'$\theta_1$')
+    plt.ylabel(r'$\theta_2$')
     plt.title('2D Limit Cycle')
     plt.grid()
-    fig.tight_layout()
+    plt.tight_layout()
     
-    # 3D limit cycle plot
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')  
-    ax.plot3D(xout[:, 0], xout[:, 1], xout[:, 2], linewidth=2)
-    ax.set_xlabel(r'$\theta_1$')
-    ax.set_ylabel(r'$\theta_2$')
-    ax.set_zlabel(r'$\theta_3$')
-    plt.title('3D Limit Cycle')
-    plt.grid()
-    fig.tight_layout()
+    # # 3D limit cycle plot
+    # fig2 = plt.figure()
+    # ax = fig.add_subplot(111, projection='3d')  
+    # ax.plot3D(xout[:, 0], xout[:, 1], xout[:, 2], linewidth=2)
+    # ax.set_xlabel(r'$\theta_1$')
+    # ax.set_ylabel(r'$\theta_2$')
+    # ax.set_zlabel(r'$\theta_3$')
+    # plt.title('3D Limit Cycle')
+    # plt.grid()
+    # fig.tight_layout()
+    
+    anim(tout, xout, 1/30, speed=1, fig=fig1)
     
     plt.show()
-    
-    anim(tout, xout, 1/30, speed=1)
-    
 
 from scipy.interpolate import interp1d
 
