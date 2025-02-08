@@ -191,11 +191,7 @@ def event_detect_onestep(x0, u, t0, tf, current_mode,
     nt = 100
     
     current_dyn = smooth_dynamics[current_mode]
-    
-    current_guard = guards[current_mode]
-    current_resetmap = reset_maps[current_mode]
-    # current_resetcontrl = reset_controls[current_mode]
-    
+        
     current_Rx = Rxs[current_mode]
     current_Rt = Rts[current_mode]
     

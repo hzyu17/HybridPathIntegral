@@ -49,13 +49,13 @@ u_trj = []
 def guard_3link_12(t, x_event):
     th1, th2 = x_event[0], x_event[1]
     # swing_foot_vV = -x_event[3]*jnp.sin(x_event[0]) + x_event[4]*jnp.sin(x_event[1])
-    # # The swing foot reach the ground from under the ground for 3-link... For 5-link will be normal guard.
+    # # The swing foot reach the ground from under the ground for 3-link, due to scuffing... For 5-link will be normal guard.
     return np.cos(th1) - np.cos(th2)
 
 def guard_3link_12_jax(t, x_event):
     th1, th2 = x_event[0], x_event[1]
     # swing_foot_vV = -x_event[3]*jnp.sin(x_event[0]) + x_event[4]*jnp.sin(x_event[1])
-    # # The swing foot reach the ground from under the ground for 3-link... For 5-link will be normal guard.
+    # # The swing foot reach the ground from under the ground for 3-link due to scuffing... For 5-link will be normal guard.
     return jnp.cos(th1) - jnp.cos(th2)
 
 # Guard function from mode 2 to mode 1 (direction = -1)
@@ -206,7 +206,7 @@ Rx_3link_21 = jax.jit(jacfwd(lambda t, x, mode, byproduct: resetmap_3link_21_jax
 
 def detect_3link(x0, u, t0, tf, current_mode, reset_args, detect=True, backwards=False):
     guard_3link_12.terminal=True
-    guard_3link_12.direction=-1
+    guard_3link_12.direction=1
     
     guard_3link_21.terminal=True
     guard_3link_21.direction=-1
@@ -882,123 +882,125 @@ def swingfoot_height_jax(x):
 def swingfoot_vel_vertical_jax(x):
     return -x[:,3]*jnp.sin(x[:, 0]) + x[:,4]*jnp.sin(x[:, 1])
 
-def anim(t, x, ts, speed, fig=None):
-    # Retrieve the size of x
-    n, m = x.shape
+def anim(t, x, ts, speed, fig=None, loop=1):
+    for _ in range(loop):
+        # Retrieve the size of x
+        n, m = x.shape
 
-    # Calculate hip velocity
-    vV, vH = hip_vel(x)  # convert angles to horizontal position of hips
-    pH_horiz = np.zeros(n)
- 
-    # Estimate hip horizontal position by estimating integral of hip velocity
-    for j in range(1, n):
-        pH_horiz[j] = pH_horiz[j-1] + (t[j] - t[j-1]) * vH[j-1]
+        # Calculate hip velocity
+        vV, vH = hip_vel(x)  # convert angles to horizontal position of hips
+        pH_horiz = np.zeros(n)
+    
+        # Estimate hip horizontal position by estimating integral of hip velocity
+        for j in range(1, n):
+            pH_horiz[j] = pH_horiz[j-1] + (t[j] - t[j-1]) * vH[j-1]
 
-    # Evenly sample time and hip position
-    te, pH_horiz = even_sample(t, pH_horiz.reshape(-1, 1), 1 / ts)
-    te, xe = even_sample(t, x, 1 / ts)
-    n, m = xe.shape
+        # Evenly sample time and hip position
+        te, pH_horiz = even_sample(t, pH_horiz.reshape(-1, 1), 1 / ts)
+        te, xe = even_sample(t, x, 1 / ts)
+        n, m = xe.shape
 
-    # Set initial limb position
-    q = xe[0, :3]
-    pFoot1, pFoot2, pH, pT = limb_position(q, pH_horiz[0])
+        # Set initial limb position
+        q = xe[0, :3]
+        pFoot1, pFoot2, pH, pT = limb_position(q, pH_horiz[0])
 
-    # Set up the plot
-    if fig is None:
-        fig, ax = plt.subplots(figsize=(5, 4))
-        
-    else:
-        ax = plt.subplot(3,4,12)
-        
-    ax.set_xlim(-2.2, 2.2)
-    ax.set_ylim(-2.2, 2.2)
-    ax.axis('off')
-    ax.grid()
+        # Set up the plot
+        if fig is None:
+            fig, ax = plt.subplots(figsize=(5, 4))
+            
+        else:
+            ax = plt.subplot(3,4,12)
+            
+        ax.set_xlim(-2.2, 2.2)
+        ax.set_ylim(-2.2, 2.2)
+        ax.axis('off')
+        ax.grid()
 
-    # Model parameters
-    scl = 0.04  # scaling factor for masses
-    mr_legs = m**(1/3) * scl  # radius of mass for legs
-    mr_torso = MT**(1/3) * scl  # radius of mass for torso
+        # Model parameters
+        scl = 0.04  # scaling factor for masses
+        mr_legs = m**(1/3) * scl  # radius of mass for legs
+        mr_torso = MT**(1/3) * scl  # radius of mass for torso
 
-    # Draw ground
-    buffer = 5
-    ground = Line2D([-buffer, pH_horiz[-1][0] + buffer], [0, 0], color='k', linewidth=2)
-    ax.add_line(ground)
+        # Draw ground
+        buffer = 5
+        ground = Line2D([-buffer, pH_horiz[-1][0] + buffer], [0, 0], color='k', linewidth=2)
+        ax.add_line(ground)
 
-    # Draw tick marks and labels
-    ref_tick = []
-    ref_label = []
-    for k in range(-buffer, int(np.floor(pH_horiz[-1]) + buffer)):
-        tick = Line2D([k, k], [-0.1, 0], color='k')
-        label = ax.text(k, -0.2, str(k), ha='center', va='top', fontsize=8)
-        ref_tick.append(tick)
-        ref_label.append(label)
-        ax.add_line(tick)
+        # Draw tick marks and labels
+        ref_tick = []
+        ref_label = []
+        for k in range(-buffer, int(np.floor(pH_horiz[-1]) + buffer)):
+            tick = Line2D([k, k], [-0.1, 0], color='k')
+            label = ax.text(k, -0.2, str(k), ha='center', va='top', fontsize=8)
+            ref_tick.append(tick)
+            ref_label.append(label)
+            ax.add_line(tick)
 
-    # Draw leg one
-    param = np.linspace(0, 2 * np.pi, 50)
-    xmass_legs = mr_legs * np.cos(param)
-    ymass_legs = mr_legs * np.sin(param)
+        # Draw leg one
+        param = np.linspace(0, 2 * np.pi, 50)
+        xmass_legs = mr_legs * np.cos(param)
+        ymass_legs = mr_legs * np.sin(param)
 
-    xmass_torso = mr_torso * np.cos(param)
-    ymass_torso = mr_torso * np.sin(param)
+        xmass_torso = mr_torso * np.cos(param)
+        ymass_torso = mr_torso * np.sin(param)
 
-    leg1_color = 'green'  # Color for leg one
-    leg1, = ax.plot([pFoot1[0], pH[0]], [pFoot1[1], pH[1]], color='g', linewidth=2)
-    mass1_x = xmass_legs + (pH[0] - pFoot1[0]) / 2
-    mass1_y = ymass_legs + (pH[1] - pFoot1[1]) / 2
-    mass1 = Polygon(np.column_stack((mass1_x, mass1_y)), closed=True, color=leg1_color)
-    ax.add_patch(mass1)
+        leg1_color = 'green'  # Color for leg one
+        leg1, = ax.plot([pFoot1[0], pH[0]], [pFoot1[1], pH[1]], color='g', linewidth=2)
+        mass1_x = xmass_legs + (pH[0] - pFoot1[0]) / 2
+        mass1_y = ymass_legs + (pH[1] - pFoot1[1]) / 2
+        mass1 = Polygon(np.column_stack((mass1_x, mass1_y)), closed=True, color=leg1_color)
+        ax.add_patch(mass1)
 
-    # Draw leg two
-    leg2_color = 'red'  # Color for leg two
-    leg2, = ax.plot([pFoot2[0], pH[0]], [pFoot2[1], pH[1]], color='r', linewidth=2)
-    mass2_x = xmass_legs + pH[0] - (pH[0] - pFoot2[0]) / 2
-    mass2_y = ymass_legs + pH[1] - (pH[1] - pFoot2[1]) / 2
-    mass2 = Polygon(np.column_stack((mass2_x, mass2_y)), closed=True, color=leg2_color)
-    ax.add_patch(mass2)
+        # Draw leg two
+        leg2_color = 'red'  # Color for leg two
+        leg2, = ax.plot([pFoot2[0], pH[0]], [pFoot2[1], pH[1]], color='r', linewidth=2)
+        mass2_x = xmass_legs + pH[0] - (pH[0] - pFoot2[0]) / 2
+        mass2_y = ymass_legs + pH[1] - (pH[1] - pFoot2[1]) / 2
+        mass2 = Polygon(np.column_stack((mass2_x, mass2_y)), closed=True, color=leg2_color)
+        ax.add_patch(mass2)
 
-    # Draw torso
-    torso_color = 'blue' 
-    torso, = ax.plot([pH[0], pT[0]], [pH[1], pT[1]], color='b', linewidth=2)
-    # Add torso mass
-    mass_torso_x = xmass_torso + pT[0]
-    mass_torso_y = ymass_torso + pT[1]
-    torso_mass = Polygon(np.column_stack((mass_torso_x, mass_torso_y)), closed=True, color=torso_color)
-    ax.add_patch(torso_mass)
+        # Draw torso
+        torso_color = 'blue' 
+        torso, = ax.plot([pH[0], pT[0]], [pH[1], pT[1]], color='b', linewidth=2)
+        # Add torso mass
+        mass_torso_x = xmass_torso + pT[0]
+        mass_torso_y = ymass_torso + pT[1]
+        torso_mass = Polygon(np.column_stack((mass_torso_x, mass_torso_y)), closed=True, color=torso_color)
+        ax.add_patch(torso_mass)
 
-    # Animation loop
-    for k in range(1, n):
-        q = xe[k, :3]
-        pFoot1, pFoot2, pH, pT = limb_position(q, pH_horiz[k])
+        # Animation loop
+        for k in range(1, n):
+            q = xe[k, :3]
+            pFoot1, pFoot2, pH, pT = limb_position(q, pH_horiz[k])
 
-        # Update positions
-        leg1.set_data([pFoot1[0], pH[0]], [pFoot1[1], pH[1]])
-        mass1.set_xy(np.array([(pH[0] - pFoot1[0]) / 2 + pH_horiz[k][0], (pH[1] - pFoot1[1]) / 2]).reshape((-1, 2)))
+            # Update positions
+            leg1.set_data([pFoot1[0], pH[0]], [pFoot1[1], pH[1]])
+            mass1.set_xy(np.array([(pH[0] - pFoot1[0]) / 2 + pH_horiz[k][0], (pH[1] - pFoot1[1]) / 2]).reshape((-1, 2)))
 
-        leg2.set_data([pFoot2[0], pH[0]], [pFoot2[1], pH[1]])
-        mass2.set_xy(np.array([pH[0] - (pH[0] - pFoot2[0]) / 2, pH[1] - (pH[1] - pFoot2[1]) / 2]).reshape((-1,2)))
+            leg2.set_data([pFoot2[0], pH[0]], [pFoot2[1], pH[1]])
+            mass2.set_xy(np.array([pH[0] - (pH[0] - pFoot2[0]) / 2, pH[1] - (pH[1] - pFoot2[1]) / 2]).reshape((-1,2)))
 
-        torso.set_data([pH[0], pT[0]], [pH[1], pT[1]])
-        torso_mass.set_xy(np.array([pT[0], pT[1]]).reshape((-1,2)))
+            torso.set_data([pH[0], pT[0]], [pH[1], pT[1]])
+            torso_mass.set_xy(np.array([pT[0], pT[1]]).reshape((-1,2)))
 
-        # Update axis and labels
-        plt.xlim(-2.2 + pH[0], 2.2 + pH[0])
+            # Update axis and labels
+            plt.xlim(-2.2 + pH[0], 2.2 + pH[0])
 
-        for j, (label, tick) in enumerate(zip(ref_label, ref_tick)):
-            if j - buffer - 1.05 < ax.get_xlim()[0] or j - buffer - 1 > ax.get_xlim()[1]:
-                label.set_visible(False)
-                tick.set_visible(False)
-            else:
-                label.set_visible(True)
-                tick.set_visible(True)
+            for j, (label, tick) in enumerate(zip(ref_label, ref_tick)):
+                if j - buffer - 1.05 < ax.get_xlim()[0] or j - buffer - 1 > ax.get_xlim()[1]:
+                    label.set_visible(False)
+                    tick.set_visible(False)
+                else:
+                    label.set_visible(True)
+                    tick.set_visible(True)
 
-        plt.title(f"T_est = {te[k]:.1f}")
+            plt.title(f"T_est = {te[k]:.1f}")
 
-        plt.draw()
-        plt.pause(ts * speed)
+            plt.draw()
+            plt.pause(ts * speed)
 
-    plt.show()
+        plt.show()
+    
     
     
 def events(t, x):

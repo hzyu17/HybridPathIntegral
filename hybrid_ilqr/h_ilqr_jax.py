@@ -39,7 +39,7 @@ class hybrid_ilqr_jax:
                  terminal_cost,
                  terminal_cost_args):
         
-        self._init_mode = 0
+        self._init_mode = 1
 
         self._nx = nstates
         self._nu = ninputs
@@ -47,6 +47,7 @@ class hybrid_ilqr_jax:
         self._initstate = init_state
         self._tarstate = target_state
         self._inputs = initial_guess
+        self._initial_guess = initial_guess
         self._verbose = is_detect
         
         # time definitions
@@ -120,7 +121,16 @@ class hybrid_ilqr_jax:
         return inputs
     
     def rollout(self):        
-
+        
+        fig = plt.figure()
+        plt.subplot(1, 1, 1)
+        plt.plot(self._timespan, self._inputs[0][:,0], label=r'$u_0 mode 0$')
+        plt.legend(loc="best", fontsize=10)
+        plt.title('Initial Control GUess')
+        plt.xlabel('Time (sec)')
+        plt.grid()
+        plt.show()
+        
         (timespan,modes,states,inputs,
          saltations,mode_changes,event_info) = self.forward_pass(self._timespan,
                                                                     self._modes,
@@ -136,16 +146,35 @@ class hybrid_ilqr_jax:
         fig1 = plt.figure(figsize=(16, 9))
         inputs_whole = self.desamble_control(modes, inputs)
         plot_3link_states(timespan, states, inputs_whole)
+        
+        plt.subplot(3, 4, 9)
+        plt.plot(timespan, modes, label=r'$mode$')
+        plt.legend(loc="best", fontsize=10)
+        plt.title('Mode')
+        plt.xlabel('Time (sec)')
+        plt.grid()
+        
+        plt.subplot(3, 4, 10)
+        plt.plot(timespan, self._initial_guess[0][:,0], label=r'$u_0 mode 0$')
+        plt.plot(timespan, self._initial_guess[0][:,1], label=r'$u_1 mode 1$')
+        plt.legend(loc="best", fontsize=10)
+        plt.title('Initial Control GUess')
+        plt.xlabel('Time (sec)')
+        plt.grid()
+        
+        # fig, ax = plt.subplots()
+        anim(timespan, states, 1/30, speed=1, fig=fig1, loop=5)
+        
         plt.show()
 
-        fig, ax = plt.subplots()
-        states_arr = np.array(states)
+        # fig, ax = plt.subplots()
+        # states_arr = np.array(states)
         
-        ax.plot(states_arr[:,0], label='x_0')
-        ax.plot(states_arr[:,1], label='x_1')
-        ax.plot(states_arr[:,2], label='x_2')
+        # ax.plot(states_arr[:,0], label='x_0')
+        # ax.plot(states_arr[:,1], label='x_1')
+        # ax.plot(states_arr[:,2], label='x_2')
         
-        ax.legend()
+        # ax.legend()
         
         plt.show()
         
@@ -459,11 +488,11 @@ class hybrid_ilqr_jax:
                 
                 inputs[mode_change[1]] = np.concatenate(
                     (np.concatenate(
-                        (inputs[mode_change[1]][:ii+1], np.zeros(self._nu[mode_change[1]]).reshape(1,-1))), inputs[mode_change[1]][ii+1:]))
+                        (inputs[mode_change[1]][:ii+1], u_i.reshape(1,-1))), inputs[mode_change[1]][ii+1:]))
 
                 inputs[mode_change[0]] = np.concatenate(
                     (np.concatenate(
-                        (inputs[mode_change[0]][:ii+1], np.zeros(self._nu[mode_change[0]]).reshape(1,-1))), inputs[mode_change[0]][ii+1:]))
+                        (inputs[mode_change[0]][:ii+1], u_i.reshape(1,-1))), inputs[mode_change[0]][ii+1:]))
                 
                 inputs[mode_change[0]][ii] = u_i.flatten()
 
@@ -477,10 +506,10 @@ class hybrid_ilqr_jax:
                 
             # Only consider the transition from mode 0 to mode 1 for now
             if (mode_change[0]!=mode_change[1]):
-                # if self._verbose:
-                #     print(f"At Time {ii}, the system has a mode change from mode {mode_change[0]} to mode {mode_change[1]}")
+                if self._verbose:
+                    print(f"At Time {ii}, the system has a mode change from mode {mode_change[0]} to mode {mode_change[1]}")
                 # event_args.append(reset_byproduct)
-                event_args = reset_byproduct
+                # event_args = reset_byproduct
                 cnt_event += 1
                 
             # ---------------------
@@ -505,10 +534,7 @@ class hybrid_ilqr_jax:
         print("--------------------- Starting initial rollout ---------------------")
         [timespan,modes,states,inputs,saltations,modechanges,event_info] = self.rollout()
         
-        fig, ax = plt.subplots()
-        
-        anim(timespan, states, 1/30, speed=1, fig=fig)
-        
+            
         # compute reference extensions
         print("------ Computing the reference trajectory extensions ------")
         self._refext_helper = compute_trejactory_extension(event_info, 

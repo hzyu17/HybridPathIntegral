@@ -89,21 +89,6 @@ if __name__ == '__main__':
         plt.xlabel('Time (sec)')
         plt.grid()
         
-        # Force
-        force = np.asarray(force)
-        ax1 = plt.subplot(3, 4, 9)
-        ax1.plot(t_2, force[:, 0], '-b', label=r'$F_{tan}, (N)$') 
-        ax1.plot(t_2, force[:, 1], '--r', label=r'$F_{norm}, (N)$') 
-        ax1.legend(loc='best')
-        ax1.grid(True)
-        ax1.set_title('Forces on End of Stance Leg')
-
-        ax2 = plt.subplot(3, 4, 10)
-        ax2.plot(t_2, force[:, 0] / force[:, 1])
-        ax2.set_ylabel(r'$F_{tan} / F_{norm}$')  
-        ax2.set_xlabel('time (sec)') 
-        ax2.grid(True)  
-        
         # 2D limit cycle plot
         plt.subplot(3, 4, 11)
         plt.plot(xout[:, 0], xout[:, 1], linewidth=2)
@@ -144,11 +129,9 @@ if __name__ == '__main__':
     # generate initial state
     omega_1 = 1.55
     init_state = sigma_three_link(omega_1, a)
-    init_state = resetmap_3link_21(0.0,init_state)[0].T
+    init_state = resetmap_3link_12(0.0,init_state)[0].T
 
     target_state = init_state  # A limit cycle hopes to go back to the initial state
-    
-    init_mode = 0
 
     # Number of modes: 2
     n_modes = 2
@@ -164,7 +147,6 @@ if __name__ == '__main__':
     R_k = [np.eye(n_inputs[0]), np.eye(n_inputs[1])]
 
     # ---------------------------- Set the terminal cost ----------------------------
-    target_mode = 0 # try to return to the same state on the limit cycle?
     Q_T = 200*np.eye(n_states[0])
     # Q_T[0,0] = 2000.0
 
@@ -175,10 +157,19 @@ if __name__ == '__main__':
     target_reset_args = [np.array([0.0]) for _ in range(nt)]
     
     # ====================================
-    #   Solve for hybrid ilqr proposal
+    #    Solve for hybrid ilqr proposal
     # ====================================
     
     initial_guess = [uout, uout]
+    
+    # fig = plt.figure()
+    # plt.subplot(1, 1, 1)
+    # plt.plot(tout, uout[:,0], label=r'$u_0 mode 0$')
+    # plt.legend(loc="best", fontsize=10)
+    # plt.title('Initial Control GUess')
+    # plt.xlabel('Time (sec)')
+    # plt.grid()
+    # plt.show()
     
     smooth_flow = dyn_control_3link_discrete_jax
     
@@ -199,8 +190,7 @@ if __name__ == '__main__':
                                 running_cost=hip_moving_cost, 
                                 cost_args=running_cost_arg,
                                 terminal_cost=deltx_norm_cost, 
-                                terminal_cost_args=target_state
-                                )
+                                terminal_cost_args=target_state)
     
     hybrid_ilqr_result = hilqr_obj.solve()
     
