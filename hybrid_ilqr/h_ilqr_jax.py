@@ -122,14 +122,14 @@ class hybrid_ilqr_jax:
     
     def rollout(self):        
         
-        fig = plt.figure()
-        plt.subplot(1, 1, 1)
-        plt.plot(self._timespan, self._inputs[0][:,0], label=r'$u_0 mode 0$')
-        plt.legend(loc="best", fontsize=10)
-        plt.title('Initial Control GUess')
-        plt.xlabel('Time (sec)')
-        plt.grid()
-        plt.show()
+        # fig = plt.figure()
+        # plt.subplot(1, 1, 1)
+        # plt.plot(self._timespan, self._inputs[0][:,0], label=r'$u_0 mode 0$')
+        # plt.legend(loc="best", fontsize=10)
+        # plt.title('Initial Control GUess')
+        # plt.xlabel('Time (sec)')
+        # plt.grid()
+        # plt.show()
         
         (timespan,modes,states,inputs,
          saltations,mode_changes,event_info) = self.forward_pass(self._timespan,
@@ -140,9 +140,7 @@ class hybrid_ilqr_jax:
                                                                     use_feedback=False, 
                                                                     learning_rate=1, 
                                                                     check_modemismatch=False)
-        
-        
-        
+                
         fig1 = plt.figure(figsize=(16, 9))
         inputs_whole = self.desamble_control(modes, inputs)
         plot_3link_states(timespan, states, inputs_whole)
@@ -162,8 +160,10 @@ class hybrid_ilqr_jax:
         plt.xlabel('Time (sec)')
         plt.grid()
         
+        plt.tight_layout()
+        
         # fig, ax = plt.subplots()
-        anim(timespan, states, 1/30, speed=1, fig=fig1, loop=5)
+        anim(timespan, states, 1/30, speed=1, loop=5)
         
         plt.show()
 
@@ -176,7 +176,7 @@ class hybrid_ilqr_jax:
         
         # ax.legend()
         
-        plt.show()
+        # plt.show()
         
         return (timespan, modes, states, inputs, saltations, mode_changes, event_info)
 
@@ -345,19 +345,18 @@ class hybrid_ilqr_jax:
         hybrid_index = set()
         event_info = {} # The dictionary that stores all the information of the jump dynamics and states.
         
-           
         # -------------------------------
         # Current rollout hybrid events 
         # -------------------------------
         cnt_event = 0
         hybrid_index_ref = 0
         
-        fig, ax = plt.subplots()
+        # fig, ax = plt.subplots()
         
-        ax.plot(inputs[0][:, 0], label='mode 0 u_1')
-        ax.plot(inputs[1][:, 0], label='mode 1 u_1')
+        # ax.plot(inputs[0][:, 0], label='mode 0 u_1')
+        # ax.plot(inputs[1][:, 0], label='mode 1 u_1')
         
-        ax.legend()
+        # ax.legend()
         
         # plt.show()
         
@@ -381,11 +380,10 @@ class hybrid_ilqr_jax:
                 #     for i_bounce in range(len(v_ext_bwd)):
                 #         print(f"bounce {i_bounce}: From mode {v_modechg_ref[i_bounce][0]} to mode {v_modechg_ref[i_bounce][1]} at time {v_tevents_ref[i_bounce]}")
                 #     print("------------------------------------------------")
-                        
+
         else:
             K_fb_ext = self._K_fb_ext
             k_ff_ext = self._k_ff_ext
-        
         
         for ii in range(nt-1):
             

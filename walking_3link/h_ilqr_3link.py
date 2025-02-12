@@ -19,7 +19,14 @@ from experiments.exp_params import *
 
 if __name__ == '__main__':
     # ---------------- solve for the nominals -----------------
-    tout, xout, uout, t_events, x_events, saltations = solve_limcycle_3link()
+    tout, xout, uout, t_finegrain, x_finegrain, u_finegrain, t_events, x_events, saltations = solve_limcycle_3link(n_steps=2)
+        
+    t_zeros = np.where(np.array(t_finegrain)==0)
+    t_zeros = np.concatenate((t_zeros[0], np.array([len(t_finegrain)])))
+    
+    for jj, j_zeros in enumerate(t_zeros):
+        if jj > 0 and jj < len(t_zeros)-1:
+            t_finegrain[j_zeros:t_zeros[jj+1]] += t_finegrain[j_zeros-1]
     
     show_nominals = False
     if show_nominals:
@@ -118,6 +125,8 @@ if __name__ == '__main__':
     epsilon = 2.0
     dt_shrink = 0.95
     
+    t_finegrain = np.array(t_finegrain)
+    
     time_span = tout
     
     start_time = tout[0]
@@ -160,7 +169,7 @@ if __name__ == '__main__':
     #    Solve for hybrid ilqr proposal
     # ====================================
     
-    initial_guess = [uout, uout]
+    initial_guess = [np.array(uout), np.array(uout)]
     
     # fig = plt.figure()
     # plt.subplot(1, 1, 1)

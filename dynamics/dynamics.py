@@ -188,7 +188,7 @@ def event_detect_onestep(x0, u, t0, tf, current_mode,
         tuple: Containing the next state and contact information if a hybrid event happens.
     """
     # Define the dynamics using the integration
-    nt = 100
+    nt = 10000
     
     current_dyn = smooth_dynamics[current_mode]
         
@@ -220,7 +220,8 @@ def event_detect_onestep(x0, u, t0, tf, current_mode,
     
     if detection:
         solution = scipy.integrate.solve_ivp(fun=dyn_fun, 
-                                            t_span=t_span, y0=x0, method='RK45', 
+                                            t_span=t_span, y0=x0, 
+                                            # method='RK23', 
                                             t_eval=t_eval, dense_output=True, 
                                             events=current_guard, vectorized=False)
         
