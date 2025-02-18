@@ -1256,7 +1256,9 @@ def demo():
 
     global t_2, u_finegrain, y, force, t_finegrain, x_finegrain
 
-    tout, xout, uout, t_finegrain, x_finegrain, u_finegrain, t_events, x_events, saltations = solve_limcycle_3link()
+    (tout, xout, uout, 
+     t_finegrain, x_finegrain, u_finegrain, 
+     t_events, x_events, saltations) = solve_limcycle_3link()
     
     t_zeros = np.where(np.array(t_finegrain)==0)
     t_zeros = np.concatenate((t_zeros[0], np.array([len(t_finegrain)])))
