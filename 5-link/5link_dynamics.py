@@ -1,4 +1,9 @@
 import jax.numpy as jnp
+import jax
+
+import matplotlib.pyplot as plt
+from matplotlib.patches import Patch, Polygon
+from matplotlib.lines import Line2D
 
 # param_list = {'g','p(0)';
 # 	'L_torso','p(1)'; 'L_fem','p(2)'; 'L_tib','p(3)';
@@ -435,6 +440,126 @@ def G_vector(q, params):
     return G
 
 
+def pos_hip(q, params):
+    """
+    Compute the position of the hip joint in the global frame.
+
+    Inputs:
+      q      : a length-5 JAX array.
+      params : a JAX array containing the parameters.
+      [g, L_torso, L_fem, L_tib, M_torso, M_fem, M_tib,
+       MY_torso, MZ_torso, MZ_fem, MZ_tib, XX_torso, XX_fem, XX_tib]
+               
+    Returns:
+      pos_hip : a 2x1 JAX array representing the position of the hip joint.
+    """
+    
+    q_fem1  = q[0]
+    q_tib1  = q[2];
+    
+    L_fem, L_tib = params[2], params[3]
+    
+    pos_hip  = jnp.array([[L_fem*jnp.sin(q_fem1) + L_tib*jnp.sin(q_tib1)],
+                     [-L_fem*jnp.cos(q_fem1) - L_tib*jnp.cos(q_tib1)]])
+    
+    return pos_hip
+
+
+def limb_positions(x, params):
+    """
+    Compute the position of the limbs in the global frame.
+
+    Inputs:
+      x      : a length-10 JAX array. x = [q,dq]
+      q = [q_fem1, q_fem2, q_tib1, q_tib2, q_torso].
+      
+      params : a JAX array containing the parameters.
+      params = [g, L_torso, L_fem, L_tib, M_torso, M_fem, M_tib,
+       MY_torso, MZ_torso, MZ_fem, MZ_tib, XX_torso, XX_fem, XX_tib]
+               
+    Returns:
+      pos_knee1: the positions of the knee1 joint.
+    """
+    q = x[0:5]
+    
+    q_fem1  = q[0]    
+    q_fem2  = q[1]  
+    q_tib1  = q[2]
+    q_tib2  = q[3]
+    q_torso = q[4]
+    
+    L_torso = params[1]
+    L_fem = params[2]
+    L_tib = params[3]
+    
+    p_hip  = pos_hip(q, params)
+    
+    p_knee1 = p_hip + jnp.array([[-L_fem*jnp.sin(q_fem1)],
+                                 [L_fem*jnp.cos(q_fem1)]])
+    
+    p_knee2 = p_hip + jnp.array([[-L_fem*jnp.sin(q_fem2)],
+                                 [L_fem*jnp.cos(q_fem2)]])
+    
+    p_tib2 = p_knee2 + jnp.array([[-L_tib*jnp.sin(q_tib2)],
+                                  [L_tib*jnp.cos(q_tib2)]])
+    
+    return p_hip, p_knee1, p_knee2, p_tib2
+
+
+def vel_hip(x, params):
+    q, dq = x[0:5], x[5:10]
+    p_hip = pos_hip(q, params)
+    
+    v_hip = jax.jacobian(p_hip, q) @ dq
+
+    return v_hip
+
+
+def draw_5link(x, params):
+    """Draw the 5-link biped model in the given configuration.
+       Assuming here the stance foot is at the origin.
+    Args:
+        x (jax.array): x=[q,dq]
+        params (list): parameters of the model
+    """
+    fig, ax = plt.subplots()
+    
+    q, dq = x[0:5], x[5:10]
+    
+    # Draw ground
+    buffer = 5
+    ground = Line2D([-buffer, buffer], [0, 0], color='k', linewidth=2)
+    ax.add_line(ground)
+    
+    p_hip, p_knee1, p_knee2, p_tib2 = limb_positions(x, params)
+    
+    # Draw fem 1
+    fem1, = ax.plot([p_knee1[0], p_hip[0]], [p_knee1[1], p_hip[1]], color='r', linewidth=2, label='femur 1')
+
+    # Draw fem 2
+    fem2, = ax.plot([p_knee2[0], p_hip[0]], [p_knee2[1], p_hip[1]], color='g', linewidth=2, label='femur 2')
+
+    # Draw tib 1
+    tib1, = ax.plot([p_knee1[0], jnp.array([0])], [p_knee1[1], jnp.array([0])], color='b', linewidth=2, label='tib 1')
+    
+    # Draw tib 2
+    tib2, = ax.plot([p_knee2[0], p_tib2[0]], [p_knee2[1], p_tib2[1]], color='c', linewidth=2, label='tib 2')
+    
+    # Draw torso
+    L_torso = params[1]
+    q_torso = q[4]
+    p_torso_tip = p_hip + jnp.array([[-L_torso*jnp.sin(q_torso)],
+                                     [L_torso*jnp.cos(q_torso)]])
+    torso, = ax.plot([p_hip[0], p_torso_tip[0]], [p_hip[1], p_torso_tip[1]], color='k', linewidth=2, label='torso')
+    
+    ax.set_xlim(-2, 2)
+    ax.set_ylim(-0.5, 2)
+    ax.legend()
+    
+    plt.draw()
+    plt.show()
+    
+
 if __name__ == '__main__':
     g = 9.81
     L_torso = 0.63
@@ -453,4 +578,12 @@ if __name__ == '__main__':
     XX_fem = 0.47
     XX_tib = 0.2
     
+    params = [g, L_torso, L_fem, L_tib, M_torso, M_fem, M_tib,
+              MY_torso, MZ_torso, MZ_fem, MZ_tib, XX_torso, XX_fem, XX_tib]
     
+    q = jnp.array([200, 160, 170, 170, -30])/180*jnp.pi
+    dq = jnp.array([0.0, 0.0, 0.0, 0.0, 0.0])
+    
+    x = jnp.concatenate([q, dq])    
+    
+    draw_5link(x, params)
