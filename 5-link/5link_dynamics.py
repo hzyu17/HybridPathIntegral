@@ -445,12 +445,230 @@ def G_vector(q, params):
     return G
 
 
+def De_matrix(q, params):
+    """
+    Compute the 7x7 matrix De given q and params.
+    
+    Inputs:
+      q      : a length-5 JAX array, RELATIVE joint angles of the 5 links.
+      params : a JAX array of parameters.
+               
+    Returns:
+      De : a 7x7 JAX array.
+    """
+    p = params  # shorthand
+        
+    # Row 1:
+    De11 = ( p[12] + p[13]
+             + 2*(p[2]**2)*p[5] + (p[2]**2)*p[6]
+             + 2*(p[3]**2)*p[5] + (p[2]**2)*p[4]
+             + 2*(p[3]**2)*p[6] + (p[3]**2)*p[4]
+             - 2*p[2]*p[9] - 2*p[3]*p[10]
+             + 2*p[3]*p[9]*jnp.cos(q[2] - 2*q[0] + q[4])
+             - 4*p[2]*p[3]*p[5]*jnp.cos(q[2] - 2*q[0] + q[4])
+             - 2*p[2]*p[3]*p[6]*jnp.cos(q[2] - 2*q[0] + q[4])
+             - 2*p[2]*p[3]*p[4]*jnp.cos(q[2] - 2*q[0] + q[4])
+           )
+    
+    De12 = ( p[2]*p[10]*jnp.cos(q[0]+q[1]-q[3]-q[4])
+             - p[3]*p[10]*jnp.cos(q[0]-q[1]-q[2]+q[3])
+             + p[3]*p[9]*jnp.cos(q[0]+q[1]-q[2]-q[4])
+             - (p[2]**2)*p[6]*jnp.cos(q[0]-q[1])
+             - p[2]*p[9]*jnp.cos(q[0]-q[1])
+             + p[2]*p[3]*p[6]*jnp.cos(q[0]+q[1]-q[2]-q[4])
+           )
+    
+    De13 = ( 2*p[3]*p[10]
+             - 2*(p[3]**2)*p[5]
+             - 2*(p[3]**2)*p[6]
+             - (p[3]**2)*p[4]
+             - p[13]
+             - p[3]*p[9]*jnp.cos(q[2]-2*q[0]+q[4])
+             + 2*p[2]*p[3]*p[5]*jnp.cos(q[2]-2*q[0]+q[4])
+             + p[2]*p[3]*p[6]*jnp.cos(q[2]-2*q[0]+q[4])
+             + p[2]*p[3]*p[4]*jnp.cos(q[2]-2*q[0]+q[4])
+           )
+    
+    De14 = p[10]*( p[3]*jnp.cos(q[0]-q[1]-q[2]+q[3])
+                   - p[2]*jnp.cos(q[0]+q[1]-q[3]-q[4]) )
+    
+    De15 = ( 2*p[2]*p[9]
+             - 2*(p[2]**2)*p[5]
+             - (p[2]**2)*p[6]
+             - (p[2]**2)*p[4]
+             - p[12]
+             + p[2]*p[7]*jnp.sin(q[0]-2*q[4])
+             - p[3]*p[9]*jnp.cos(q[0]+q[1]-q[2]-q[4])
+             + (p[2]**2)*p[6]*jnp.cos(q[0]-q[1])
+             - p[3]*p[9]*jnp.cos(q[2]-2*q[0]+q[4])
+             + p[3]*p[8]*jnp.cos(q[0]-q[2]+q[4])
+             + p[3]*p[7]*jnp.sin(q[0]-q[2]+q[4])
+             + p[2]*p[9]*jnp.cos(q[0]-q[1])
+             - p[2]*p[8]*jnp.cos(q[0]-2*q[4])
+             - p[2]*p[3]*p[6]*jnp.cos(q[0]+q[1]-q[2]-q[4])
+             + 2*p[2]*p[3]*p[5]*jnp.cos(q[2]-2*q[0]+q[4])
+             + p[2]*p[3]*p[6]*jnp.cos(q[2]-2*q[0]+q[4])
+             + p[2]*p[3]*p[4]*jnp.cos(q[2]-2*q[0]+q[4])
+           )
+    
+    De16 = ( p[10]*jnp.cos(q[0]-q[2])
+             - p[9]*jnp.cos(q[0]-q[4])
+             - 2*p[3]*p[5]*jnp.cos(q[0]-q[2])
+             - 2*p[3]*p[6]*jnp.cos(q[0]-q[2])
+             - p[3]*p[4]*jnp.cos(q[0]-q[2])
+             + 2*p[2]*p[5]*jnp.cos(q[0]-q[4])
+             + p[2]*p[6]*jnp.cos(q[0]-q[4])
+             + p[2]*p[4]*jnp.cos(q[0]-q[4])
+           )
+    
+    De17 = ( 2*p[3]*p[5]*jnp.sin(q[0]-q[2])
+             - p[9]*jnp.sin(q[0]-q[4])
+             - p[10]*jnp.sin(q[0]-q[2])
+             + 2*p[3]*p[6]*jnp.sin(q[0]-q[2])
+             + p[3]*p[4]*jnp.sin(q[0]-q[2])
+             + 2*p[2]*p[5]*jnp.sin(q[0]-q[4])
+             + p[2]*p[6]*jnp.sin(q[0]-q[4])
+             + p[2]*p[4]*jnp.sin(q[0]-q[4])
+           )
+    
+    # Row 2:
+    De21 = De12
+    De22 = p[12] + p[13] + (p[2]**2)*p[6] - 2*p[2]*p[10]*jnp.cos(q[3]-2*q[1]+q[4])
+    De23 = ( p[3]*p[10]*jnp.cos(q[0]-q[1]-q[2]+q[3])
+             - p[3]*p[9]*jnp.cos(q[0]+q[1]-q[2]-q[4])
+             - p[2]*p[3]*p[6]*jnp.cos(q[0]+q[1]-q[2]-q[4])
+           )
+    De24 = p[2]*p[10]*jnp.cos(q[3]-2*q[1]+q[4]) - p[13]
+    De25 = ( (p[2]**2)*p[6]*jnp.cos(q[0]-q[1])
+             - (p[2]**2)*p[6]
+             - p[2]*p[10]*jnp.cos(q[0]+q[1]-q[3]-q[4])
+             - p[12]
+             + p[2]*p[10]*jnp.cos(q[3]-2*q[1]+q[4])
+             + p[2]*p[9]*jnp.cos(q[0]-q[1])
+           )
+    De26 = p[10]*jnp.cos(q[1]-q[3]) - p[9]*jnp.cos(q[1]-q[4]) - p[2]*p[6]*jnp.cos(q[1]-q[4])
+    De27 = - p[10]*jnp.sin(q[1]-q[3]) - p[9]*jnp.sin(q[1]-q[4]) - p[2]*p[6]*jnp.sin(q[1]-q[4])
+    
+    # Row 3:
+    De31 = De13
+    De32 = De23
+    De33 = p[13] + 2*(p[3]**2)*p[5] + 2*(p[3]**2)*p[6] + (p[3]**2)*p[4] - 2*p[3]*p[10]
+    De34 = - p[3]*p[10]*jnp.cos(q[0]-q[1]-q[2]+q[3])
+    De35 = ( p[3]*p[9]*jnp.cos(q[0]+q[1]-q[2]-q[4])
+             + p[3]*p[9]*jnp.cos(q[2]-2*q[0]+q[4])
+             - p[3]*p[8]*jnp.cos(q[0]-q[2]+q[4])
+             - p[3]*p[7]*jnp.sin(q[0]-q[2]+q[4])
+             + p[2]*p[3]*p[6]*jnp.cos(q[0]+q[1]-q[2]-q[4])
+             - 2*p[2]*p[3]*p[5]*jnp.cos(q[2]-2*q[0]+q[4])
+             - p[2]*p[3]*p[6]*jnp.cos(q[2]-2*q[0]+q[4])
+             - p[2]*p[3]*p[4]*jnp.cos(q[2]-2*q[0]+q[4])
+           )
+    De36 = jnp.cos(q[0]-q[2])*(2*p[3]*p[5] - p[10] + 2*p[3]*p[6] + p[3]*p[4])
+    De37 = - jnp.sin(q[0]-q[2])*(2*p[3]*p[5] - p[10] + 2*p[3]*p[6] + p[3]*p[4])
+    
+    # Row 4:
+    De41 = p[10]*( p[3]*jnp.cos(q[0]-q[1]-q[2]+q[3]) - p[2]*jnp.cos(q[0]+q[1]-q[3]-q[4]) )
+    De42 = p[2]*p[10]*jnp.cos(q[3]-2*q[1]+q[4]) - p[13]
+    De43 = - p[3]*p[10]*jnp.cos(q[0]-q[1]-q[2]+q[3])
+    De44 = p[13]
+    De45 = p[2]*p[10]*( jnp.cos(q[0]+q[1]-q[3]-q[4]) - jnp.cos(q[3]-2*q[1]+q[4]) )
+    De46 = - p[10]*jnp.cos(q[1]-q[3])
+    De47 = p[10]*jnp.sin(q[1]-q[3])
+    
+    # Row 5:
+    De51 = De15
+    De52 = ( (p[2]**2)*p[6]*jnp.cos(q[0]-q[1])
+             - (p[2]**2)*p[6]
+             - p[2]*p[10]*jnp.cos(q[0]+q[1]-q[3]-q[4])
+             - p[12]
+             + p[2]*p[10]*jnp.cos(q[3]-2*q[1]+q[4])
+             + p[2]*p[9]*jnp.cos(q[0]-q[1])
+           )
+    De53 = ( p[3]*p[9]*jnp.cos(q[0]+q[1]-q[2]-q[4])
+             + p[3]*p[9]*jnp.cos(q[2]-2*q[0]+q[4])
+             - p[3]*p[8]*jnp.cos(q[0]-q[2]+q[4])
+             - p[3]*p[7]*jnp.sin(q[0]-q[2]+q[4])
+             + p[2]*p[3]*p[6]*jnp.cos(q[0]+q[1]-q[2]-q[4])
+             - 2*p[2]*p[3]*p[5]*jnp.cos(q[2]-2*q[0]+q[4])
+             - p[2]*p[3]*p[6]*jnp.cos(q[2]-2*q[0]+q[4])
+             - p[2]*p[3]*p[4]*jnp.cos(q[2]-2*q[0]+q[4])
+           )
+    De54 = p[2]*p[10]*( jnp.cos(q[0]+q[1]-q[3]-q[4]) - jnp.cos(q[3]-2*q[1]+q[4]) )
+    De55 = ( 2*p[12] + p[11]
+             + 2*(p[2]**2)*p[5] + 2*(p[2]**2)*p[6] + (p[2]**2)*p[4]
+             - 2*p[2]*p[9] - 2*p[2]*p[7]*jnp.sin(q[0]-2*q[4])
+             - 2*(p[2]**2)*p[6]*jnp.cos(q[0]-q[1]) - 2*p[2]*p[9]*jnp.cos(q[0]-q[1])
+             + 2*p[2]*p[8]*jnp.cos(q[0]-2*q[4])
+           )
+    De56 = ( p[9]*jnp.cos(q[0]-q[4])
+             - p[8]*jnp.cos(q[4])
+             - p[7]*jnp.sin(q[4])
+             - 0.5*p[6]*( p[2]*jnp.cos(q[0]-q[4]) - p[2]*jnp.cos(q[1]-q[4]) )
+             + p[9]*jnp.cos(q[1]-q[4])
+             - 2*p[2]*p[5]*jnp.cos(q[0]-q[4])
+             - p[2]*p[4]*jnp.cos(q[0]-q[4])
+           )
+    De57 = ( p[7]*jnp.cos(q[4])
+             - p[6]*( p[2]*jnp.sin(q[0]-q[4]) - p[2]*jnp.sin(q[1]-q[4]) )
+             - p[8]*jnp.sin(q[4])
+             + p[9]*jnp.sin(q[0]-q[4])
+             + p[9]*jnp.sin(q[1]-q[4])
+             - 2*p[2]*p[5]*jnp.sin(q[0]-q[4])
+             - p[2]*p[4]*jnp.sin(q[0]-q[4])
+           )
+    
+    # Row 6:
+    De61 = De16  # symmetric with (1,6)
+    De62 = p[10]*jnp.cos(q[1]-q[3]) - p[9]*jnp.cos(q[1]-q[4]) - p[2]*p[6]*jnp.cos(q[1]-q[4])
+    De63 = jnp.cos(q[0]-q[2])*(2*p[3]*p[5] - p[10] + 2*p[3]*p[6] + p[3]*p[4])
+    De64 = - p[10]*jnp.cos(q[1]-q[3])
+    De65 = ( p[9]*jnp.cos(q[0]-q[4])
+             - p[8]*jnp.cos(q[4])
+             - p[7]*jnp.sin(q[4])
+             - 0.5*p[6]*( p[2]*jnp.cos(q[0]-q[4]) - p[2]*jnp.cos(q[1]-q[4]) )
+             + p[9]*jnp.cos(q[1]-q[4])
+             - 2*p[2]*p[5]*jnp.cos(q[0]-q[4])
+             - p[2]*p[4]*jnp.cos(q[0]-q[4])
+           )
+    De66 = 2*p[5] + 2*p[6] + p[4]
+    De67 = 0.0
+    
+    # Row 7:
+    De71 = De17
+    De72 = - p[10]*jnp.sin(q[1]-q[3]) - p[9]*jnp.sin(q[1]-q[4]) - p[2]*p[6]*jnp.sin(q[1]-q[4])
+    De73 = - jnp.sin(q[0]-q[2])*(2*p[3]*p[5] - p[10] + 2*p[3]*p[6] + p[3]*p[4])
+    De74 = p[10]*jnp.sin(q[1]-q[3])
+    De75 = ( p[7]*jnp.cos(q[4])
+             - 0.5*p[6]*( p[2]*jnp.sin(q[0]-q[4]) - p[2]*jnp.sin(q[1]-q[4]) )
+             - p[8]*jnp.sin(q[4])
+             + p[9]*jnp.sin(q[0]-q[4])
+             + p[9]*jnp.sin(q[1]-q[4])
+             - 2*p[2]*p[5]*jnp.sin(q[0]-q[4])
+             - p[2]*p[4]*jnp.sin(q[0]-q[4])
+           )
+    De76 = 0.0
+    De77 = 2*p[5] + 2*p[6] + p[4]
+    
+    # Assemble the 7x7 matrix row by row.
+    De = jnp.array([
+        [De11, De12, De13, De14, De15, De16, De17],
+        [De21, De22, De23, De24, De25, De26, De27],
+        [De31, De32, De33, De34, De35, De36, De37],
+        [De41, De42, De43, De44, De45, De46, De47],
+        [De51, De52, De53, De54, De55, De56, De57],
+        [De61, De62, De63, De64, De65, De66, De67],
+        [De71, De72, De73, De74, De75, De76, De77]
+    ])
+    
+    return De
+
+
 def pos_hip(q, params):
     """
     Compute the position of the hip joint in the global frame.
 
     Inputs:
-      q      : a length-5 JAX array.
+      q      : a length-5 JAX array. RELATIVE joint angles.
       params : a JAX array containing the parameters.
       [g, L_torso, L_fem, L_tib, M_torso, M_fem, M_tib,
        MY_torso, MZ_torso, MZ_fem, MZ_tib, XX_torso, XX_fem, XX_tib]
@@ -459,8 +677,18 @@ def pos_hip(q, params):
       p_hip : a 2x1 JAX array representing the position of the hip joint.
     """
     
-    q_fem1  = q[0]
-    q_tib1  = q[2];
+    T = jnp.array([
+        [1, 0, 0, 0, 1],
+        [0, 1, 0, 0, 1],
+        [1, 0, 1, 0, 1],
+        [0, 1, 0, 1, 1],
+        [0, 0, 0, 0, 1]
+    ])
+    
+    q_abs = T@q
+    
+    q_fem1  = q_abs[0]
+    q_tib1  = q_abs[2];
     
     L_fem, L_tib = params[2], params[3]
     
@@ -474,20 +702,29 @@ def limb_velocities(x, params):
   
     q, dq = x[0:5], x[5:10]
     
-    q_fem1  = q[0]
-    q_fem2  = q[1]
-    q_tib1  = q[2]
-    q_tib2  = q[3]
-    q_torso = q[4]  
+    T = jnp.array([
+        [1, 0, 0, 0, 1],
+        [0, 1, 0, 0, 1],
+        [1, 0, 1, 0, 1],
+        [0, 1, 0, 1, 1],
+        [0, 0, 0, 0, 1]
+    ])
     
-    dq_fem1  = dq[0]
-    dq_fem2  = dq[1]
-    dq_tib1  = dq[2]
-    dq_tib2  = dq[3]
-    dq_torso = dq[4]
+    q_abs = T@q
+    dq_abs = T@dq
     
-    p_hip, p_knee1, p_knee2, p_tib2 = limb_positions(x[0:5], params)
+    q_fem1  = q_abs[0]
+    q_fem2  = q_abs[1]
+    q_tib1  = q_abs[2]
+    q_tib2  = q_abs[3]
+    q_torso = q_abs[4]  
     
+    dq_fem1  = dq_abs[0]
+    dq_fem2  = dq_abs[1]
+    dq_tib1  = dq_abs[2]
+    dq_tib2  = dq_abs[3]
+    dq_torso = dq_abs[4]
+       
     pos_hip_partial = partial(pos_hip, params=params)
     pos_knee1_partial = partial(pos_knee1, params=params) 
     pos_knee2_partial = partial(pos_knee2, params=params)
@@ -525,7 +762,7 @@ def limb_positions(q, params):
     Compute the position of the limbs in the global frame.
 
     Inputs:
-      q = [q_fem1, q_fem2, q_tib1, q_tib2, q_torso].
+      q = [q_fem1, q_fem2, q_tib1, q_tib2, q_torso], RELATIVE joint angles.
       
       params : a JAX array containing the parameters.
       params = [g, L_torso, L_fem, L_tib, M_torso, M_fem, M_tib,
@@ -534,10 +771,20 @@ def limb_positions(q, params):
     Returns:
       pos_knee1: the positions of the knee1 joint.
     """
+    
+    T = jnp.array([
+        [1, 0, 0, 0, 1],
+        [0, 1, 0, 0, 1],
+        [1, 0, 1, 0, 1],
+        [0, 1, 0, 1, 1],
+        [0, 0, 0, 0, 1]
+    ])
+    
+    q_abs = T@q
 
-    q_fem1  = q[0]    
-    q_fem2  = q[1]  
-    q_tib2  = q[3]
+    q_fem1  = q_abs[0]    
+    q_fem2  = q_abs[1]  
+    q_tib2  = q_abs[3]
     
     L_fem = params[2]
     L_tib = params[3]
@@ -557,7 +804,8 @@ def limb_positions(q, params):
 
 
 def pos_knee1(q, params):
-    q_fem1  = q[0]    
+    q_abs = T@q
+    q_fem1  = q_abs[0]    
     
     L_fem = params[2]
     p_hip  = pos_hip(q, params)
@@ -568,7 +816,8 @@ def pos_knee1(q, params):
   
 
 def pos_knee2(q, params):
-    q_fem2  = q[1]    
+    q_abs = T@q
+    q_fem2  = q_abs[1]    
     
     L_fem = params[2]
     p_hip  = pos_hip(q, params)
@@ -576,6 +825,21 @@ def pos_knee2(q, params):
                                  [L_fem*jnp.cos(q_fem2)]])
     
     return p_knee2
+  
+  
+def pos_tib2(q, params):
+    q_abs = T@q
+    q_tib2  = q_abs[3]    
+    
+    L_fem = params[2]
+    L_tib = params[3]
+    p_hip  = pos_hip(q, params)
+    p_knee2 = p_hip + jnp.array([[-L_fem*jnp.sin(q[1])],
+                                 [L_fem*jnp.cos(q[1])]])
+    p_tib2 = p_knee2 + jnp.array([[-L_tib*jnp.sin(q_tib2)],
+                                  [L_tib*jnp.cos(q_tib2)]])
+    
+    return p_tib2.flatten()
   
 
 def vel_hip(x, params):
@@ -664,15 +928,52 @@ foot_touching_events.terminal = True
 foot_touching_events.direction = -1
 
 
-def resetmap_5link(x_event, params):
+def E_matrix(q_event, params):
+  # Compute E matrix
+  pos_tib2_partial = partial(pos_tib2, params=params)
+  first_part = jax.jacrev(pos_tib2_partial)(q_event)
+  second_part = jnp.eye(2)
+  
+  E = jnp.hstack([first_part, second_part])
+  
+  return E
 
+
+def resetmap_5link(x_event, params):
+    q_event = x_event[0:5]
+    
+    E2 = E_matrix(q_event, params)
+    De = De_matrix(q_event, params)
+    
+    # Solve for the transition using the equation from Grizzle's paper
+    A = jnp.block([[De, -E2.T], [E2, jnp.zeros((2, 2))]])
+    b = jnp.hstack([De @ jnp.hstack([x_event[5:10], [0, 0]]), [0, 0]])
+    tmp_vec = jnp.linalg.solve(A, b)
+
+    # Update state vector after impact
+    x_new = jnp.zeros(10)
+    
+    x_new = x_new.at[0].set(x_event[1])
+    x_new = x_new.at[1].set(x_event[0])
+    x_new = x_new.at[2].set(x_event[3])
+    x_new = x_new.at[3].set(x_event[2])
+    x_new = x_new.at[4].set(x_event[4])
+    
+    x_new = x_new.at[5].set(tmp_vec[1])
+    x_new = x_new.at[6].set(tmp_vec[0])
+    x_new = x_new.at[7].set(tmp_vec[3])
+    x_new = x_new.at[8].set(tmp_vec[2])
+    x_new = x_new.at[9].set(tmp_vec[4])
+    
+    return x_new
+  
 
 def integrate_fxgu(x0, params):
     print("Integrating the 5-link model with the given initial state.")
     tstart = 0.0
     tfinal = 0.2
     
-    num_t_eval = 200
+    num_t_eval = 100
     t_eval = np.linspace(tstart, tfinal, num_t_eval)
     t_span = [tstart, tfinal]
     
@@ -684,7 +985,12 @@ def integrate_fxgu(x0, params):
         'events': event_func
     }
     
-    u = np.array([0.3, 50.0, -5.0, 0.0])
+    # u0: The torque between hip and fem1
+    # u1: The torque between hip and fem2
+    # u2: The torque between fem1 and tib1
+    # u3: The torque between fem2 and tib2
+    
+    u = np.array([-150.0, 150.0, 100.0, -25.0])
     
     # Solve until the first terminal event
     sol = solve_ivp(
@@ -725,6 +1031,7 @@ def integrate_fxgu(x0, params):
 
 
 def plot_states(x_trj):
+
     n_time_steps = x_trj.shape[0]
     
     p_hip = np.zeros((n_time_steps, 2))
@@ -800,7 +1107,13 @@ def plot_states(x_trj):
     plt.show()
   
 
-def animate(x_trj, step=5):
+def animate(x_trj, step=1):
+    """Animate a trajectory of states for the 5-link biped model.
+
+    Args:
+        x_trj (np.array): The ABSOLUTE angles of the joints. 
+        step (int, the simulation frequency): Defaults to 1.
+    """
     fig, ax = plt.subplots()
     
     plt.ion()
@@ -813,6 +1126,8 @@ def animate(x_trj, step=5):
         plt.pause(0.0001)
         ax.clear()  
     plt.ioff()
+    
+    draw_5link(x_trj[-1], params, ax, legend=False)
     plt.show()
 
 
@@ -821,14 +1136,15 @@ if __name__ == '__main__':
     L_torso = 0.63
     L_fem = 0.4
     L_tib = 0.4
+    
     M_torso = 12.0
     M_fem = 6.8
     M_tib = 3.2
     
     MY_torso = 0.01
-    MZ_torso = 0.4
-    MZ_fem = 0.5
-    MZ_tib = 0.5
+    MZ_torso = 0.2
+    MZ_fem = 0.11
+    MZ_tib = 0.24
     
     XX_torso = 1.33
     XX_fem = 0.47
@@ -837,15 +1153,38 @@ if __name__ == '__main__':
     params = [g, L_torso, L_fem, L_tib, M_torso, M_fem, M_tib,
               MY_torso, MZ_torso, MZ_fem, MZ_tib, XX_torso, XX_fem, XX_tib]
     
-    q = jnp.array([200, 160, 170, 150, -10])/180*jnp.pi
-    dq = jnp.array([0.0, 0.0, 0.0, 0.0, 0.0])
+    q_abs = jnp.array([200, 160, 170, 130, -10])/180*jnp.pi
+    dq_abs = jnp.array([0.0, 0.0, 0.0, 0.0, 0.0])
     
-    x = jnp.concatenate([q, dq])    
+    T = jnp.array([
+        [1, 0, 0, 0, 1],
+        [0, 1, 0, 0, 1],
+        [1, 0, 1, 0, 1],
+        [0, 1, 0, 1, 1],
+        [0, 0, 0, 0, 1]
+    ])
+    
+    q_rel = jnp.linalg.solve(T, q_abs)
+    dq_rel = dq_abs
+    
+    x = jnp.concatenate([q_rel, dq_rel])    
     
 #     draw_5link(x, params)
 
-    x_trj = integrate_fxgu(x0=x, params=params)
-    plot_states(x_trj)
+    x_trj_1 = integrate_fxgu(x0=x, params=params)
+    plot_states(x_trj_1)
+    
+    # animate(x_trj)
+    
+    # Apply the reset map
+    x_new = resetmap_5link(x_trj_1[-1], params=params)
+    
+    x_trj_2 = integrate_fxgu(x0=x_new, params=params)
+    plot_states(x_trj_2)
+    
+    # animate(x_trj_2)
+    
+    x_trj = jnp.concatenate([x_trj_1, x_trj_2])
     
     animate(x_trj)
     
