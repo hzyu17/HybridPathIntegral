@@ -470,28 +470,6 @@ def pos_hip(q, params):
     return p_hip
 
 
-def foot_touching_events(t, x, params):
-    q = x[0:5]
-    
-    q_fem2  = q[1]  
-    q_tib2  = q[3]
-    
-    L_fem = params[2]
-    L_tib = params[3]
-    
-    p_hip  = pos_hip(q, params)
-    
-    p_knee2 = p_hip + jnp.array([[-L_fem*jnp.sin(q_fem2)],
-                                 [L_fem*jnp.cos(q_fem2)]])
-    
-    p_tib2 = p_knee2 + jnp.array([[-L_tib*jnp.sin(q_tib2)],
-                                  [L_tib*jnp.cos(q_tib2)]])
-    
-    return p_tib2[1]
-foot_touching_events.terminal = True 
-foot_touching_events.direction = -1
-
-
 def limb_velocities(x, params):
   
     q, dq = x[0:5], x[5:10]
@@ -559,11 +537,8 @@ def limb_positions(q, params):
 
     q_fem1  = q[0]    
     q_fem2  = q[1]  
-    q_tib1  = q[2]
     q_tib2  = q[3]
-    q_torso = q[4]
     
-    L_torso = params[1]
     L_fem = params[2]
     L_tib = params[3]
     
@@ -681,7 +656,19 @@ def fxgu_5link(t, x, u, params):
     return dx
 
 
+def foot_touching_events(t, x, params):
+    _, _, _, p_tib2 = limb_positions(x[0:5], params)
+    
+    return p_tib2[1]
+foot_touching_events.terminal = True 
+foot_touching_events.direction = -1
+
+
+def resetmap_5link(x_event, params):
+
+
 def integrate_fxgu(x0, params):
+    print("Integrating the 5-link model with the given initial state.")
     tstart = 0.0
     tfinal = 0.2
     
@@ -703,9 +690,9 @@ def integrate_fxgu(x0, params):
     sol = solve_ivp(
        fun=lambda t, x: fxgu_5link(t, x, u, params),
         t_span=t_span,
+        t_eval=t_eval,
         y0=x0,
         method='RK23', 
-        t_eval=t_eval,
         rtol=options['rtol'],
         atol=options['atol'],
         events=options['events']
@@ -714,19 +701,25 @@ def integrate_fxgu(x0, params):
     t = sol.t
     x_trj = sol.y.T
     
-    show_integration = False
-    if show_integration:
-        fig, ax = plt.subplots()
-        ax.grid(True)
+    if sol.t_events:
+      te = sol.t_events[0][0]
+      xe = sol.y_events[0][0]
       
-        ax.plot(t, x_trj[:, 0], label='q1')
-        ax.plot(t, x_trj[:, 1], label='q2')
-        ax.plot(t, x_trj[:, 2], label='q3')
-        ax.plot(t, x_trj[:, 3], label='q4')
-        ax.plot(t, x_trj[:, 4], label='q5')
+      print("Swing foot guard time:")
+      print(te)
       
-        ax.legend()
-        plt.show()
+      print("Swing foot guard state:")
+      print(xe)
+      
+      print("Swing foot guard function value:")
+      print(foot_touching_events(te, xe, params))
+
+      # Create a mask for all integrated times strictly less than te.
+      mask = t <= te
+
+      # Select all times and states up until the event
+      t = sol.t[mask]
+      x_trj = x_trj[mask]
     
     return x_trj
 
@@ -807,14 +800,14 @@ def plot_states(x_trj):
     plt.show()
   
 
-def animate(x_trj):
+def animate(x_trj, step=5):
     fig, ax = plt.subplots()
     
     plt.ion()
     
     n_time_steps = x_trj.shape[0]
     
-    for i in range(n_time_steps):
+    for i in range(0, n_time_steps, step):
         x_i = x_trj[i, :]
         draw_5link(x_i, params, ax, legend=False)
         plt.pause(0.0001)
