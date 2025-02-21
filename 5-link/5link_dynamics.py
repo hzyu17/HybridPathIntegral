@@ -968,7 +968,7 @@ def resetmap_5link(x_event, params):
     return x_new
   
 
-def integrate_fxgu(x0, params):
+def integrate_fxgu(x0, u, params):
     print("Integrating the 5-link model with the given initial state.")
     tstart = 0.0
     tfinal = 0.2
@@ -984,14 +984,7 @@ def integrate_fxgu(x0, params):
         'atol': 1e-6,
         'events': event_func
     }
-    
-    # u0: The torque between hip and fem1
-    # u1: The torque between hip and fem2
-    # u2: The torque between fem1 and tib1
-    # u3: The torque between fem2 and tib2
-    
-    u = np.array([-150.0, 150.0, 100.0, -25.0])
-    
+        
     # Solve until the first terminal event
     sol = solve_ivp(
        fun=lambda t, x: fxgu_5link(t, x, u, params),
@@ -1171,20 +1164,29 @@ if __name__ == '__main__':
     
 #     draw_5link(x, params)
 
-    x_trj_1 = integrate_fxgu(x0=x, params=params)
-    plot_states(x_trj_1)
+    # u0: The torque between hip and fem1
+    # u1: The torque between hip and fem2
+    # u2: The torque between fem1 and tib1
+    # u3: The torque between fem2 and tib2
+    
+    u1 = np.array([-150.0, 100.0, 100.0, -25.0])
+
+    x_trj_1 = integrate_fxgu(x0=x, u=u1, params=params)
+    # plot_states(x_trj_1)
     
     # animate(x_trj)
     
     # Apply the reset map
     x_new = resetmap_5link(x_trj_1[-1], params=params)
     
-    x_trj_2 = integrate_fxgu(x0=x_new, params=params)
-    plot_states(x_trj_2)
+    u2 = np.array([-500.0, 200.0, 100.0, 0.0])
+    x_trj_2 = integrate_fxgu(x0=x_new, u=u2, params=params)
+    # plot_states(x_trj_2)
     
     # animate(x_trj_2)
     
     x_trj = jnp.concatenate([x_trj_1, x_trj_2])
     
+    plot_states(x_trj)
     animate(x_trj)
     
