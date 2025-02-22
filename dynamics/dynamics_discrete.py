@@ -1,6 +1,6 @@
 import numpy as np
 from dynamics.dynamics import extract_extensions
-from dynamics.saltation_matrix import saltation_matrix
+from dynamics.saltation_matrix import compute_saltation
 
 
 def h_stoch_integr(xt, current_mode, ut, 

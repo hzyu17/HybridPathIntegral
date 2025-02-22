@@ -11,6 +11,8 @@ import matplotlib.pyplot as plt
 from matplotlib.font_manager import FontProperties
 font_props = FontProperties(family='serif', size=16, weight='normal')
 
+import sympy as sp
+
 # =================================
 #   Flight dynamics Definitions
 # =================================
@@ -48,8 +50,8 @@ def symbolic_flight_dynamics_slip_continuoustime():
 
     # Define the states and inputs
     # inputs = Matrix([u1])
-    inputs = Matrix([u1,u2,u3])
-    states = Matrix([x, x_dot, z, z_dot, theta])
+    inputs = sp.Matrix([u1,u2,u3])
+    states = sp.Matrix([x, x_dot, z, z_dot, theta])
     
     # Defining the dynamics of the system
     # f_cont = Matrix([x_dot, 
@@ -58,11 +60,11 @@ def symbolic_flight_dynamics_slip_continuoustime():
     #                 -g,
     #                 0.0])
     
-    f_cont = Matrix([x_dot, 
-                    u1,
-                    z_dot,
-                    u2-g,
-                    u3])
+    f_cont = sp.Matrix([x_dot, 
+                        u1,
+                        z_dot,
+                        u2-g,
+                        u3])
     
     # Take the jacobian with respect to states and inputs
     A_disc = f_cont.jacobian(states)
@@ -114,10 +116,10 @@ def symbolic_flight_dynamics_slip():
     # x,x_dot,z,z_dot,theta,u1,dt = sp.symbols('x x_dot z z_dot theta u1 dt')
 
     # Define the states and inputs
-    inputs = Matrix([u1,u2,u3])
+    inputs = sp.Matrix([u1,u2,u3])
 
     # inputs = Matrix([u1])
-    states = Matrix([x, x_dot, z, z_dot, theta])
+    states = sp.Matrix([x, x_dot, z, z_dot, theta])
     
     # Defining the dynamics of the system
     # f = Matrix([x_dot, 
@@ -126,11 +128,11 @@ def symbolic_flight_dynamics_slip():
     #             -g,
     #             0.0])
     
-    f = Matrix([x_dot, 
-                u1,
-                z_dot,
-                u2-g,
-                u3])
+    f = sp.Matrix([x_dot, 
+                    u1,
+                    z_dot,
+                    u2-g,
+                    u3])
 
     # Discretize the dynamics usp.sing euler integration
     f_disc = states+f*dt
@@ -160,8 +162,8 @@ def symbolic_stance_dynamics_slip_continuoustimes():
     theta,theta_dot,r,r_dot,u1,u2 = sp.symbols('theta theta_dot r r_dot u1 u2')
 
     # Define the states and inputs
-    inputs = Matrix([u1, u2])
-    states = Matrix([theta, theta_dot, r, r_dot])
+    inputs = sp.Matrix([u1, u2])
+    states = sp.Matrix([theta, theta_dot, r, r_dot])
     
     # Defining the stance dynamics of the system
         
@@ -172,11 +174,11 @@ def symbolic_stance_dynamics_slip_continuoustimes():
     #                         k/m*(r0-r)+u2
     #                         ])
     
-    f_stance_cont = Matrix([theta_dot, 
-                            -2*theta_dot*r_dot/r-g*sp.cos(theta)/r,
-                            r_dot + u2/m/r/r,
-                            k/m*(r0-r) - g*sp.sin(theta) + theta_dot*theta_dot*r + k*u1/m
-                            ])
+    f_stance_cont = sp.Matrix([theta_dot, 
+                                -2*theta_dot*r_dot/r-g*sp.cos(theta)/r,
+                                r_dot + u2/m/r/r,
+                                k/m*(r0-r) - g*sp.sin(theta) + theta_dot*theta_dot*r + k*u1/m
+                                ])
     
     # Take the jacobian with respect to states and inputs
     A_cont = f_stance_cont.jacobian(states)
@@ -229,8 +231,8 @@ def symbolic_stance_dynamics_slip():
     theta,theta_dot,r,r_dot,u1,u2,dt = sp.symbols('theta theta_dot r r_dot u1 u2 dt')
 
     # Define the states and inputs
-    inputs = Matrix([u1, u2])
-    states = Matrix([theta, theta_dot, r, r_dot])
+    inputs = sp.Matrix([u1, u2])
+    states = sp.Matrix([theta, theta_dot, r, r_dot])
     
     # # debug: linear system
     # f = Matrix([theta_dot, 
@@ -240,11 +242,11 @@ def symbolic_stance_dynamics_slip():
     #             ])
     
     # Defining the stance dynamics of the system
-    f = Matrix([theta_dot, 
-                -2*theta_dot*r_dot/r-g*sp.cos(theta)/r,
-                r_dot + u2/m/r/r,
-                k/m*(r0-r) - g*sp.sin(theta) + m*r*r+k/m*u1
-                ])
+    f = sp.Matrix([theta_dot, 
+                    -2*theta_dot*r_dot/r-g*sp.cos(theta)/r,
+                    r_dot + u2/m/r/r,
+                    k/m*(r0-r) - g*sp.sin(theta) + m*r*r+k/m*u1
+                    ])
 
     # Discretize the dynamics usp.sing euler integration
     f_disc = states+f*dt

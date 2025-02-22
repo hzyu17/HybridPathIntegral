@@ -665,7 +665,8 @@ def De_matrix(q, params):
 
 def pos_hip(q, params):
     """
-    Compute the position of the hip joint in the global frame.
+    Compute the position of the hip joint in the global frame, 
+    assuming the stance foot is at the origin (0, 0).
 
     Inputs:
       q      : a length-5 JAX array. RELATIVE joint angles.
@@ -695,7 +696,7 @@ def pos_hip(q, params):
     p_hip  = jnp.array([[L_fem*jnp.sin(q_fem1) + L_tib*jnp.sin(q_tib1)],
                      [-L_fem*jnp.cos(q_fem1) - L_tib*jnp.cos(q_tib1)]])
     
-    return p_hip
+    return p_hip.flatten()
 
 
 def limb_velocities(x, params):
@@ -757,7 +758,7 @@ def limb_velocities(x, params):
     return v_hip.flatten(), v_knee1.flatten(), v_knee2.flatten(), v_tib1.flatten(), v_tib2.flatten()
 
 
-def limb_positions(q, params):
+def limb_positions(q, p_hip, params):
     """
     Compute the position of the limbs in the global frame.
 
@@ -769,7 +770,7 @@ def limb_positions(q, params):
        MY_torso, MZ_torso, MZ_fem, MZ_tib, XX_torso, XX_fem, XX_tib]
                
     Returns:
-      pos_knee1: the positions of the knee1 joint.
+      The positions of the limbs.
     """
     
     T = jnp.array([
@@ -784,23 +785,27 @@ def limb_positions(q, params):
 
     q_fem1  = q_abs[0]    
     q_fem2  = q_abs[1]  
+    q_tib1  = q_abs[2]
     q_tib2  = q_abs[3]
     
     L_fem = params[2]
     L_tib = params[3]
     
-    p_hip  = pos_hip(q, params)
+    # p_hip  = pos_hip(q, params)
     
     p_knee1 = p_hip + jnp.array([[-L_fem*jnp.sin(q_fem1)],
-                                 [L_fem*jnp.cos(q_fem1)]])
+                                 [L_fem*jnp.cos(q_fem1)]]).flatten()
+    
+    p_tib1 = p_knee1 + jnp.array([[-L_tib*jnp.sin(q_tib1)],
+                                  [L_tib*jnp.cos(q_tib1)]]).flatten()
     
     p_knee2 = p_hip + jnp.array([[-L_fem*jnp.sin(q_fem2)],
-                                 [L_fem*jnp.cos(q_fem2)]])
+                                 [L_fem*jnp.cos(q_fem2)]]).flatten()
     
     p_tib2 = p_knee2 + jnp.array([[-L_tib*jnp.sin(q_tib2)],
-                                  [L_tib*jnp.cos(q_tib2)]])
+                                  [L_tib*jnp.cos(q_tib2)]]).flatten()
     
-    return p_hip.flatten(), p_knee1.flatten(), p_knee2.flatten(), p_tib2.flatten()
+    return p_knee1.flatten(), p_knee2.flatten(), p_tib1.flatten(), p_tib2.flatten()
 
 
 def pos_knee1(q, params):
@@ -810,7 +815,7 @@ def pos_knee1(q, params):
     L_fem = params[2]
     p_hip  = pos_hip(q, params)
     p_knee1 = p_hip + jnp.array([[-L_fem*jnp.sin(q_fem1)],
-                                 [L_fem*jnp.cos(q_fem1)]])
+                                 [L_fem*jnp.cos(q_fem1)]]).flatten()
     
     return p_knee1
   
@@ -822,7 +827,7 @@ def pos_knee2(q, params):
     L_fem = params[2]
     p_hip  = pos_hip(q, params)
     p_knee2 = p_hip + jnp.array([[-L_fem*jnp.sin(q_fem2)],
-                                 [L_fem*jnp.cos(q_fem2)]])
+                                 [L_fem*jnp.cos(q_fem2)]]).flatten()
     
     return p_knee2
   
@@ -835,23 +840,23 @@ def pos_tib2(q, params):
     L_tib = params[3]
     p_hip  = pos_hip(q, params)
     p_knee2 = p_hip + jnp.array([[-L_fem*jnp.sin(q[1])],
-                                 [L_fem*jnp.cos(q[1])]])
+                                 [L_fem*jnp.cos(q[1])]]).flatten()
     p_tib2 = p_knee2 + jnp.array([[-L_tib*jnp.sin(q_tib2)],
-                                  [L_tib*jnp.cos(q_tib2)]])
+                                  [L_tib*jnp.cos(q_tib2)]]).flatten()
     
     return p_tib2.flatten()
   
 
 def vel_hip(x, params):
     q, dq = x[0:5], x[5:10]
-    p_hip = pos_hip(q, params)
+    pos_hip_partial = partial(pos_hip, params=params)
     
-    v_hip = jax.jacobian(p_hip, q) @ dq
+    v_hip = jax.jacrev(pos_hip_partial)(q) @ dq
 
     return v_hip
 
 
-def draw_5link(x, params, ax=None, legend=True):
+def draw_5link(x, p_hip, params, ax=None, legend=True):
     """Draw the 5-link biped model in the given configuration.
        Assuming here the stance foot is at the origin.
     Args:
@@ -869,7 +874,8 @@ def draw_5link(x, params, ax=None, legend=True):
     ground = Line2D([-buffer, buffer], [0, 0], color='k', linewidth=2)
     ax.add_line(ground)
     
-    p_hip, p_knee1, p_knee2, p_tib2 = limb_positions(q, params)
+    # p_hip = pos_hip(q, params)
+    p_knee1, p_knee2, p_tib1, p_tib2 = limb_positions(q, p_hip, params)
     
     # Draw fem 1
     fem1, = ax.plot([p_knee1[0], p_hip[0]], [p_knee1[1], p_hip[1]], color='r', linewidth=2, label='femur 1')
@@ -878,7 +884,7 @@ def draw_5link(x, params, ax=None, legend=True):
     fem2, = ax.plot([p_knee2[0], p_hip[0]], [p_knee2[1], p_hip[1]], color='g', linewidth=2, label='femur 2')
 
     # Draw tib 1
-    tib1, = ax.plot([float(p_knee1[0]), 0.0], [float(p_knee1[1]), 0.0], color='b', linewidth=2, label='tib 1')
+    tib1, = ax.plot([float(p_knee1[0]), p_tib1[0]], [float(p_knee1[1]), p_tib1[1]], color='b', linewidth=2, label='tib 1')
     
     # Draw tib 2
     tib2, = ax.plot([p_knee2[0], p_tib2[0]], [p_knee2[1], p_tib2[1]], color='c', linewidth=2, label='tib 2')
@@ -920,10 +926,37 @@ def fxgu_5link(t, x, u, params):
     return dx
 
 
-def foot_touching_events(t, x, params):
-    _, _, _, p_tib2 = limb_positions(x[0:5], params)
+def swing_foot_height(x, params):
+    q = x[0:5]
+    p_hip = pos_hip(q, params)
+    
+    T = jnp.array([
+        [1, 0, 0, 0, 1],
+        [0, 1, 0, 0, 1],
+        [1, 0, 1, 0, 1],
+        [0, 1, 0, 1, 1],
+        [0, 0, 0, 0, 1]
+    ])
+    
+    q_abs = T@q
+    q_fem2  = q_abs[1]  
+    q_tib2  = q_abs[3]
+    
+    L_tib = params[3]
+    
+    # p_hip  = pos_hip(q, params)
+    
+    p_knee2 = p_hip + jnp.array([[-L_fem*jnp.sin(q_fem2)],
+                                 [L_fem*jnp.cos(q_fem2)]]).flatten()
+    
+    p_tib2 = p_knee2 + jnp.array([[-L_tib*jnp.sin(q_tib2)],
+                                  [L_tib*jnp.cos(q_tib2)]]).flatten()
     
     return p_tib2[1]
+
+def foot_touching_events(t, x, params):   
+    h_tib2_v = swing_foot_height(x[0:5], params)
+    return h_tib2_v
 foot_touching_events.terminal = True 
 foot_touching_events.direction = -1
 
@@ -949,6 +982,18 @@ def resetmap_5link(x_event, params):
     A = jnp.block([[De, -E2.T], [E2, jnp.zeros((2, 2))]])
     b = jnp.hstack([De @ jnp.hstack([x_event[5:10], [0, 0]]), [0, 0]])
     tmp_vec = jnp.linalg.solve(A, b)
+    
+    # q_plus = jnp.zeros(7)
+    # q_plus = q_plus.at[0].set(tmp_vec[0])
+    # q_plus = q_plus.at[1].set(tmp_vec[1])   
+    # q_plus = q_plus.at[2].set(tmp_vec[2])
+    # q_plus = q_plus.at[3].set(tmp_vec[3])
+    # q_plus = q_plus.at[4].set(tmp_vec[4])
+    # q_plus = q_plus.at[5].set(tmp_vec[5])
+    # q_plus = q_plus.at[6].set(tmp_vec[6])
+    
+    # # No slip and rebound condition
+    # zero = E2@q_plus
 
     # Update state vector after impact
     x_new = jnp.zeros(10)
@@ -968,36 +1013,36 @@ def resetmap_5link(x_event, params):
     return x_new
   
 
-def integrate_fxgu(x0, u, params):
-    print("Integrating the 5-link model with the given initial state.")
-    tstart = 0.0
-    tfinal = 0.2
-    
-    num_t_eval = 100
+def integrate_fxgu(x0, u, params, event=True, tstart=0.0, tfinal=0.2):
+    print("Integrating the 5-link model with the given initial state.")    
+    num_t_eval = 500
     t_eval = np.linspace(tstart, tfinal, num_t_eval)
     t_span = [tstart, tfinal]
     
-    event_func = partial(foot_touching_events, params=params)
+    if event:
+      event_func = partial(foot_touching_events, params=params)
+    else:
+      event_func = None
     
     options = {
         'rtol': 1e-5,
         'atol': 1e-6,
         'events': event_func
     }
-        
+    
     # Solve until the first terminal event
     sol = solve_ivp(
        fun=lambda t, x: fxgu_5link(t, x, u, params),
         t_span=t_span,
         t_eval=t_eval,
         y0=x0,
-        method='RK23', 
+        method='RK45', 
         rtol=options['rtol'],
         atol=options['atol'],
         events=options['events']
     )
     
-    t = sol.t
+    t_trj = sol.t
     x_trj = sol.y.T
     
     if sol.t_events:
@@ -1014,16 +1059,16 @@ def integrate_fxgu(x0, u, params):
       print(foot_touching_events(te, xe, params))
 
       # Create a mask for all integrated times strictly less than te.
-      mask = t <= te
+      mask = t_trj <= te
 
       # Select all times and states up until the event
-      t = sol.t[mask]
+      t_trj = sol.t[mask]
       x_trj = x_trj[mask]
     
-    return x_trj
+    return t_trj, x_trj
 
 
-def plot_states(x_trj):
+def plot_states(t_trj, x_trj, params):
 
     n_time_steps = x_trj.shape[0]
     
@@ -1042,50 +1087,67 @@ def plot_states(x_trj):
     p_tib2 = np.zeros((n_time_steps, 2))
     v_tib2 = np.zeros((n_time_steps, 2))
     
+    dt_trj = t_trj[1:] - t_trj[:-1]
+    p_hip_i = pos_hip(x_trj[0, 0:5], params)
     for i_t in range(n_time_steps):
-      p_hip[i_t], p_fem1[i_t], p_fem2[i_t], p_tib2[i_t] = limb_positions(x_trj[i_t, 0:5], params)  
-      v_hip[i_t], v_fem1[i_t], v_fem2[i_t], v_tib1[i_t], v_tib2[i_t] = limb_velocities(x_trj[i_t], params)
+      dt_i = dt_trj[i_t]
+      p_hip[i_t] = p_hip_i
+      v_hip[i_t] = vel_hip(x_trj[i_t], params)
       
+      p_fem1[i_t], p_fem2[i_t], p_tib1[i_t], p_tib2[i_t] = limb_positions(x_trj[i_t, 0:5], p_hip_i, params)  
+      _, v_fem1[i_t], v_fem2[i_t], v_tib1[i_t], v_tib2[i_t] = limb_velocities(x_trj[i_t], params)
+      p_hip_i += v_hip[i_t]*dt_i
+    
     fig = plt.figure(figsize=(16, 9))
     ax1 = plt.subplot(5, 2, 1)
     ax1.grid(True)
-    ax1.plot(np.arange(n_time_steps), p_hip[:, 0], label='p_hip_x')
-    ax1.plot(np.arange(n_time_steps), p_hip[:, 1], label='p_hip_y')  
+    ax1.plot(np.arange(n_time_steps), p_hip[:, 0], label='p_hip x')
+    ax1.plot(np.arange(n_time_steps), p_hip[:, 1], label='p_hip y')  
     
     ax2 = plt.subplot(5, 2, 2)
     ax2.grid(True)
-    ax2.plot(np.arange(n_time_steps), v_hip[:, 0], label='v_hip_x')
-    ax2.plot(np.arange(n_time_steps), v_hip[:, 1], label='v_hip_y')
+    ax2.plot(np.arange(n_time_steps), v_hip[:, 0], label='v_hip x')
+    ax2.plot(np.arange(n_time_steps), v_hip[:, 1], label='v_hip y')
     
     ax3 = plt.subplot(5, 2, 3)
     ax3.grid(True)
-    ax3.plot(np.arange(n_time_steps), p_fem1[:, 0], label='p_fem1_x')
-    ax3.plot(np.arange(n_time_steps), p_fem1[:, 1], label='p_fem1_y')
+    ax3.plot(np.arange(n_time_steps), p_fem1[:, 0], label='p_fem1 x')
+    ax3.plot(np.arange(n_time_steps), p_fem1[:, 1], label='p_fem1 y')
     
     ax4 = plt.subplot(5, 2, 4)  
     ax4.grid(True)
-    ax4.plot(np.arange(n_time_steps), v_fem1[:, 0], label='v_fem1_x')
-    ax4.plot(np.arange(n_time_steps), v_fem1[:, 1], label='v_fem1_y')
+    ax4.plot(np.arange(n_time_steps), v_fem1[:, 0], label='v_fem1 x')
+    ax4.plot(np.arange(n_time_steps), v_fem1[:, 1], label='v_fem1 y')
     
     ax5 = plt.subplot(5, 2, 5)
     ax5.grid(True)
-    ax5.plot(np.arange(n_time_steps), p_fem2[:, 0], label='p_fem2_x')
-    ax5.plot(np.arange(n_time_steps), p_fem2[:, 1], label='p_fem2_y')
+    ax5.plot(np.arange(n_time_steps), p_fem2[:, 0], label='p_fem2 x')
+    ax5.plot(np.arange(n_time_steps), p_fem2[:, 1], label='p_fem2 y')
     
     ax6 = plt.subplot(5, 2, 6)
     ax6.grid(True)
-    ax6.plot(np.arange(n_time_steps), v_fem2[:, 0], label='v_fem2_x')
-    ax6.plot(np.arange(n_time_steps), v_fem2[:, 1], label='v_fem2_y')
+    ax6.plot(np.arange(n_time_steps), v_fem2[:, 0], label='v_fem2 x')
+    ax6.plot(np.arange(n_time_steps), v_fem2[:, 1], label='v_fem2 y')
     
     ax7 = plt.subplot(5, 2, 7)
     ax7.grid(True)
-    ax7.plot(np.arange(n_time_steps), p_tib2[:, 0], label='p_tib2_x')
-    ax7.plot(np.arange(n_time_steps), p_tib2[:, 1], label='p_tib2_y')
+    ax7.plot(np.arange(n_time_steps), p_tib1[:, 0], label='p_tib1 x')
+    ax7.plot(np.arange(n_time_steps), p_tib1[:, 1], label='p_tib1 y')
     
     ax8 = plt.subplot(5, 2, 8)
     ax8.grid(True)
-    ax8.plot(np.arange(n_time_steps), v_tib2[:, 0], label='v_tib2_x')
-    ax8.plot(np.arange(n_time_steps), v_tib2[:, 1], label='v_tib2_y')
+    ax8.plot(np.arange(n_time_steps), v_tib1[:, 0], label='v_tib1 x')
+    ax8.plot(np.arange(n_time_steps), v_tib1[:, 1], label='v_tib1 y')
+    
+    ax9 = plt.subplot(5, 2, 9)
+    ax9.grid(True)
+    ax9.plot(np.arange(n_time_steps), p_tib2[:, 0], label='p_tib2 x')
+    ax9.plot(np.arange(n_time_steps), p_tib2[:, 1], label='p_tib2 y')
+    
+    ax10 = plt.subplot(5, 2, 10)
+    ax10.grid(True)
+    ax10.plot(np.arange(n_time_steps), v_tib2[:, 0], label='v_tib2 x')
+    ax10.plot(np.arange(n_time_steps), v_tib2[:, 1], label='v_tib2 y')
     
     ax1.legend()
     ax2.legend()
@@ -1095,12 +1157,14 @@ def plot_states(x_trj):
     ax6.legend()
     ax7.legend()
     ax8.legend()
+    ax9.legend()
+    ax10.legend()
     
     plt.tight_layout()
     plt.show()
   
 
-def animate(x_trj, step=1):
+def animate(t_trj, x_trj, step=5):
     """Animate a trajectory of states for the 5-link biped model.
 
     Args:
@@ -1113,14 +1177,21 @@ def animate(x_trj, step=1):
     
     n_time_steps = x_trj.shape[0]
     
+    p_hip = pos_hip(x_trj[0, 0:5], params)
+    dt_trj = t_trj[1:] - t_trj[:-1]
+    
     for i in range(0, n_time_steps, step):
         x_i = x_trj[i, :]
-        draw_5link(x_i, params, ax, legend=False)
-        plt.pause(0.0001)
+        dt_i = dt_trj[i]
+        v_hip = vel_hip(x_i, params)
+        p_hip += v_hip*dt_i
+        
+        draw_5link(x_i, p_hip, params, ax, legend=False)
+        plt.pause(0.001)
         ax.clear()  
     plt.ioff()
     
-    draw_5link(x_trj[-1], params, ax, legend=False)
+    draw_5link(x_trj[-1], p_hip, params, ax, legend=False)
     plt.show()
 
 
@@ -1146,6 +1217,8 @@ if __name__ == '__main__':
     params = [g, L_torso, L_fem, L_tib, M_torso, M_fem, M_tib,
               MY_torso, MZ_torso, MZ_fem, MZ_tib, XX_torso, XX_fem, XX_tib]
     
+    # q = [q_fem1, q_fem2, q_tib1, q_tib2, q_torso]
+    # dq = [dq_fem1, dq_fem2, dq_tib1, dq_tib2, dq_torso]
     q_abs = jnp.array([200, 160, 170, 130, -10])/180*jnp.pi
     dq_abs = jnp.array([0.0, 0.0, 0.0, 0.0, 0.0])
     
@@ -1169,24 +1242,51 @@ if __name__ == '__main__':
     # u2: The torque between fem1 and tib1
     # u3: The torque between fem2 and tib2
     
-    u1 = np.array([-150.0, 100.0, 100.0, -25.0])
+    u1 = np.array([-50.0, 25.0, 50.0, -5.0])
 
-    x_trj_1 = integrate_fxgu(x0=x, u=u1, params=params)
+    tstart = 0.0
+    tfinal = 0.2
+    
+    t_trj_1, x_trj_1 = integrate_fxgu(x0=x, u=u1, params=params, event=True, tstart=tstart, tfinal=tfinal)
     # plot_states(x_trj_1)
     
     # animate(x_trj)
     
     # Apply the reset map
+    
+    # fig = plt.figure(figsize=(16, 9))
+    # ax1 = plt.subplot(2, 1, 1)
+    # ax2 = plt.subplot(2, 1, 2)
+    # p_hip_1 = pos_hip(x_trj_1[-1, 0:5], params)
+    # draw_5link(x_trj_1[-1], p_hip_1, params, ax=ax1)
+    
     x_new = resetmap_5link(x_trj_1[-1], params=params)
     
-    u2 = np.array([-500.0, 200.0, 100.0, 0.0])
-    x_trj_2 = integrate_fxgu(x0=x_new, u=u2, params=params)
+    x_new = x_new.at[7].set(0.0)
+    
+    # draw_5link(x_new, p_hip_1, params, ax=ax2)
+    
+    # plt.show()
+    
+    # u0: The torque between hip and fem1
+    # u1: The torque between hip and fem2
+    # u2: The torque between fem1 and tib1
+    # u3: The torque between fem2 and tib2
+    
+    # u2 = np.array([200.0, -200.0, 200.0, 0.0])
+    u2 = np.array([0.0, 100.0, 50.0, -20.0])
+    tstart_2 = t_trj_1[-1]
+    tfinal_2 = tstart_2 + 0.1
+    t_trj_2, x_trj_2 = integrate_fxgu(x0=x_new, u=u2, params=params, event=False, tstart=tstart_2, tfinal=tfinal_2)
     # plot_states(x_trj_2)
     
     # animate(x_trj_2)
     
     x_trj = jnp.concatenate([x_trj_1, x_trj_2])
+    t_trj = jnp.concatenate([t_trj_1, t_trj_2])
     
-    plot_states(x_trj)
-    animate(x_trj)
+    plot_states(t_trj, x_trj, params)
+    
+    for _ in range(3):
+      animate(t_trj, x_trj)
     
