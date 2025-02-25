@@ -106,93 +106,6 @@ dq_tib1  = dq_new(3);
 dq_tib2  = dq_new(4);
 dq_torso = dq_new(5);
 
-%% Generate De matrix.  To do so, we must go through the trouble of
-%% defining the positions of the masses using the augmented
-%% configuration variables.
-
-syms z1 z2 dz1 dz2 real
-
-%% generalized coordinates
-qe=[q31L;q32L;q41L;q42L;q1L;z1;z2];
-
-%% first derivative of generalized coordinates
-dqe=[dq31L;dq32L;dq41L;dq42L;dq1L;dz1;dz2];
-
-%%
-
-% -----------------------------------------------------------------
-%
-%  Calculate kinetic energy
-%
-% -----------------------------------------------------------------
-
-% hip and knee positions
-p_hip  = L_fem*[sin(q_fem1); -cos(q_fem1)] ...
-	+ L_tib*[sin(q_tib1); -cos(q_tib1)] + [z1; z2];
-p_knee1 = p_hip + L_fem*[-sin(q_fem1); cos(q_fem1)];
-p_knee2 = p_hip + L_fem*[-sin(q_fem2); cos(q_fem2)];
-
-%%
-% hip and knee velocities
-v_hip  = jacobian(p_hip,qe)*dqe;
-v_knee1 = jacobian(p_knee1,qe)*dqe;
-v_knee2 = jacobian(p_knee2,qe)*dqe;
-
-% relative angular velocties -- needed since the centers of masses
-% of the links are one collocated with the link reference frames
-R_torso = [cos(q_torso) -sin(q_torso);
-	sin(q_torso) cos(q_torso)];
-v_torso = R_torso.'*v_hip*dq_torso;
-
-R_fem1 = [cos(q_fem1) -sin(q_fem1);
-	sin(q_fem1) cos(q_fem1)];
-v_fem1 = R_fem1.'*v_hip*dq_fem1;
-
-R_fem2 = [cos(q_fem2) -sin(q_fem2);
-	sin(q_fem2) cos(q_fem2)];
-v_fem2 = R_fem2.'*v_hip*dq_fem2;
-
-R_tib1 = [cos(q_tib1) -sin(q_tib1);
-	sin(q_tib1) cos(q_tib1)];
-v_tib1 = R_tib1.'*v_knee1*dq_tib1;
-
-R_tib2 = [cos(q_tib2) -sin(q_tib2);
-	sin(q_tib2) cos(q_tib2)];
-v_tib2 = R_tib2.'*v_knee2*dq_tib2;
-
-% kinetic energy of links
-KE_torso = 1/2*M_torso*v_hip.'*v_hip ...
-	+ v_torso.'*[-MZ_torso; MY_torso]  ...
-	+ 1/2*XX_torso*dq_torso^2;
-KE_torso = simplify(KE_torso);
-KE_fem1 = 1/2*M_fem*v_hip.'*v_hip ...
-	+ v_fem1.'*[-MZ_fem; 0] ...
-	+ 1/2*XX_fem*(dq_fem1)^2;
-KE_fem1    = simplify(KE_fem1);
-KE_fem2 = 1/2*M_fem*v_hip.'*v_hip ...
-	+ v_fem2.'*[-MZ_fem; 0] ...
-	+ 1/2*XX_fem*(dq_fem2)^2;
-KE_fem2    = simplify(KE_fem2);
-KE_tib1 = 1/2*M_tib*v_knee1.'*v_knee1 ...
-	+ v_tib1.'*[-MZ_tib; 0] ...
-	+ 1/2*XX_tib*(dq_tib1)^2;
-KE_tib1 = simplify(KE_tib1);
-KE_tib2 = 1/2*M_tib*v_knee2.'*v_knee2 ...
-	+ v_tib2.'*[-MZ_tib;0] ...
-	+ 1/2*XX_tib*(dq_tib2)^2;
-KE_tib2 = simplify(KE_tib2);
-
-% total kinetic energy
-KE = KE_torso + KE_fem1 + KE_fem2 + KE_tib1 + KE_tib2;
-KE = simplify(KE);
-%%
-
-De_mtx=simplify(jacobian(jacobian(KE,dqe).',dqe));
-
-
-%% This part computes the matrices and vectors 
-%% of the pinned dynamics, D,C,B,G
-
 % -----------------------------------------------------------------
 %
 %  Calculate kinetic energy
@@ -336,7 +249,6 @@ list_q = {'q31L','q(1)'; 'q32L','q(2)'; 'q41L','q(3)'; 'q42L','q(4)'; 'q1L','q(5
 list_dq = {'dq31L','dq(1)'; 'dq32L','dq(2)'; 'dq41L','dq(3)'; 'dq42L','dq(4)'; 'dq1L','dq(5)'};
 
 write_fcn('D_matrix.m',{'q','params'},[list_q; param_list],{D_mtx,'D'});
-write_fcn('De_matrix.m',{'q','params'},[list_q; param_list],{De_mtx,'De'});
 write_fcn('C_matrix.m',{'q','dq','params'},[list_q; list_dq; param_list],{C_mtx,'C'});
 write_fcn('G_vector.m',{'q','params'},[list_q; param_list],{G_vect,'G'});
 write_fcn('B_matrix.m',{},[],{B_mtx,'B'});
