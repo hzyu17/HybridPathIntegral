@@ -4,7 +4,6 @@ import jax
 import numpy as np
 
 import matplotlib.pyplot as plt
-from matplotlib.patches import Patch, Polygon
 from matplotlib.lines import Line2D
 
 from scipy.integrate import solve_ivp

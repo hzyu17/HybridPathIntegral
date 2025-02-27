@@ -2,6 +2,7 @@ from dynamics.dynamics import *
 import matplotlib.pyplot as plt
 from matplotlib.font_manager import FontProperties
 font_props = FontProperties(family='serif', size=16, weight='normal')
+import sympy as sp
 
 def dyn_bouncing(t, x, *args):
     """
@@ -28,10 +29,10 @@ def symbolic_dynamics_bouncing():
     z,z_dot,u,dt = sp.symbols('z z_dot u dt')
 
     # Define the states and inputs
-    inputs = Matrix([u])
-    states = Matrix([z, z_dot])
+    inputs = sp.Matrix([u])
+    states = sp.Matrix([z, z_dot])
     # Defining the dynamics of the system
-    f_contin = Matrix([z_dot, u-g])
+    f_contin = sp.Matrix([z_dot, u-g])
     
     A_contin = f_contin.jacobian(states)
     B_contin = f_contin.jacobian(inputs)
@@ -47,10 +48,10 @@ def sym_dyn_bouncing():
     z,z_dot,u,dt = sp.symbols('z z_dot u dt')
 
     # Define the states and inputs
-    inputs = Matrix([u])
-    states = Matrix([z, z_dot])
+    inputs = sp.Matrix([u])
+    states = sp.Matrix([z, z_dot])
     # Defining the dynamics of the system
-    f = Matrix([z_dot, u-g])
+    f = sp.Matrix([z_dot, u-g])
 
     # Discretize the dynamics usp.sing euler integration
     f_disc = states+f*dt

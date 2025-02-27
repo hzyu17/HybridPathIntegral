@@ -395,7 +395,6 @@ class hybrid_ilqr:
                                                                                 current_state, 
                                                                                 current_input, 
                                                                                 t_ii, dt, 
-                                                                                # self._dtshrinkrate, 
                                                                                 reset_args[ii], self.detect_)
 
             # -------------------------------

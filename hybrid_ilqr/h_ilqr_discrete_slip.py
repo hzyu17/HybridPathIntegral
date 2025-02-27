@@ -136,7 +136,7 @@ if __name__ == '__main__':
     exp_params.update_params(n_modes, init_mode, target_mode, 
                              n_states, init_state, target_state, 
                              start_time, end_time, dt, 
-                             dt_shrink, initial_guess, 
+                             initial_guess, 
                              epsilon, n_exp, n_samples, 
                              Q_k, R_k, Q_T, symbolic_dynamics, 
                              event_detect_discrete_slip, 

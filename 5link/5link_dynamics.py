@@ -1315,10 +1315,11 @@ if __name__ == '__main__':
     # u2: The torque between fem1 and tib1
     # u3: The torque between fem2 and tib2
     
-    u1 = np.array([-50.0, 50.0, -50.0, 0.0])
+    # u1 = np.array([-50.0, 50.0, -50.0, 0.0])
+    u1 = np.zeros(4)
 
     tstart = 0.0
-    tfinal = 0.2
+    tfinal = 0.5
     
     t_trj_1, x_trj_1 = integrate_fxgu(x0=x, u=u1, params=params, event=True, tstart=tstart, tfinal=tfinal)
     plot_trj_trace(t_trj_1, x_trj_1, step=50)

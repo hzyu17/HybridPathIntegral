@@ -263,7 +263,6 @@ def event_detect_discrete_slip(current_mode, x0, u,
                                         
     return event_detect_onestep_discrete(x0, u, t0, 
                                         dt, 
-                                        # dt_shrinkrate, 
                                         current_mode, 
                                         smooth_dynamics_slip, 
                                         guards_slip_slip,
