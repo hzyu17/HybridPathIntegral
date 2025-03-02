@@ -14,7 +14,7 @@ for item = 1:1:size(list,1)
 	fprintf(fid,'%s',currentname);
 end
 
-[path,name,ext,ver] = fileparts(fcn_name);
+[path,name,~] = fileparts(fcn_name);
 fprintf(fid,'] = %s(',name);
 
 for item = 1:1:size(arguments,2) % write arguments

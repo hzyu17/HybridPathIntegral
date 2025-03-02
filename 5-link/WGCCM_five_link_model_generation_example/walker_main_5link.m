@@ -39,6 +39,13 @@ function dx = f(t,x,a)
 
 global t_2 torque y force
 
+% Load the symbolic matrix
+loadedData_D = load('D_matrix.mat');
+
+% Extract the matrix
+symMatrix_D = loadedData_D.symMatrix;
+D = subs(symMatrix_D, x(1:6));
+
 [D,C,G,B,K,dV,dVl,Al,Bl,H,LfH,dLfH] = dynamics_three_link(x(1:6),a);
 Fx = inv(D)*(-C*x(4:6)-G);
 Gx = inv(D)*B;

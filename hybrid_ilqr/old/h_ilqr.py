@@ -1,16 +1,18 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from dynamics.dynamics_slip import *
+# from dynamics.dynamics_slip import *
 
 
 class hybrid_ilqr:
-    def __init__(self, nmodes, init_mode, target_mode, nstates,
-                 init_state,target_state,initial_guess,
+    def __init__(self, nmodes, init_mode, target_mode, 
+                 nstates, init_state,target_state,
+                 initial_guess, 
                  dt,start_time,end_time,
                  contact_detect,smooth_dynamics,
                  Q_k,R_k,Q_T,parameters,n_iterations,
                  detect,plot_func,state_convert_func, 
-                 init_reset_args, target_reset_args, animate_func=None, verbose=True):
+                 init_reset_args, target_reset_args, 
+                 animate_func=None, verbose=True):
         
         self.nmodes_ = nmodes
         self._n_states = nstates
@@ -64,7 +66,7 @@ class hybrid_ilqr:
         self.f_, self.A_, self.B_ = [None for _ in range(self.nmodes_)],[None for _ in range(self.nmodes_)],[None for _ in range(self.nmodes_)]
         for ii in range(self.nmodes_):
             self.f_[ii], self.A_[ii], self.B_[ii] = smooth_dynamics[ii]()
-                
+        
         # Weighting
         self.Q_k_ = Q_k
         self.R_k_ = R_k

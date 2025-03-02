@@ -270,7 +270,6 @@ def event_detect_bouncing(x0, u, t0, tf, current_mode, reset_args, detection=Tru
                                 gxs_bouncing,
                                 gts_bouncing,
                                 reset_maps_bouncing_bouncing,
-                                # reset_controls_bouncing,
                                 Rxs_bouncing,
                                 Rts_bouncing,
                                 reset_args, detection, backwards)

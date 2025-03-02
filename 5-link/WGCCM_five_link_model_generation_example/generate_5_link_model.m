@@ -169,7 +169,7 @@ KE_tib2 = simplify(KE_tib2);
 
 % total kinetic energy
 KE = KE_torso + KE_fem1 + KE_fem2 + KE_tib1 + KE_tib2;
-KE = simple(KE);
+KE = simplify(KE);
 
 % -----------------------------------------------------------------
 %
@@ -192,7 +192,7 @@ p_foot2 = p_knee2 + L_tib*[-sin(q_tib2); cos(q_tib2)];
 % total potential energy
 PE = g*(M_torso*p_torso(2) + M_fem*p_fem1(2) + M_fem*p_fem2(2) + ...
 	M_tib*p_tib1(2) + M_tib*p_tib2(2));
-PE = simple(PE);
+PE = simplify(PE);
 
 % -----------------------------------------------------------------
 %
@@ -202,11 +202,11 @@ PE = simple(PE);
 
 % gravity vector
 G_vect = jacobian(PE,q).';
-G_vect = simple(G_vect);
+G_vect = simplify(G_vect);
 
 % mass-inertial matrix
-D_mtx = simple(jacobian(KE,dq).');
-D_mtx = simple(jacobian(D_mtx,dq));
+D_mtx = simplify(jacobian(KE,dq).');
+D_mtx = simplify(jacobian(D_mtx,dq));
 
 % Coriolis and centrifugal matrix
 syms C_mtx real
@@ -221,7 +221,7 @@ for k=1:n
 		end
 	end
 end
-C_mtx=simple(C_mtx);
+C_mtx=simplify(C_mtx);
 
 % input matrix
 Phi_0 = [q_fem1-q_torso;
