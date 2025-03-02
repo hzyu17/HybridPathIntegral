@@ -40,7 +40,7 @@ if __name__ == '__main__':
     
     # For the slip dynamics, mode 1 has 1 input, and mode 2 has 2 inputs. 
     n_states = [5, 4]
-    n_inputs = [1, 2]
+    n_inputs = [3, 2]
     
     # ----------------------------
     # Case 1: vertical bouncing

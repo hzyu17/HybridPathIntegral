@@ -140,22 +140,16 @@ if __name__ == '__main__':
 
     # # ---------------------- mean trajectory under H-iLQR ----------------------------
     Noise_zero = [np.zeros((nt, n_inputs[0])), np.zeros((nt, n_inputs[1]))]
-    
-    xt_trj_mean = [np.array([0.0]) for _ in range(nt)]
-    ut_trj_ilqr = [np.zeros((nt, n_inputs[0])), np.zeros((nt, n_inputs[1]))]
-    
-    xt_trj_mean[0] = init_state
-    (mode_trj_ilqr, xt_trj_mean, 
-    ut_trj_ilqr, cost_ilqr, _, 
-    reset_args_ilqr) = h_stoch_fb_rollout_slip(init_mode, init_state, 
-                                                n_inputs, 
-                                                states, modes, inputs, 
-                                                K_feedback, k_feedforward, 
-                                                target_state, Q_T,
-                                                start_time, dt, 
+    (mode_trj_mean, 
+    xt_trj_mean, 
+    ut_cl_trj_mean, 
+    Sk_mean, 
+    xt_ref_actual_mean, 
+    reset_args_mean) = h_stoch_fb_rollout_slip(init_mode, init_state, n_inputs, states, modes, 
+                                                inputs, K_feedback, k_feedforward, target_state, 
+                                                Q_T, 0.0, dt, 
                                                 epsilon, Noise_zero, 
-                                                reference_extension_helper,
-                                                init_reset_args)
+                                                reference_extension_helper, init_reset_args)
     
     exp_data.add_nominal_data(hybrid_ilqr_result)
 
@@ -796,12 +790,12 @@ if __name__ == '__main__':
         Sk, 
         xt_ref_actual, 
         reset_args) = h_stoch_fb_rollout_slip(init_mode, x0_i, n_inputs, 
-                                            states, modes, 
-                                            inputs, 
-                                            K_hcs, k_feedforward, target_state, 
-                                            Q_T, t0, dt, 
-                                            epsilon, GaussianNoise_i,
-                                            reference_extension_helper, init_reset_args)
+                                                states, modes, 
+                                                inputs, 
+                                                K_hcs, k_feedforward, target_state, 
+                                                Q_T, t0, dt, 
+                                                epsilon, GaussianNoise_i, 
+                                                reference_extension_helper, init_reset_args)
         
         # ---------------------- Samples H-iLQR ----------------------
         (mode_trj_ilqr, 

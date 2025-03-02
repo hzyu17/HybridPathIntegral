@@ -227,7 +227,9 @@ def guard_false_slip_21(args):
 
 from functools import partial
 
-reaction_mode_mismatch_slip = partial(reaction_mode_mismatch, cond_early_arrival=cond_early_arrival_slip)
+reaction_mode_mismatch_slip = partial(reaction_mode_mismatch, 
+                                      cond_early_arrival=cond_early_arrival_slip)
+
 h_stoch_integr_slip = partial(h_stoch_integr, 
                                 stoch_integr_func = stoch_integr_slip, 
                                 guard_0=guard_cond_slip_12,
