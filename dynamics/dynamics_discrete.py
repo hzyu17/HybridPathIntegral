@@ -6,7 +6,6 @@ from dynamics.saltation_matrix import saltation_matrix
 def h_stoch_integr(xt, current_mode, ut, 
                     randN, eps, 
                     dt, 
-                    # dt_shrink, 
                     t0, reset_arg, 
                     stoch_integr_func=None,
                     guard_0=None,
@@ -20,7 +19,6 @@ def h_stoch_integr(xt, current_mode, ut,
     xt_next = stoch_integr_func(current_mode, xt, ut, dt, eps, dW)
     
     args_guard = (xt, current_mode, ut, t0, xt_next, dt, 
-                #   dt_shrink, 
                   randN, eps, reset_arg)
     
     if (current_mode==0):
@@ -80,17 +78,16 @@ def guard_true_func_deterministic(args):
 
 def event_detect_onestep_discrete(xt, ut, 
                                   t0, dt, 
-                                #   dt_shrink, 
                                   current_mode, 
-                                smooth_dynamics, 
-                                guards,
-                                gxs, gts,
-                                reset_maps,
-                                Rxs, Rts,
-                                reset_args, 
-                                guard_cond_func_0=None,
-                                guard_cond_func_1=None,
-                                detection=True, backwards=False):
+                                  smooth_dynamics, 
+                                  guards, 
+                                  gxs, gts, 
+                                  reset_maps, 
+                                  Rxs, Rts, 
+                                  reset_args, 
+                                  guard_cond_func_0=None, 
+                                  guard_cond_func_1=None, 
+                                  detection=True, backwards=False):
     
     current_dyn = smooth_dynamics[current_mode]
     
@@ -131,7 +128,6 @@ def event_detect_onestep_discrete(xt, ut,
         if guard_hit:
             args_guard = (xt, current_mode, ut, t0, 
                           xt_next, dt, 
-                        #   dt_shrink, 
                           current_dyn, current_guard, current_resetmap, reset_args)
             
             t_event, x_event, x_reset, next_mode, reset_byproduct = guard_true_func_deterministic(args_guard)
@@ -199,7 +195,7 @@ def h_stoch_fb_rollout(init_mode, x0, n_inputs,
     # -------------- roullout function --------------
     for ii_t in range(n_timestamps-1):   
         
-        print("ii_t: ", ii_t)
+        # print("ii_t: ", ii_t)
         
         xt = xt_trj[ii_t]
         current_mode = mode_trj[ii_t]
