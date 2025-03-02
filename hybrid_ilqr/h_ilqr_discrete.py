@@ -514,7 +514,7 @@ class hybrid_ilqr:
                  new_hybrid_event_info,new_reset_args)=self.forward_pass(learning_rate)
                 
                 # --------------------------------- Plot forward pass ---------------------------------
-                show_fwdpass = True
+                show_fwdpass = False
                 if show_fwdpass:
                     self._plot_states_func(self._timespan, modes, states, inputs, 
                                             self._init_state, self._target_state, 
