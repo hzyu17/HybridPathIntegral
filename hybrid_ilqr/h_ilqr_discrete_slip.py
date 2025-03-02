@@ -40,7 +40,7 @@ if __name__ == '__main__':
     
     # For the slip dynamics, mode 1 has 1 input, and mode 2 has 2 inputs. 
     n_states = [5, 4]
-    n_inputs = [1, 2]
+    n_inputs = [3, 2]
     
     # ----------------------------
     # Case 1: vertical bouncing
@@ -136,7 +136,7 @@ if __name__ == '__main__':
     exp_params.update_params(n_modes, init_mode, target_mode, 
                              n_states, init_state, target_state, 
                              start_time, end_time, dt, 
-                             dt_shrink, initial_guess, 
+                             initial_guess, 
                              epsilon, n_exp, n_samples, 
                              Q_k, R_k, Q_T, symbolic_dynamics, 
                              event_detect_discrete_slip, 

@@ -267,7 +267,7 @@ if __name__ == '__main__':
     
     exp_params.update_params(n_modes, init_mode, target_mode, 
                              n_states, init_state, target_state, 
-                             start_time, end_time, dt, dt_shrink, initial_guess, 
+                             start_time, end_time, dt, initial_guess, 
                              epsilon, n_exp, n_samples, 
                              Q_k, R_k, Q_T, symbolic_dynamics, 
                              event_detect_discrete_slip, plot_slip, convert_state_21_slip, 
@@ -290,11 +290,11 @@ if __name__ == '__main__':
     ut_cl_trj_mean, 
     Sk_mean, 
     xt_ref_actual_mean, 
-    reset_args_mean) = hybrid_stochastic_feedback_rollout_discrete_slip(init_mode, init_state, n_inputs, states, modes, 
-                                                                        inputs, K_feedback, k_feedforward, target_state, 
-                                                                        Q_T, 0.0, dt, 
-                                                                        epsilon, Noise_zero, 0.9, 
-                                                                        reference_extension_helper, init_reset_args)
+    reset_args_mean) = h_stoch_fb_rollout_slip(init_mode, init_state, n_inputs, states, modes, 
+                                                inputs, K_feedback, k_feedforward, target_state, 
+                                                Q_T, 0.0, dt, 
+                                                epsilon, Noise_zero, 
+                                                reference_extension_helper, init_reset_args)
     
     exp_data.add_nominal_data(hybrid_ilqr_result)
 
@@ -932,13 +932,13 @@ if __name__ == '__main__':
         ut_cl_trj, 
         Sk, 
         xt_ref_actual, 
-        reset_args) = hybrid_stochastic_feedback_rollout_discrete_slip(init_mode, x0_i, n_inputs, 
-                                                                       states, modes, 
-                                                                        inputs, 
-                                                                        K_hcs, k_feedforward, target_state, 
-                                                                        Q_T, t0, dt, 
-                                                                        epsilon, GaussianNoise_i, dt_shrinkrate, 
-                                                                        reference_extension_helper, init_reset_args)
+        reset_args) = h_stoch_fb_rollout_slip(init_mode, x0_i, n_inputs, 
+                                                states, modes, 
+                                                inputs, 
+                                                K_hcs, k_feedforward, target_state, 
+                                                Q_T, t0, dt, 
+                                                epsilon, GaussianNoise_i, 
+                                                reference_extension_helper, init_reset_args)
         
         # ---------------------- Samples H-iLQR ----------------------
         (mode_trj_ilqr, 
@@ -946,13 +946,13 @@ if __name__ == '__main__':
         ut_cl_trj_ilqr, 
         Sk_ilqr, 
         xt_ref_actual_ilqr, 
-        reset_args_ilqr) = hybrid_stochastic_feedback_rollout_discrete_slip(init_mode, x0_i, n_inputs,
-                                                                            states, modes, 
-                                                                            inputs, 
-                                                                            K_feedback, k_feedforward, target_state, 
-                                                                            Q_T, t0, dt, 
-                                                                            epsilon, GaussianNoise_i, dt_shrinkrate, 
-                                                                            reference_extension_helper, init_reset_args)
+        reset_args_ilqr) = h_stoch_fb_rollout_slip(init_mode, x0_i, n_inputs,
+                                                    states, modes, 
+                                                    inputs, 
+                                                    K_feedback, k_feedforward, target_state, 
+                                                    Q_T, t0, dt, 
+                                                    epsilon, GaussianNoise_i, 
+                                                    reference_extension_helper, init_reset_args)
 
         # (mode_trj, 
         # xt_trj, 

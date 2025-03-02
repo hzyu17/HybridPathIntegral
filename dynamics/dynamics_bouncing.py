@@ -165,8 +165,8 @@ def stochastic_feedback_rollout_bouncing(init_mode, x0, n_inputs, xt_ref, ref_mo
                                                                           current_mode, ref_current_mode, 
                                                                             v_ext_fwd[0], v_ext_bwd[0], 
                                                                             v_event_modechange[0],
-                                                                            v_Kfb_ref_ext_fwd[0], v_kff_ref_ext_fwd[0],
-                                                                            v_Kfb_ref_ext_bwd[0], v_kff_ref_ext_bwd[0],
+                                                                            v_Kfb_ext_fwd[0], v_kff_ext_fwd[0],
+                                                                            v_Kfb_ext_bwd[0], v_kff_ext_bwd[0],
                                                                             cnt_mismatch, cond_early_arrival_bouncing)
             
         xt_ref_actual[ii_t] = xref_i
