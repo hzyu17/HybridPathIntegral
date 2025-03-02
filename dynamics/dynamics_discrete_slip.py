@@ -87,7 +87,6 @@ def stoch_integr_slip(mode, x0, u, dt, eps, dW):
 def guard_cond_slip_12(xt, xt_next, current_mode):
     # assume time invariant guard for now
     return (current_mode==0) and (guard_slip_12(0.0,xt)<0) and (guard_slip_12(0.0,xt_next)>0)
-    return (current_mode==0) and (guard_slip_12(0.0,xt)<0) and (guard_slip_12(0.0,xt_next)>0)
 
 def guard_true_slip_12(args):
     print("slip_cond_12: True")
@@ -244,11 +243,9 @@ h_stoch_fb_rollout_slip = partial(h_stoch_fb_rollout,
                                 h_stoch_integr_func=h_stoch_integr_slip)    
     
     
-def event_detect_discrete_slip(current_mode, x0, u, 
-                                t0, dt, 
-                                # dt_shrinkrate, 
-                                reset_args, 
-                                detection=True, backwards=False):
+def event_detect_discrete_slip(current_mode, 
+                               x0, u, t0, dt, reset_args, 
+                               detection=True, backwards=False):
 
     smooth_dynamics_slip = {0:dyn_flight_slip, 1:dyn_stance_slip}
 
@@ -263,7 +260,6 @@ def event_detect_discrete_slip(current_mode, x0, u,
                                         
     return event_detect_onestep_discrete(x0, u, t0, 
                                         dt, 
-                                        # dt_shrinkrate, 
                                         current_mode, 
                                         smooth_dynamics_slip, 
                                         guards_slip_slip,
