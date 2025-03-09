@@ -496,7 +496,7 @@ def vel_com_right_foot(q, dotq):
 # ==================================== 
 #       Floating base dynamics
 # ==================================== 
-def fxgu_floating_base(x, u):
+def f_NL(x, u):
     n_q = 7
     n_w = 2
     n_u = 4
@@ -524,3 +524,40 @@ def fxgu_floating_base(x, u):
     xdot = jnp.concatenate([dq, qddot]).flatten()
     
     return xdot
+
+
+def f_euler(x,u,dt):
+    return x + f_NL(x,u)*dt
+
+
+def f_rk4(x,u, dt):
+    # Runge Kutta
+    M = 4
+    dt_rk = dt / M
+    x_rk4 = x
+    for j in range(M):
+        k1 = f_NL(x_rk4, u);
+        k2 = f_NL(x_rk4 + (dt_rk/2)*k1,u)
+        k3 = f_NL(x_rk4 + (dt_rk/2)*k2,u)
+        k4 = f_NL(x_rk4 + dt_rk*k3,u)
+        x_rk4 = x_rk4 + (dt_rk/6) * (k1 + 2*k2 + 2*k3 + k4)
+    return f_rk4
+
+
+# ============================
+#          Impact Map
+# ============================
+def impact_map(x):
+    q = x[0:7]
+    qdot = x[7:]
+    D = D_matrix(q)
+    J_left_foot = J_swing_foot(q)
+    
+    De = jnp.vstack([jnp.hstack([D, -J_left_foot.T]), 
+                     jnp.hstack([J_left_foot, jnp.zeros((2,2))])])
+    RHS = jnp.vstack([D@qdot, jnp.zeros((2,1))])
+    impact_map = jnp.linalg.solve(De, RHS)
+    
+    x_impact = jnp.vstack([q, impact_map[0:7]])
+    
+    return x_impact.flatten()
