@@ -326,21 +326,22 @@ def G_vector(q):
                   - (2/5)*jnp.sin(q2R)*expr_q1R_c \
                   + (16/25)*( jnp.cos(q2R)*expr_q1R + jnp.sin(q2R)*expr_q1R_c )
     G3 = -0.733788e1 * expr_q1R - 0.31392e2 * innerR_row4
-
+    
+    
     # Row 5:
-    innerL_row5 = (2/5)*(1 - jnp.cos(q2L))*expr_q1L \
-                  - (2/5)*jnp.sin(q2L)*expr_q1L_c \
-                  + (16/25)*( jnp.cos(q2L)*expr_q1L + jnp.sin(q2L)*expr_q1L_c )
-    G4 = -0.733788e1 * expr_q1L - 0.31392e2 * innerL_row5
-
-    # Row 6:
     # Here the second term inside the bracket involves (cos(q1R)*cos(rotY) - sin(q1R)*sin(rotY))
     commonR = jnp.cos(q1R)*jnp.cos(rotY) - jnp.sin(q1R)*jnp.sin(rotY)
-    G5 = -0.31392e2 * (
+    G4 = -0.31392e2 * (
             (-2/5)*jnp.cos(q2R)*expr_q1R +
             (2/5)*jnp.sin(q2R)*commonR +
             (16/25)*( jnp.cos(q2R)*expr_q1R - jnp.sin(q2R)*commonR )
          )
+
+    # Row 6:
+    innerL_row5 = (2/5)*(1 - jnp.cos(q2L))*expr_q1L \
+                  - (2/5)*jnp.sin(q2L)*expr_q1L_c \
+                  + (16/25)*( jnp.cos(q2L)*expr_q1L + jnp.sin(q2L)*expr_q1L_c )
+    G5 = -0.733788e1 * expr_q1L - 0.31392e2 * innerL_row5
 
     # Row 7:
     commonL = jnp.cos(q1L)*jnp.cos(rotY) - jnp.sin(q1L)*jnp.sin(rotY)
@@ -389,4 +390,137 @@ def C_matrix(q, dq):
 
 
 def B_matrix():
-    return jnp.vstack([jnp.zeros(3,4), jnp.eye(4)])
+    return jnp.vstack([jnp.zeros((3,4)), jnp.eye(4)])
+
+# =========================================
+#             Left Swing Foot 
+# =========================================
+def Left_Swing_Foot_Position(q):
+    xbar,zbar,rotY,q1R,q2R,q1L,q2L = q[0],q[1],q[2],q[3],q[4],q[5],q[6]
+
+    pos_L_sw = jnp.array([xbar+(2/5)*(1+(-1)*jnp.cos(q2L))*(jnp.cos(rotY)*jnp.sin(q1L)+jnp.cos(q1L)* \
+      jnp.sin(rotY))+(-2/5)*jnp.sin(q2L)*(jnp.cos(q1L)*jnp.cos(rotY)+(-1)*jnp.sin(q1L) \
+      *jnp.sin(rotY))+(4/5)*(jnp.cos(q2L)*(jnp.cos(rotY)*jnp.sin(q1L)+jnp.cos(q1L)* \
+      jnp.sin(rotY))+jnp.sin(q2L)*(jnp.cos(q1L)*jnp.cos(rotY)+(-1)*jnp.sin(q1L)*jnp.sin( \
+      rotY))),zbar+(-2/5)*jnp.sin(q2L)*((-1)*jnp.cos(rotY)*jnp.sin(q1L)+(-1)* \
+      jnp.cos(q1L)*jnp.sin(rotY))+(2/5)*(1+(-1)*jnp.cos(q2L))*(jnp.cos(q1L)*jnp.cos( \
+      rotY)+(-1)*jnp.sin(q1L)*jnp.sin(rotY))+(4/5)*(jnp.sin(q2L)*((-1)*jnp.cos( \
+      rotY)*jnp.sin(q1L)+(-1)*jnp.cos(q1L)*jnp.sin(rotY))+jnp.cos(q2L)*(jnp.cos(q1L)* \
+      jnp.cos(rotY)+(-1)*jnp.sin(q1L)*jnp.sin(rotY)))])
+    return pos_L_sw
+J_swing_foot = jax.jacrev(Left_Swing_Foot_Position)
+def vel_left_foot(q, dotq):
+    return J_swing_foot(q)@dotq
+Jdot_swing_foot = jax.jacrev(vel_left_foot, argnums=0)
+  
+  
+# =========================================
+#             Right Stance Foot 
+# =========================================
+def Right_Stance_Foot_Position(q):
+  xbar,zbar,rotY,q1R,q2R,q1L,q2L = q[0],q[1],q[2],q[3],q[4],q[5],q[6]
+
+  posR = jnp.array([xbar+(2/5)*(1+(-1)*jnp.cos(q2R))*(jnp.cos(rotY)*jnp.sin(q1R)+jnp.cos(q1R)* \
+    jnp.sin(rotY))+(-2/5)*jnp.sin(q2R)*(jnp.cos(q1R)*jnp.cos(rotY)+(-1)*jnp.sin(q1R) \
+    *jnp.sin(rotY))+(4/5)*(jnp.cos(q2R)*(jnp.cos(rotY)*jnp.sin(q1R)+jnp.cos(q1R)* \
+    jnp.sin(rotY))+jnp.sin(q2R)*(jnp.cos(q1R)*jnp.cos(rotY)+(-1)*jnp.sin(q1R)*jnp.sin( \
+    rotY))),
+    0,
+    zbar+(-2/5)*jnp.sin(q2R)*((-1)*jnp.cos(rotY)*jnp.sin(q1R)+(-1)* \
+    jnp.cos(q1R)*jnp.sin(rotY))+(2/5)*(1+(-1)*jnp.cos(q2R))*(jnp.cos(q1R)*jnp.cos( \
+    rotY)+(-1)*jnp.sin(q1R)*jnp.sin(rotY))+(4/5)*(jnp.sin(q2R)*((-1)*jnp.cos( \
+    rotY)*jnp.sin(q1R)+(-1)*jnp.cos(q1R)*jnp.sin(rotY))+jnp.cos(q2R)*(jnp.cos(q1R)* \
+    jnp.cos(rotY)+(-1)*jnp.sin(q1R)*jnp.sin(rotY)))])
+
+  posR = jnp.array([posR[0], posR[2]]);
+  return posR
+J_stance_foot = jax.jacrev(Right_Stance_Foot_Position)
+
+def vel_right_foot(q, dotq):
+    return J_stance_foot(q)@dotq
+Jdot_stance_foot = jax.jacrev(vel_right_foot, argnums=0)
+
+
+def Hip_Position(q):
+    xbar,zbar,rotY,q1R,q2R,q1L,q2L = q[0],q[1],q[2],q[3],q[4],q[5],q[6]
+
+    posHip = jnp.array([xbar+(63/100)*jnp.sin(rotY), zbar+(63/100)*jnp.cos(rotY)])
+
+    return posHip
+J_hip = jax.jacrev(Hip_Position)
+
+
+def COM_Position(q):
+    xbar,zbar,rotY,q1R,q2R,q1L,q2L = q[0],q[1],q[2],q[3],q[4],q[5],q[6]
+
+    posCOM = jnp.array([(1/32)*(12*(xbar+(6/25)*jnp.sin(rotY))+(34/5)*(xbar+(11/100)*(jnp.cos( \
+      rotY)*jnp.sin(q1L)+jnp.cos(q1L)*jnp.sin(rotY)))+(34/5)*(xbar+(11/100)*( \
+      jnp.cos(rotY)*jnp.sin(q1R)+jnp.cos(q1R)*jnp.sin(rotY)))+(16/5)*(xbar+(2/5)*(1+ \
+      (-1)*jnp.cos(q2L))*(jnp.cos(rotY)*jnp.sin(q1L)+jnp.cos(q1L)*jnp.sin(rotY))+( \
+      -2/5)*jnp.sin(q2L)*(jnp.cos(q1L)*jnp.cos(rotY)+(-1)*jnp.sin(q1L)*jnp.sin(rotY)) \
+      +(16/25)*(jnp.cos(q2L)*(jnp.cos(rotY)*jnp.sin(q1L)+jnp.cos(q1L)*jnp.sin(rotY))+ \
+      jnp.sin(q2L)*(jnp.cos(q1L)*jnp.cos(rotY)+(-1)*jnp.sin(q1L)*jnp.sin(rotY))))+( \
+      16/5)*(xbar+(2/5)*(1+(-1)*jnp.cos(q2R))*(jnp.cos(rotY)*jnp.sin(q1R)+jnp.cos( \
+      q1R)*jnp.sin(rotY))+(-2/5)*jnp.sin(q2R)*(jnp.cos(q1R)*jnp.cos(rotY)+(-1)* \
+      jnp.sin(q1R)*jnp.sin(rotY))+(16/25)*(jnp.cos(q2R)*(jnp.cos(rotY)*jnp.sin(q1R)+ \
+      jnp.cos(q1R)*jnp.sin(rotY))+jnp.sin(q2R)*(jnp.cos(q1R)*jnp.cos(rotY)+(-1)*jnp.sin( \
+      q1R)*jnp.sin(rotY))))), \
+      (1/32)*(12*(zbar+(6/25)*jnp.cos(rotY))+(34/5)* \
+      (zbar+(11/100)*(jnp.cos(q1L)*jnp.cos(rotY)+(-1)*jnp.sin(q1L)*jnp.sin(rotY)))+( \
+      34/5)*(zbar+(11/100)*(jnp.cos(q1R)*jnp.cos(rotY)+(-1)*jnp.sin(q1R)*jnp.sin( \
+      rotY)))+(16/5)*(zbar+(-2/5)*jnp.sin(q2L)*((-1)*jnp.cos(rotY)*jnp.sin(q1L) \
+      +(-1)*jnp.cos(q1L)*jnp.sin(rotY))+(2/5)*(1+(-1)*jnp.cos(q2L))*(jnp.cos(q1L) \
+      *jnp.cos(rotY)+(-1)*jnp.sin(q1L)*jnp.sin(rotY))+(16/25)*(jnp.sin(q2L)*((-1) \
+      *jnp.cos(rotY)*jnp.sin(q1L)+(-1)*jnp.cos(q1L)*jnp.sin(rotY))+jnp.cos(q2L)*(jnp.cos( \
+      q1L)*jnp.cos(rotY)+(-1)*jnp.sin(q1L)*jnp.sin(rotY))))+(16/5)*(zbar+(-2/5) \
+      *jnp.sin(q2R)*((-1)*jnp.cos(rotY)*jnp.sin(q1R)+(-1)*jnp.cos(q1R)*jnp.sin(rotY) \
+      )+(2/5)*(1+(-1)*jnp.cos(q2R))*(jnp.cos(q1R)*jnp.cos(rotY)+(-1)*jnp.sin(q1R) \
+      *jnp.sin(rotY))+(16/25)*(jnp.sin(q2R)*((-1)*jnp.cos(rotY)*jnp.sin(q1R)+(-1) \
+      *jnp.cos(q1R)*jnp.sin(rotY))+jnp.cos(q2R)*(jnp.cos(q1R)*jnp.cos(rotY)+(-1)*jnp.sin( \
+      q1R)*jnp.sin(rotY)))))])
+
+    return posCOM
+J_com_world = jax.jacrev(COM_Position)
+
+def vel_com_world(q, dotq):
+    return J_com_world(q) @ dotq
+  
+def pos_com_right_foot(q):
+  return COM_Position(q) - Right_Stance_Foot_Position(q)
+J_com_stance_foot = jax.jacrev(pos_com_right_foot)
+
+def vel_com_right_foot(q, dotq):
+    return J_com_stance_foot(q)@dotq
+
+
+# ==================================== 
+#       Floating base dynamics
+# ==================================== 
+def fxgu_floating_base(x, u):
+    n_q = 7
+    n_w = 2
+    n_u = 4
+    q = x[0:7]
+    dq = x[7:]
+    B = 50.0*B_matrix() # Multiply by 50 b/c of gear reduction
+    # C = C_matrix(q, dq)
+    C = jnp.zeros((7, 7)) # omit Coriolis for now
+    D = D_matrix(q)
+    G = -G_vector(q).flatten()
+    
+    J_right_foot = J_stance_foot(q)
+    Jdot_right_foot = Jdot_stance_foot(q, dq)
+    
+    De = jnp.vstack([jnp.hstack([D, -J_right_foot.T]), 
+                     jnp.hstack([J_right_foot, jnp.zeros((n_w,n_w))])]);
+    Ce = jnp.vstack([C, Jdot_right_foot])
+    Ge = jnp.concatenate([G, jnp.zeros(n_w).flatten()]).flatten()
+    Be = jnp.vstack([B, jnp.zeros((n_w,n_u))]);
+    
+    # Compute ddot_q and wrench
+    qddot_wrench = jnp.linalg.solve(De, -Ce @ dq - Ge.flatten() + Be@u)
+    qddot = qddot_wrench[:n_q]
+    w_sym = qddot_wrench[n_q:]
+    xdot = jnp.concatenate([dq, qddot]).flatten()
+    
+    return xdot

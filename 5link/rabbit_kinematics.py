@@ -1,18 +1,15 @@
 import jax.numpy as jnp
+import jax
 
 def p_Torso(var1):
     """
     Compute the torso position vector p_Torso from var1.
     
     Parameters:
-      var1 : a JAX array of shape (7,) representing the input vector.
-             (In the original MATLAB code, var1 is a 7x1 vector.)
+      var1 : a JAX array of shape (7,).)
              
     Returns:
-      A JAX array of shape (3,) representing the output:
-          [ var1[0] + 0.63*sin(var1[2]),
-            0,
-            0.63*cos(var1[2]) + var1[1] ]
+      A JAX array of shape (3,)
     """
     # Ensure var1 is a flat vector of length 7.
     var1 = jnp.ravel(var1)
@@ -31,11 +28,10 @@ def p_LeftToe(var1):
     Compute p_LeftToe from var1.
     
     Parameters:
-      var1: a JAX array of shape (7,) (or convertible to a 7-element vector).
-            (Assumes angles are in radians.)
+      var1: a JAX array of shape (7,)
     
     Returns:
-      A JAX array of shape (3,).
+      A JAX array of shape (3,)
       
     """
     # Ensure var1 is a flat vector of length 7.
@@ -77,7 +73,7 @@ def p_RightToe(var1):
     Compute p_RightToe from var1.
     
     Parameters:
-      var1 : a JAX array of shape (7,) representing the input.
+      var1 : a JAX array of shape (7,)
       
     Returns:
       A JAX array of shape (3,)
@@ -121,7 +117,7 @@ def p_q2_right(var1):
     Compute right stance foot knee position from var1.
     
     Input:
-      var1: a JAX array of shape (7,). (In MATLAB, var1 is 7x1.)
+      var1: a JAX array of shape (7,)
       
     Returns:
       A JAX array of shape (3,)
@@ -166,9 +162,7 @@ def p_q2_left(var1):
     Compute the left swing foot knee position from var1.
     
     Input:
-      var1: a JAX array of shape (7,), where:
-            var1[0] = first element, ..., var1[6] = seventh element.
-    
+      var1: a JAX array of shape (7,)
     Returns:
       A JAX array of shape (3,)
     
@@ -205,3 +199,5 @@ def p_q2_left(var1):
     out2 = t1526 * t1547 + t1554 * t1574 + 0.4 * (t1509 * t1547 + t1549 * t1574) + var1[1]
     
     return jnp.array([out0, out1, out2])
+  
+  

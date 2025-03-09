@@ -1,4 +1,5 @@
 import jax.numpy as jnp
+from rabbit_kinematics import *
 from rabbit_dynamics import *
 
 def p_Torso(var1):
@@ -317,6 +318,9 @@ def p_LeftToe(var1):
 # Example usage:
 if __name__ == '__main__':
     # Create an example input vector of length 7.
-    var1_example = jnp.array([1.0, 2.0, 0.5, 0.3, 0.2, 0.1, 0.0])
-    result = D_matrix(var1_example)
-    print("D_matrix output:", result)
+    q = jnp.array([1.0, 2.0, 0.5, 0.3, 0.2, 0.1, 0.0])
+    dotq = jnp.zeros(7)
+    u = jnp.zeros(4)
+    x_init = jnp.concatenate([q, dotq])
+    result = fxgu_floating_base(x_init, u)
+    print("fxgu_floating_base output:", result)

@@ -147,26 +147,6 @@ def com_position(q):
     return jnp.array([posCOM_x, posCOM_z])
 
 
-def fxgu_floating_base(t, x, u, params):
-    q = x[0:7]
-    dq = x[7:]
-    B = B_matrix()
-    C = C_matrix(q, dq)
-    D = D_matrix(q)
-    G = G_vector(q)
-    
-    # Compute Fx and Gx
-    Fx = jnp.linalg.solve(D, -C @ x[5:10] - G.flatten())
-    Gx = jnp.linalg.solve(D, B)
-    
-    # Compute state derivatives
-    dx = jnp.zeros_like(x)
-    dx[:5] = x[5:10]
-    dx[5:10] = Fx + Gx @ u
-    
-    return dx
-
-
 def foot_touching_event(t,x):
     q = x[0:7]
     return left_swing_foot_position(q)[1]
