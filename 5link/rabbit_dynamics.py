@@ -496,6 +496,7 @@ def vel_com_right_foot(q, dotq):
 # ==================================== 
 #       Floating base dynamics
 # ==================================== 
+@jax.jit
 def f_NL(x, u):
     n_q = 7
     n_w = 2
@@ -512,7 +513,8 @@ def f_NL(x, u):
     Jdot_right_foot = Jdot_stance_foot(q, dq)
     
     De = jnp.vstack([jnp.hstack([D, -J_right_foot.T]), 
-                     jnp.hstack([J_right_foot, jnp.zeros((n_w,n_w))])]);
+                     jnp.hstack([J_right_foot, jnp.zeros((n_w,n_w))])])
+    
     Ce = jnp.vstack([C, Jdot_right_foot])
     Ge = jnp.concatenate([G, jnp.zeros(n_w).flatten()]).flatten()
     Be = jnp.vstack([B, jnp.zeros((n_w,n_u))]);
@@ -525,12 +527,12 @@ def f_NL(x, u):
     
     return xdot
 
-
+@jax.jit
 def f_euler(x,u,dt):
     return x + f_NL(x,u)*dt
 
-
-def f_rk4(x,u, dt):
+@jax.jit
+def f_rk4(x, u, dt):
     # Runge Kutta
     M = 4
     dt_rk = dt / M
@@ -541,7 +543,7 @@ def f_rk4(x,u, dt):
         k3 = f_NL(x_rk4 + (dt_rk/2)*k2,u)
         k4 = f_NL(x_rk4 + dt_rk*k3,u)
         x_rk4 = x_rk4 + (dt_rk/6) * (k1 + 2*k2 + 2*k3 + k4)
-    return f_rk4
+    return x_rk4
 
 
 # ============================
@@ -550,14 +552,32 @@ def f_rk4(x,u, dt):
 def impact_map(x):
     q = x[0:7]
     qdot = x[7:]
+    
+    # Compute impact contact force and post-impact velocities
     D = D_matrix(q)
     J_left_foot = J_swing_foot(q)
     
     De = jnp.vstack([jnp.hstack([D, -J_left_foot.T]), 
                      jnp.hstack([J_left_foot, jnp.zeros((2,2))])])
-    RHS = jnp.vstack([D@qdot, jnp.zeros((2,1))])
+    RHS = jnp.concatenate([(D@qdot).flatten(), jnp.zeros(2)])
     impact_map = jnp.linalg.solve(De, RHS)
     
-    x_impact = jnp.vstack([q, impact_map[0:7]])
+    x_impact = jnp.concatenate([q, impact_map[0:7]])
     
-    return x_impact.flatten()
+    # Relabel the links to switch the swing foot and the stance foot
+    # Original order: [xbar, zbar, rotY, q1R, q2R, q1L, q2L]
+    EYE = jnp.eye(14)
+    new_order = jnp.array([0, 1, 2, 5, 6, 3, 4, 7, 8, 9, 12, 13, 10, 11])
+    Rotation = EYE[new_order, :]
+    x_new = Rotation@x_impact
+    
+    return x_new.flatten()
+
+
+def sw_foot_ground_touching_event(x):
+    below_ground = Left_Swing_Foot_Position(x[0:7])[1] <= 0.0
+    negative_vel = vel_left_foot(x[0:7], x[7:14])[1] < 0.0
+    
+    return (below_ground and negative_vel)
+
+
