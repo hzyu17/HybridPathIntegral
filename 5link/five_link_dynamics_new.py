@@ -1,3 +1,11 @@
+import os
+import sys
+file_path = os.path.abspath(__file__)
+current_dir = os.path.dirname(file_path)
+root_dir = os.path.abspath(os.path.join(current_dir, '..'))
+sys.path.append(root_dir)
+
+
 import jax.numpy as jnp
 import jax
 import PySimpleGUI as sg
@@ -5,25 +13,45 @@ from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
 from rabbit_kinematics import *
 from rabbit_dynamics import *
+from dynamics.saltation_matrix import compute_saltation
 
 import numpy as np
 
 
 class FiveLinkSimulator:
     def __init__(self, x0, u_trj, dts):
-        self.x0 = x0
-        self.u_trj = u_trj
-        self.dts = dts
         
         self.nx = len(x0)
         self.nu = u_trj.shape[1]
         self.nt = dts.shape[0]
         
+        self.x0 = x0
+        self.u_trj = u_trj
+        self.dts = dts
+        self.t_trj = np.zeros(self.nt)
+        
         self.x_trj = np.zeros((self.nt, self.nx))
         self.x_trj[0] = x0
         
         self.n_impact = 0
-        self.com_trj = jnp.zeros((self.nt, 2))
+        self.impact_time = []
+        self.saltation_matrices = []
+        
+        # information for plotting 
+        self.com_trj = np.zeros((self.nt, 2))
+        self.v_com_trj = np.zeros((self.nt, 2))
+        
+        self.pos_com_st_foot_trj = np.zeros((self.nt, 2))
+        self.vel_com_st_foot_trj = np.zeros((self.nt, 2))
+        
+        self.st_foot_wrench = np.zeros((self.nt, 2))
+        self.sw_foot_pos_trj = np.zeros((self.nt, 2))
+        self.sw_foot_vel_trj = np.zeros((self.nt, 2))
+        
+        self.st_foot_pos_trj = np.zeros((self.nt, 2))
+        self.st_foot_vel_trj = np.zeros((self.nt, 2))
+        
+        self.sw_foot_wrench = np.zeros((self.nt, 2))
         
     
     def simulate(self):
@@ -36,28 +64,137 @@ class FiveLinkSimulator:
             dts (jnp.array): discrete time intervals, in shape (nt, )
         """
         
-        for i_t in range(nt-1):
+        for i_t in range(self.nt-1):
             print("Integrating time step: ", i_t)
             xt = self.x_trj[i_t]
             ut = self.u_trj[i_t]
             dt = self.dts[i_t]
+                        
+            # ------------------------ 
+            #    Forward integration 
+            # ------------------------ 
             # x_next = f_euler(xt, ut, dt) # Euler
             x_next = f_rk4(xt, ut, dt) # RK4
-                    
-            # -------------------- check for impact ------------------
+            
+            # -------------------- 
+            #   Check for impact 
+            # --------------------
             if sw_foot_ground_touching_event(x_next):
                 # ------ bisection -----
                 print("Guard function activated")
+                
                 while True:
                     dt = dt / 2.0
                     x_test = f_rk4(xt, ut, dt)
                     if not sw_foot_ground_touching_event(x_test):
                         break
                 x_next = impact_map(x_test)
+                self.sw_foot_wrench[i_t] = impact_wrench(x_test)
+                
+                self.n_impact += 1
+                self.impact_time.append(self.t_trj[i_t] + dt)
+                
+                # Compute saltation matrix
+                
+                F_1 = f_NL(x_test, ut)
+                F_2 = f_NL(x_next, ut) # Important, the F2 is evaluated at the resetted state!
+                Rt = Rt_5link(0.0, x_test)
+                Rx = Rx_5link(x_test)
+                gt = gt_5link(0.0, x_test)
+                gx = gx_5link(x_next)
+                saltation = compute_saltation(F_1, F_2, Rt, Rx, gt, gx)
+                self.saltation_matrices.append(saltation)
             
             self.x_trj[i_t+1] = x_next
             
+            self.t_trj[i_t+1] = self.t_trj[i_t] + dt
+            
         return self.x_trj
+    
+    
+    def compute_info(self):
+        for i_t in range(self.nt-1):
+            print("Integrating time step: ", i_t)
+            xt = self.x_trj[i_t]
+            ut = self.u_trj[i_t]
+
+            # ----------- for plotting ----------- 
+            w_st = wrench_st(xt, ut)
+            self.st_foot_wrench[i_t] = w_st
+            self.com_trj[i_t] = COM_Position(xt[0:7])
+            self.v_com_trj[i_t] = vel_com_world(xt[0:7], xt[7:])
+            
+            self.pos_com_st_foot_trj[i_t] = pos_com_right_foot(xt[:7])
+            self.vel_com_st_foot_trj[i_t] = vel_com_right_foot(xt[:7], xt[7:])
+            
+            self.sw_foot_pos_trj[i_t] = Left_Swing_Foot_Position(xt[:7])
+            self.sw_foot_vel_trj[i_t] = vel_left_foot(xt[:7], xt[7:])
+            
+            self.st_foot_pos_trj[i_t] = Right_Stance_Foot_Position(xt[:7])
+            self.st_foot_vel_trj[i_t] = vel_right_foot(xt[:7], xt[7:])
+                
+                
+    def plot_results(self):
+        self.compute_info()
+        
+        _, axs = plt.subplots(2, 2, figsize=(10, 8))
+        axs[0, 0].plot(self.t_trj, self.u_trj[:, 0], label='Input Torque u1')
+        axs[0, 0].plot(self.t_trj, self.u_trj[:, 1], label='Input Torque u2')
+        axs[0, 0].plot(self.t_trj, self.u_trj[:, 2], label='Input Torque u3')
+        axs[0, 0].plot(self.t_trj, self.u_trj[:, 3], label='Input Torque u4')
+
+        axs[0, 1].plot(self.t_trj, self.st_foot_wrench[:, 0], label='Stance Foot Wrench, x')
+        axs[0, 1].plot(self.t_trj, self.st_foot_wrench[:, 1], label='Stance Foot Wrench, z')
+        
+        axs[1, 0].plot(self.t_trj, self.sw_foot_wrench[:, 0], label='Swing Foot Wrench, x')
+        axs[1, 0].plot(self.t_trj, self.sw_foot_wrench[:, 1], linestyle='--', label='Swing Foot Wrench, z')
+        
+        axs[0, 0].grid(True)
+        axs[0, 1].grid(True)        
+        axs[1, 0].grid(True)
+        axs[1, 1].grid(True)
+
+        axs[0, 0].legend()
+        axs[0, 1].legend()
+        axs[1, 0].legend()
+        axs[1, 1].legend()
+        
+        plt.tight_layout()
+    
+        _, axs1 = plt.subplots(2, 3, figsize=(10, 8))
+        axs1[0, 0].plot(self.t_trj, self.sw_foot_pos_trj[:, 0], label='Swing Foot Position, x')
+        axs1[0, 0].plot(self.t_trj, self.st_foot_pos_trj[:, 0], label='Stance Foot Position, x')
+        
+        axs1[0, 1].plot(self.t_trj, self.sw_foot_pos_trj[:, 1], label='Swing Foot Position, z')
+        axs1[0, 1].plot(self.t_trj, self.st_foot_pos_trj[:, 1], label='Stance Foot Position, z')
+        
+        axs1[1, 0].plot(self.t_trj, self.com_trj[:, 0], label='CoM World Pos trj, x')
+        axs1[1, 0].plot(self.t_trj, self.pos_com_st_foot_trj[:, 0], label='CoM Stance Foot Pos trj, x')
+        
+        axs1[1, 1].plot(self.t_trj, self.com_trj[:, 1], label='CoM World Pos trj, z')
+        axs1[1, 1].plot(self.t_trj, self.pos_com_st_foot_trj[:, 1], label='CoM Stance Foot Pos trj, z')
+        
+        axs1[1, 2].plot(self.t_trj, self.v_com_trj[:, 0], label='CoM World Vel trj, x')
+        axs1[1, 2].plot(self.t_trj, self.v_com_trj[:, 1], label='CoM World Vel trj, z')
+        
+        
+        axs1[0, 0].grid(True)
+        axs1[0, 1].grid(True)  
+        axs1[0, 2].grid(True)      
+        axs1[1, 0].grid(True)
+        axs1[1, 1].grid(True)
+        axs1[1, 2].grid(True)
+        
+        axs1[0, 0].legend()
+        axs1[0, 1].legend()
+        axs1[0, 2].legend()
+        axs1[1, 0].legend()
+        axs1[1, 1].legend()
+        axs1[1, 2].legend()
+        
+        plt.tight_layout()
+        plt.show()
+        
         
 def draw_5link(q, ax=None, legend=True):
     
@@ -137,7 +274,7 @@ def animate_trj(x_trj, step=5):
     draw_5link(x_trj[-1, 0:7], ax, legend=True)
     plt.show()
         
-        
+
 if __name__ == '__main__':
     # q = [xbar, zbar, rotY, q1R, q2R, q1L, q2L]
     
@@ -178,6 +315,8 @@ if __name__ == '__main__':
     fivelink_simulator = FiveLinkSimulator(x_init, u_trj, dt_trj)
     x_trj = fivelink_simulator.simulate()
     
-    for i in range(5):
-        animate_trj(x_trj, step=2)
+    fivelink_simulator.plot_results()
+    
+    for i in range(3):
+        animate_trj(x_trj, step=5)
     

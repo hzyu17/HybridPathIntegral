@@ -1,7 +1,7 @@
 import jax.numpy as jnp
 import jax
 
-
+@jax.jit
 def D_matrix(q):
     # Unpack the 7 generalized coordinates (MATLAB q(1) \ q(7))
     rotY   = q[2]
@@ -285,7 +285,7 @@ def D_matrix(q):
     
     return Mmat
 
-
+@jax.jit
 def G_vector(q):
     # Unpack the 7 generalized coordinates (MATLAB q(1) \ q(7))
     rotY  = q[2]
@@ -353,7 +353,7 @@ def G_vector(q):
 
     return jnp.array([G0, G1, G2, G3, G4, G5, G6])
   
-  
+@jax.jit
 def C_matrix(q, dq):
     """
     Compute the Coriolis matrix.
@@ -388,13 +388,14 @@ def C_matrix(q, dq):
             C_mat = C_mat.at[i, j].set(temp)
     return C_mat
 
-
+@jax.jit
 def B_matrix():
     return jnp.vstack([jnp.zeros((3,4)), jnp.eye(4)])
 
 # =========================================
 #             Left Swing Foot 
 # =========================================
+@jax.jit
 def Left_Swing_Foot_Position(q):
     xbar,zbar,rotY,q1R,q2R,q1L,q2L = q[0],q[1],q[2],q[3],q[4],q[5],q[6]
 
@@ -409,6 +410,8 @@ def Left_Swing_Foot_Position(q):
       jnp.cos(rotY)+(-1)*jnp.sin(q1L)*jnp.sin(rotY)))])
     return pos_L_sw
 J_swing_foot = jax.jacrev(Left_Swing_Foot_Position)
+
+@jax.jit
 def vel_left_foot(q, dotq):
     return J_swing_foot(q)@dotq
 Jdot_swing_foot = jax.jacrev(vel_left_foot, argnums=0)
@@ -417,6 +420,7 @@ Jdot_swing_foot = jax.jacrev(vel_left_foot, argnums=0)
 # =========================================
 #             Right Stance Foot 
 # =========================================
+@jax.jit
 def Right_Stance_Foot_Position(q):
   xbar,zbar,rotY,q1R,q2R,q1L,q2L = q[0],q[1],q[2],q[3],q[4],q[5],q[6]
 
@@ -436,11 +440,12 @@ def Right_Stance_Foot_Position(q):
   return posR
 J_stance_foot = jax.jacrev(Right_Stance_Foot_Position)
 
+@jax.jit
 def vel_right_foot(q, dotq):
     return J_stance_foot(q)@dotq
 Jdot_stance_foot = jax.jacrev(vel_right_foot, argnums=0)
 
-
+@jax.jit
 def Hip_Position(q):
     xbar,zbar,rotY,q1R,q2R,q1L,q2L = q[0],q[1],q[2],q[3],q[4],q[5],q[6]
 
@@ -449,7 +454,7 @@ def Hip_Position(q):
     return posHip
 J_hip = jax.jacrev(Hip_Position)
 
-
+@jax.jit
 def COM_Position(q):
     xbar,zbar,rotY,q1R,q2R,q1L,q2L = q[0],q[1],q[2],q[3],q[4],q[5],q[6]
 
@@ -482,13 +487,16 @@ def COM_Position(q):
     return posCOM
 J_com_world = jax.jacrev(COM_Position)
 
+@jax.jit
 def vel_com_world(q, dotq):
     return J_com_world(q) @ dotq
   
+@jax.jit
 def pos_com_right_foot(q):
   return COM_Position(q) - Right_Stance_Foot_Position(q)
 J_com_stance_foot = jax.jacrev(pos_com_right_foot)
 
+@jax.jit
 def vel_com_right_foot(q, dotq):
     return J_com_stance_foot(q)@dotq
 
@@ -497,15 +505,15 @@ def vel_com_right_foot(q, dotq):
 #       Floating base dynamics
 # ==================================== 
 @jax.jit
-def f_NL(x, u):
+def f_qddot_wrench(x, u):
     n_q = 7
     n_w = 2
     n_u = 4
-    q = x[0:7]
-    dq = x[7:]
+    q = x[0:n_q]
+    dq = x[n_q:]
     B = 50.0*B_matrix() # Multiply by 50 b/c of gear reduction
     # C = C_matrix(q, dq)
-    C = jnp.zeros((7, 7)) # omit Coriolis for now
+    C = jnp.zeros((n_q, n_q)) # omit Coriolis for now
     D = D_matrix(q)
     G = -G_vector(q).flatten()
     
@@ -517,15 +525,33 @@ def f_NL(x, u):
     
     Ce = jnp.vstack([C, Jdot_right_foot])
     Ge = jnp.concatenate([G, jnp.zeros(n_w).flatten()]).flatten()
-    Be = jnp.vstack([B, jnp.zeros((n_w,n_u))]);
+    Be = jnp.vstack([B, jnp.zeros((n_w,n_u))])
     
     # Compute ddot_q and wrench
     qddot_wrench = jnp.linalg.solve(De, -Ce @ dq - Ge.flatten() + Be@u)
+    
+    return qddot_wrench
+
+
+@jax.jit
+def f_NL(x, u):
+    n_q = 7
+    dq = x[n_q:]
+    
+    qddot_wrench = f_qddot_wrench(x, u)
     qddot = qddot_wrench[:n_q]
-    w_sym = qddot_wrench[n_q:]
     xdot = jnp.concatenate([dq, qddot]).flatten()
     
     return xdot
+
+
+@jax.jit
+def wrench_st(x, u):
+    n_q = 7
+    qddot_wrench = f_qddot_wrench(x, u)
+    w_sym = qddot_wrench[n_q:]
+    return w_sym
+
 
 @jax.jit
 def f_euler(x,u,dt):
@@ -549,6 +575,7 @@ def f_rk4(x, u, dt):
 # ============================
 #          Impact Map
 # ============================
+@jax.jit
 def impact_map(x):
     q = x[0:7]
     qdot = x[7:]
@@ -572,6 +599,25 @@ def impact_map(x):
     x_new = Rotation@x_impact
     
     return x_new.flatten()
+Rx_5link = jax.jacrev(impact_map)
+def Rt_5link(t, x):
+    return 0.0
+
+@jax.jit
+def impact_wrench(x):
+    q = x[0:7]
+    qdot = x[7:]
+    
+    # Compute impact contact force and post-impact velocities
+    D = D_matrix(q)
+    J_left_foot = J_swing_foot(q)
+    
+    De = jnp.vstack([jnp.hstack([D, -J_left_foot.T]), 
+                     jnp.hstack([J_left_foot, jnp.zeros((2,2))])])
+    RHS = jnp.concatenate([(D@qdot).flatten(), jnp.zeros(2)])
+    impact_map = jnp.linalg.solve(De, RHS)
+    
+    return impact_map[7:]
 
 
 def sw_foot_ground_touching_event(x):
@@ -580,4 +626,9 @@ def sw_foot_ground_touching_event(x):
     
     return (below_ground and negative_vel)
 
+def gt_5link(t, x):
+    return 0.0
 
+def swing_foot_height(x):
+    return Left_Swing_Foot_Position(x)[1]
+gx_5link = jax.jacrev(swing_foot_height)
