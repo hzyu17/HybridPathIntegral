@@ -372,7 +372,7 @@ def hybrid_stochastic_feedback_rollout_slip(init_mode, x0, n_inputs, xt_ref, ref
                     dt_int, GaussianNoise[current_mode][ii_t], epsilon, 
                     stochastic_integration_slip, guards_slip, reset_maps_slip, reset_args[ii_t])
             
-            xt_next, next_mode, dW_i, new_reset_args = event_reactive_fun(args)
+            xt_next, next_mode, dW_i, new_reset_args = stoch_event_reactive_fun(args)
             dt_int = dt
             
             event_args.append(new_reset_args)
@@ -459,7 +459,6 @@ def event_detect_slip(x0, u, t0, tf, current_mode, reset_args, detection=True, b
                                 gxs_slip,
                                 gts_slip,
                                 reset_maps_slip,
-                                # reset_controls_slip,
                                 Rxs_slip,
                                 Rts_slip,
                                 reset_args, detection, backwards)

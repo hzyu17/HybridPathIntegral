@@ -79,7 +79,7 @@ def hybrid_stochastic_integration(x0, u, current_mode, t_span, epsilon, RandN, d
     # Guard condition: direction is -1     
     if event_condition(x0, xt_next, guard_bouncing_12): # Hit the guard function.
         args = (x0, current_mode, u, t, t_next, xt_next, dt, dt_shrinkingrate, RandN, epsilon, stochastic_integration, guard_bouncing_12, reset_map_bouncing_12)
-        xt_next, next_mode, _ = event_reactive_fun(args)
+        xt_next, next_mode, _ = stoch_event_reactive_fun(args)
         
     return xt_next, next_mode
 
@@ -193,7 +193,7 @@ def stochastic_feedback_rollout_bouncing(init_mode, x0, n_inputs, xt_ref, ref_mo
                     dt_int, dt_shrinkingrate, GaussianNoise[current_mode][ii_t], epsilon, 
                     stochastic_integration_bouncing, guards_bouncing, reset_maps_bouncing, reset_args[ii_t])
             
-            xt_next, next_mode, dW_i, new_reset_args = event_reactive_fun(args)
+            xt_next, next_mode, dW_i, new_reset_args = stoch_event_reactive_fun(args)
             dt_int = dt
             
             event_args.append(new_reset_args)

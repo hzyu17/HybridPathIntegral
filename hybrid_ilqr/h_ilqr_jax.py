@@ -463,7 +463,7 @@ class hybrid_ilqr_jax:
             
             (next_state, saltation, 
              mode_change, t_event, x_event, 
-             x_reset, reset_byproduct) = self._detectfunc(x_i, u_i, t_ii, t_ii_plus, mode_i, reset_args=None)
+             x_reset, _) = self._detectfunc(x_i, u_i, t_ii, t_ii_plus, mode_i, reset_args=None)
 
             # ------------------------------
             # Update the hybrid information

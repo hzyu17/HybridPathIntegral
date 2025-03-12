@@ -554,11 +554,11 @@ def wrench_st(x, u):
 
 
 @jax.jit
-def f_euler(x,u,dt):
+def f_euler_fivelink(x,u,dt):
     return x + f_NL(x,u)*dt
 
 @jax.jit
-def f_rk4(x, u, dt):
+def f_rk4_fivelink(x, u, dt):
     # Runge Kutta
     M = 4
     dt_rk = dt / M
@@ -620,15 +620,42 @@ def impact_wrench(x):
     return impact_map[7:]
 
 
+# -------------------------------
+#          Guard Functions
+# -------------------------------
+# Mode 0: swing foot descending
+# Mode 1: Swing foot ascending
+
+# Event from mode 0 to mode 1
 def sw_foot_ground_touching_event(x):
     below_ground = Left_Swing_Foot_Position(x[0:7])[1] <= 0.0
     negative_vel = vel_left_foot(x[0:7], x[7:14])[1] < 0.0
     
     return (below_ground and negative_vel)
 
-def gt_5link(t, x):
+# guard function from mode 0 to mode 1
+def guard_12_fivelink(t, x):
+    return Left_Swing_Foot_Position(x)[1]
+guard_12_fivelink.direction = -1
+
+gx_12_5link = jax.jacrev(guard_12_fivelink)
+
+def gt_12_5link(t, x):
     return 0.0
 
-def swing_foot_height(x):
-    return Left_Swing_Foot_Position(x)[1]
-gx_5link = jax.jacrev(swing_foot_height)
+# Event for from mode 1 to mode 0
+def sw_foot_descending_event(x):
+    above_ground = Left_Swing_Foot_Position(x[0:7])[1] > 0.0
+    negative_vel = vel_left_foot(x[0:7], x[7:14])[1] < 0.0
+    
+    return (above_ground and negative_vel)
+
+# guard function from mode 1 to mode 0
+def guard_21_fivelink(t, x):
+    return vel_left_foot(x[0:7], x[7:14])[1]
+guard_21_fivelink.direction = -1
+
+gx_21_5link = jax.jacrev(guard_21_fivelink)
+
+def gt_21_5link(t, x):
+    return 0.0
