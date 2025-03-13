@@ -6,7 +6,7 @@ root_dir = os.path.abspath(os.path.join(current_dir, '..'))
 sys.path.append(root_dir)
 
 import numpy as np
-from dynamics.dynamics_slip import *
+from dynamics.ode_solver.dynamics_slip import *
 from dynamics.dynamics_discrete import *
 
 g = 9.81
@@ -86,7 +86,6 @@ def stoch_integr_slip(mode, x0, u, dt, eps, dW):
 # -------------------------------- From mode 1 (flight) to mode 2 (stance) --------------------------------
 def guard_cond_slip_12(xt, xt_next, current_mode):
     # assume time invariant guard for now
-    return (current_mode==0) and (guard_slip_12(0.0,xt)<0) and (guard_slip_12(0.0,xt_next)>0)
     return (current_mode==0) and (guard_slip_12(0.0,xt)<0) and (guard_slip_12(0.0,xt_next)>0)
 
 def guard_true_slip_12(args):

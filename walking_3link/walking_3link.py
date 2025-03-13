@@ -19,7 +19,7 @@ from matplotlib.lines import Line2D
 from scipy.integrate import solve_ivp
 from mpl_toolkits.mplot3d import Axes3D
 from dynamics.saltation_matrix import compute_saltation
-from dynamics.dynamics import *
+from dynamics.ode_solver.dynamics import *
 
 
 # ================ dynamics parameters ================

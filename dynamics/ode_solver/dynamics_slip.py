@@ -4,7 +4,7 @@
 # reset maps: identity
 
 import matplotlib.gridspec as gridspec
-from dynamics.dynamics import *
+from dynamics.ode_solver.dynamics import *
 from dynamics.guard_reset_slip import *
 
 import matplotlib.pyplot as plt

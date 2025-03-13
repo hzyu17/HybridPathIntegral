@@ -1,4 +1,4 @@
-from dynamics.dynamics import *
+from dynamics.ode_solver.dynamics import *
 import matplotlib.pyplot as plt
 from matplotlib.font_manager import FontProperties
 font_props = FontProperties(family='serif', size=16, weight='normal')

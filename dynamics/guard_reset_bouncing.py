@@ -31,11 +31,11 @@ def linearize_bouncing(x):
     return np.array([[0, 1.0], [0.0, 0.0]], dtype=np.float64), np.array([0, 1.0/m])
 
 @jax.jit
-def guard_bouncing_12(x):
+def guard_bouncing_12(t, x):
     return x[0]
 
 @jax.jit
-def guard_bouncing_21(x):
+def guard_bouncing_21(t, x):
     return x[1]
 
 def reset_map_bouncing_21(x_minus, current_mode, args_reset):
@@ -47,6 +47,7 @@ def reset_map_bouncing_21(x_minus, current_mode, args_reset):
 def idendity_map_bouncing(x_event):
     return x_event
 
+@jax.jit
 def reset_map_bouncing_21_jax(x_minus, current_mode, args_reset):
     x_plus = x_minus
     new_mode = 0
@@ -63,29 +64,30 @@ def reset_map_bouncing_12_jax(x_minus, current_mode, args_reset):
     new_mode = 1
     return x_plus, new_mode, args_reset
 
-def Rt_bouncing_12(t, x):
+@jax.jit
+def Rt_bouncing_12(x):
     return 0.0
 Rx_bouncing_12 = jax.jacrev(impact_map_bouncing)
 
-
+@jax.jit
 def reset_map_bouncing_12(x_minus, current_mode, args_reset):
     x_plus = np.array([x_minus[0], -0.6*x_minus[1]], dtype=np.float64)
     new_mode = 1
-                
+
     return x_plus, new_mode, args_reset
 
 
-def Rt_bouncing_21(t, x):
+def Rt_bouncing_21(x):
     return 0.0
 Rx_bouncing_21 = jax.jacrev(idendity_map_bouncing)
 
 def gt_bouncing_12(t, x):
     return 0.0
-gx_bouncing_12 = jax.jacrev(guard_bouncing_12)
+gx_bouncing_12 = jax.jacrev(guard_bouncing_12, argnums=1)
 
 def gt_bouncing_21(t, x):
     return 0.0
-gx_bouncing_21 = jax.jacrev(guard_bouncing_21)
+gx_bouncing_21 = jax.jacrev(guard_bouncing_21, argnums=1)
 
 guard_bouncing_12.terminal=True
 guard_bouncing_12.direction=-1

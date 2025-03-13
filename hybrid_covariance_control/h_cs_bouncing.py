@@ -13,7 +13,7 @@ import jax.numpy as jnp
 # Import iLQR class and reference extension handler
 from hybrid_ilqr.h_ilqr_discrete import solve_ilqr, extract_extensions
 from experiments.exp_params import *
-from dynamics.dynamics_bouncing import *
+from dynamics.ode_solver.dynamics_bouncing import *
 from dynamics.dynamics_discrete_bouncing import *
 from tools.plot_ellipsoid import *
 

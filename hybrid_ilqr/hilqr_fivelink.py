@@ -5,10 +5,8 @@
 # For walking robot, we assume 2 modes: divided by the swing foot height and velocity sign.
 
 import jax
-from jax import grad, jacfwd, hessian
 import numpy as np
 import matplotlib.pyplot as plt
-from functools import partial
 
 import os
 import sys

@@ -1,5 +1,5 @@
 import numpy as np
-from dynamics.dynamics import extract_extensions
+from dynamics.trajectory_extension import extract_extensions
 from dynamics.saltation_matrix import compute_saltation
 
 
@@ -58,10 +58,10 @@ def guard_true_func_deterministic(args):
         
         x_mid = x_left + smooth_dyn(t_left, x_left, u_current) * dt_new
         
-        if guard(x_mid) == 0:
+        if guard(t_mid, x_mid) == 0:
             return (t_mid, x_mid)  # We've found the exact root
         
-        elif guard(x_left) * guard(x_mid) < 0:
+        elif guard(t_left, x_left) * guard(t_mid, x_mid) < 0:
             t_right = t_mid  # The root is in the left half
             x_right = x_mid
         else:
@@ -135,9 +135,9 @@ def event_detect_onestep_discrete(xt, ut,
             #    Compute saltation matrix 
             # ------------------------------ 
             R_x = current_Rx(x_event)
-            R_t = current_Rt(t_event, x_event)
+            R_t = current_Rt(x_event)
             
-            g_x = current_gx(x_event)
+            g_x = current_gx(t_event, x_event)
             g_t = current_gt(t_event, x_event)
 
             next_mode = int(next_mode)
@@ -313,7 +313,6 @@ def h_stoch_fb_rollout(init_mode, x0, n_inputs,
         xt_next, next_mode, _, new_reset_arg = h_stoch_integr_func(xt, current_mode, current_u, 
                                                                     noise_i, epsilon, 
                                                                     dt, 
-                                                                    # dt_shrinkrate, 
                                                                     t0, reset_args[ii_t])
         
         reset_args[ii_t+1] = new_reset_arg

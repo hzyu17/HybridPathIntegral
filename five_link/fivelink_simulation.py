@@ -99,7 +99,7 @@ class FiveLinkSimulator:
                         x_left = x_mid
                         break
                     
-                    elif guard_12_5link(x_left) * guard_12_5link(x_mid) < 0:
+                    elif guard_12_5link(t_left, x_left) * guard_12_5link(t_mid, x_mid) < 0:
                         t_right = t_mid  # The root is in the left half
                         # x_right = x_mid
                     else:
@@ -109,7 +109,7 @@ class FiveLinkSimulator:
                 t_event = t_left
                 x_event = x_left
                 
-                print("----- Guard function at the event state: ", guard_12_5link(x_event), "-----")
+                print("----- Guard function at the event state: ", guard_12_5link(t_event, x_event), "-----")
                 
                 # Apply reset map
                 x_next = impact_map(x_event)
@@ -123,8 +123,8 @@ class FiveLinkSimulator:
                 F_2 = f_NL_fivelink(t_event, x_next, ut) # Important, the F2 is evaluated at the resetted state!
                 Rt = Rt_5link_12(x_event)
                 Rx = Rx_5link_12(x_event)
-                gt = gt_12_5link(x_event)
-                gx = gx_12_5link(x_event)
+                gt = gt_12_5link(t_event, x_event)
+                gx = gx_12_5link(t_event, x_event)
                 saltation = compute_saltation(F_1, F_2, Rt, Rx, gt, gx)
                 self.saltation_matrices.append(saltation)
             

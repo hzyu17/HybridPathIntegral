@@ -655,13 +655,13 @@ def sw_foot_ground_touching_event(x):
     return (below_ground and negative_vel)
 
 # guard function from mode 0 to mode 1
-def guard_12_5link(x):
+def guard_12_5link(t, x):
     return Left_Swing_Foot_Position(x)[1]
 guard_12_5link.direction = -1
 
-gx_12_5link = jax.jacrev(guard_12_5link)
+gx_12_5link = jax.jacrev(guard_12_5link, argnums=[1])
 
-def gt_12_5link(x):
+def gt_12_5link(t, x):
     return 0.0
 
 # Event for from mode 1 to mode 0
@@ -672,13 +672,13 @@ def sw_foot_descending_event(x):
     return (above_ground and negative_vel)
 
 # guard function from mode 1 to mode 0
-def guard_21_5link(x):
+def guard_21_5link(t, x):
     return vel_left_foot(x[0:7], x[7:14])[1]
 guard_21_5link.direction = -1
 
-gx_21_5link = jax.jacrev(guard_21_5link)
+gx_21_5link = jax.jacrev(guard_21_5link, argnums=1)
 
-def gt_21_5link(x):
+def gt_21_5link(t, x):
     return 0.0
 
 
@@ -695,7 +695,7 @@ def deltx_norm_cost(x, x_tar):
 # ====================================
 #       Event Detect Function
 # ====================================
-from dynamics.dynamics import event_detect_onestep_discrete
+from dynamics.ode_solver.dynamics import event_detect_onestep_discrete
 
 def detect_fivelink(x0, u, t0, tf, 
                     current_mode, 
