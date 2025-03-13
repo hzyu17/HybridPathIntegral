@@ -260,18 +260,18 @@ def event_detect_discrete_slip(current_mode, x0, u,
 
     guards_slip_slip = {0:guard_slip_12, 1: guard_slip_21}
     reset_maps_slip_slip = {0:reset_map_slip_12, 1:reset_map_slip_21}
-                                        
-    return event_detect_onestep_discrete(x0, u, t0, 
-                                        dt, 
-                                        current_mode, 
-                                        smooth_dynamics_slip, 
-                                        guards_slip_slip,
-                                        gxs_slip,
-                                        gts_slip,
-                                        reset_maps_slip_slip,
-                                        Rxs_slip, Rts_slip,
-                                        reset_args, 
-                                        guard_cond_func_0=guard_cond_slip_12,
-                                        guard_cond_func_1=guard_cond_slip_21,
-                                        detection=detection, backwards=backwards)
+    
+    return event_detect_onestep_discrete_resetargs(x0, u, t0, 
+                                                    dt, 
+                                                    current_mode, 
+                                                    smooth_dynamics_slip, 
+                                                    guards_slip_slip,
+                                                    gxs_slip,
+                                                    gts_slip,
+                                                    reset_maps_slip_slip,
+                                                    Rxs_slip, Rts_slip,
+                                                    reset_args, 
+                                                    guard_cond_func_0=guard_cond_slip_12,
+                                                    guard_cond_func_1=guard_cond_slip_21,
+                                                    detection=detection, backwards=backwards)
 

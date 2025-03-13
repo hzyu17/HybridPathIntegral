@@ -38,7 +38,7 @@ def guard_slip_12(t, x):
 
 # reset map from flight mode to stance mode
 @jax.jit
-def reset_map_slip_12(t, x_event, current_mode, args_reset):
+def reset_map_slip_12(x_event, current_mode, args_reset):
     # x_event: [x, x_dot, z, z_dot, theta]
     
     r0 = 1
@@ -117,7 +117,7 @@ def guard_slip_21(t, x):
 
 
 # reset map from stance mode to flight mode
-def reset_map_slip_21(t, x_event, current_mode, args_reset):
+def reset_map_slip_21(x_event, current_mode, args_reset):
     xp = args_reset[0]
     # xp = 0.0
     r0 = 1
@@ -171,13 +171,15 @@ def convert_state_21_slip(state_2, foot_contact_pos=0.0):
 
 
 # Define derivatives
-Rt_slip_12 = jax.jit(jacfwd(lambda t, x, current_mode, args: reset_map_slip_12(t, x, current_mode, args), 0))
+def Rt_slip_12(x, current_mode, args):
+    return 0.0
 
-Rx_slip_12 = jax.jit(jacfwd(lambda t, x, current_mode, args: reset_map_slip_12(t, x, current_mode, args), 1))
+Rx_slip_12 = jax.jit(jacfwd(lambda x, current_mode, args: reset_map_slip_12(x, current_mode, args), 0))
 
-Rt_slip_21 = jax.jit(jacfwd(lambda t, x, current_mode, args: reset_map_slip_21(t, x, current_mode, args), 0))
+def Rt_slip_21(x, current_mode, args):
+    return 0.0
 
-Rx_slip_21 = jax.jit(jacfwd(lambda t, x, current_mode, args: reset_map_slip_21(t, x, current_mode, args), 1))
+Rx_slip_21 = jax.jit(jacfwd(lambda x, current_mode, args: reset_map_slip_21(x, current_mode, args), 0))
 
 gt_slip_12 = jax.jit(grad(lambda t, x: guard_slip_12(t, x), 0))
     
