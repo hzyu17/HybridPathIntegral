@@ -258,9 +258,7 @@ def event_detect_bouncing(x0, u, t0, tf, current_mode, reset_args, detection=Tru
     
     guards_bouncing_bouncing = {0:guard_bouncing_12, 1: guard_bouncing_21}
     reset_maps_bouncing_bouncing = {0:reset_map_bouncing_12, 1:reset_map_bouncing_21}
-    
-    reset_controls_bouncing = {0:reset_map_control_12, 1:reset_map_control_21}
-    
+        
     return event_detect_onestep(x0, 
                                 u, 
                                 t0, 

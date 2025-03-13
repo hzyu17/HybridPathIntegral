@@ -58,10 +58,10 @@ def guard_true_func_deterministic(args):
         
         x_mid = x_left + smooth_dyn(t_left, x_left, u_current) * dt_new
         
-        if guard(t_mid, x_mid) == 0:
+        if guard(x_mid) == 0:
             return (t_mid, x_mid)  # We've found the exact root
         
-        elif guard(t_left, x_left) * guard(t_mid, x_mid) < 0:
+        elif guard(x_left) * guard(x_mid) < 0:
             t_right = t_mid  # The root is in the left half
             x_right = x_mid
         else:
@@ -70,10 +70,9 @@ def guard_true_func_deterministic(args):
     
     t_event =  t_left
     x_event = x_left
-    x_reset, next_mode, new_reset_arg = resetmap(t_event, x_event, current_mode, reset_arg)
+    x_reset, next_mode, new_reset_arg = resetmap(x_event, current_mode, reset_arg)
     
     return t_event, x_event, x_reset, next_mode, new_reset_arg
-
 
 
 def event_detect_onestep_discrete(xt, ut, 
@@ -135,10 +134,10 @@ def event_detect_onestep_discrete(xt, ut,
             # ------------------------------ 
             #    Compute saltation matrix 
             # ------------------------------ 
-            R_x = current_Rx(t_event, x_event, current_mode, reset_args)[0]
-            R_t = current_Rt(t_event, x_event, current_mode, reset_args)[0]
+            R_x = current_Rx(x_event)
+            R_t = current_Rt(t_event, x_event)
             
-            g_x = current_gx(t_event, x_event)
+            g_x = current_gx(x_event)
             g_t = current_gt(t_event, x_event)
 
             next_mode = int(next_mode)
@@ -153,6 +152,85 @@ def event_detect_onestep_discrete(xt, ut,
     mode_mapping = np.array([current_mode, next_mode])
     
     return xt_next, saltation, mode_mapping, t_event, x_event, x_reset, reset_byproduct
+
+
+# def event_detect_onestep_discrete(xt, ut, 
+#                                   t0, dt, 
+#                                   current_mode, 
+#                                   smooth_dynamics, 
+#                                   guards, 
+#                                   gxs, gts, 
+#                                   reset_maps, 
+#                                   Rxs, Rts, 
+#                                   reset_args, 
+#                                   guard_cond_func_0=None, 
+#                                   guard_cond_func_1=None, 
+#                                   detection=True, backwards=False):
+    
+#     current_dyn = smooth_dynamics[current_mode]
+    
+#     current_guard = guards[current_mode]
+#     current_resetmap = reset_maps[current_mode]
+    
+#     current_Rx = Rxs[current_mode]
+#     current_Rt = Rts[current_mode]
+    
+#     current_gx = gxs[current_mode]
+#     current_gt = gts[current_mode]
+    
+#     current_guard = guards[current_mode]
+#     current_resetmap = reset_maps[current_mode]
+    
+#     xt_next = None
+#     x_event = None
+#     t_event = None
+#     x_reset = None
+#     saltation = None
+#     next_mode = current_mode
+#     reset_byproduct = (None, )
+    
+#     # smooth dynamics
+#     if backwards:
+#         xt_next = xt - current_dyn(t0, xt, ut)*dt
+#     else:
+#         xt_next = xt + current_dyn(t0, xt, ut)*dt
+    
+#     # detection
+#     if detection:
+        
+#         if current_mode == 0:
+#             guard_hit = guard_cond_func_0(xt, xt_next, current_mode)
+#         elif current_mode == 1:
+#             guard_hit = guard_cond_func_1(xt, xt_next, current_mode)
+            
+#         if guard_hit:
+#             args_guard = (xt, current_mode, ut, t0, 
+#                           xt_next, dt, 
+#                           current_dyn, current_guard, current_resetmap, reset_args)
+            
+#             t_event, x_event, x_reset, next_mode, reset_byproduct = guard_true_func_deterministic(args_guard)
+            
+#             # ------------------------------ 
+#             #    Compute saltation matrix 
+#             # ------------------------------ 
+#             R_x = current_Rx(t_event, x_event, current_mode, reset_args)[0]
+#             R_t = current_Rt(t_event, x_event, current_mode, reset_args)[0]
+            
+#             g_x = current_gx(t_event, x_event)
+#             g_t = current_gt(t_event, x_event)
+
+#             next_mode = int(next_mode)
+            
+#             next_dyn = smooth_dynamics[next_mode]
+            
+#             F_1 = current_dyn(t_event, x_event)
+#             F_2 = next_dyn(t_event, x_reset) # Important, the F2 is evaluated at the reseted state!
+#             saltation = compute_saltation(F_1, F_2, R_t, R_x, g_t, g_x)        
+#             xt_next = x_reset
+        
+#     mode_mapping = np.array([current_mode, next_mode])
+    
+#     return xt_next, saltation, mode_mapping, t_event, x_event, x_reset, reset_byproduct
 
 
 def h_stoch_fb_rollout(init_mode, x0, n_inputs, 

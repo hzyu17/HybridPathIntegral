@@ -248,7 +248,6 @@ h_stoch_fb_rollout_slip = partial(h_stoch_fb_rollout,
     
 def event_detect_discrete_slip(current_mode, x0, u, 
                                 t0, dt, 
-                                # dt_shrinkrate, 
                                 reset_args, 
                                 detection=True, backwards=False):
 

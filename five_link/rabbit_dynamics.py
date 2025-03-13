@@ -534,7 +534,7 @@ def f_qddot_wrench(x, u):
 
 
 @jax.jit
-def f_NL(x, u):
+def f_NL_fivelink(t, x, u):
     n_q = 7
     dq = x[n_q:]
     
@@ -555,7 +555,7 @@ def wrench_st(x, u):
 
 @jax.jit
 def f_euler_fivelink(x,u,dt):
-    return x + f_NL(x,u)*dt
+    return x + f_NL_fivelink(0.0,x,u)*dt
 
 @jax.jit
 def f_rk4_fivelink(x, u, dt):
@@ -564,10 +564,10 @@ def f_rk4_fivelink(x, u, dt):
     dt_rk = dt / M
     x_rk4 = x
     for j in range(M):
-        k1 = f_NL(x_rk4, u);
-        k2 = f_NL(x_rk4 + (dt_rk/2)*k1,u)
-        k3 = f_NL(x_rk4 + (dt_rk/2)*k2,u)
-        k4 = f_NL(x_rk4 + dt_rk*k3,u)
+        k1 = f_NL_fivelink(0.0, x_rk4, u);
+        k2 = f_NL_fivelink(0.0, x_rk4 + (dt_rk/2)*k1,u)
+        k3 = f_NL_fivelink(0.0, x_rk4 + (dt_rk/2)*k2,u)
+        k4 = f_NL_fivelink(0.0, x_rk4 + dt_rk*k3,u)
         x_rk4 = x_rk4 + (dt_rk/6) * (k1 + 2*k2 + 2*k3 + k4)
     return x_rk4
 
@@ -575,6 +575,9 @@ def f_rk4_fivelink(x, u, dt):
 # ============================
 #          Impact Map
 # ============================
+# ----------------------------------
+#   Reset Map from mode 1 to mode 2
+# ----------------------------------
 @jax.jit
 def impact_map(x):
     q = x[0:7]
@@ -587,9 +590,9 @@ def impact_map(x):
     De = jnp.vstack([jnp.hstack([D, -J_left_foot.T]), 
                      jnp.hstack([J_left_foot, jnp.zeros((2,2))])])
     RHS = jnp.concatenate([(D@qdot).flatten(), jnp.zeros(2)])
-    impact_map = jnp.linalg.solve(De, RHS)
+    resetmap_5link_12 = jnp.linalg.solve(De, RHS)
     
-    x_impact = jnp.concatenate([q, impact_map[0:7]])
+    x_impact = jnp.concatenate([q, resetmap_5link_12[0:7]])
     
     # Relabel the links to switch the swing foot and the stance foot
     # Original order: [xbar, zbar, rotY, q1R, q2R, q1L, q2L]
@@ -599,8 +602,14 @@ def impact_map(x):
     x_new = Rotation@x_impact
     
     return x_new.flatten()
-Rx_5link = jax.jacrev(impact_map)
-def Rt_5link(t, x):
+
+def resetmap_5link_12(x_event, current_mode, reset_args):
+    next_mode = 1
+    other_output = None
+    return impact_map(x_event), next_mode, other_output
+
+Rx_5link_12 = jax.jacrev(impact_map)
+def Rt_5link_12(x):
     return 0.0
 
 @jax.jit
@@ -615,10 +624,22 @@ def impact_wrench(x):
     De = jnp.vstack([jnp.hstack([D, -J_left_foot.T]), 
                      jnp.hstack([J_left_foot, jnp.zeros((2,2))])])
     RHS = jnp.concatenate([(D@qdot).flatten(), jnp.zeros(2)])
-    impact_map = jnp.linalg.solve(De, RHS)
+    resetmap_5link_12 = jnp.linalg.solve(De, RHS)
     
-    return impact_map[7:]
+    return resetmap_5link_12[7:]
 
+# ----------------------------------
+#   Reset Map from mode 2 to mode 1
+# ----------------------------------
+def resetmap_5link_21(x_event, current_mode, reset_args):
+    return x_event, 0, None
+
+def Rx_5link_21(x):
+    nx = x.shape[0]
+    return jnp.eye(nx)
+
+def Rt_5link_21(x):
+    return 0.0
 
 # -------------------------------
 #          Guard Functions
@@ -634,13 +655,13 @@ def sw_foot_ground_touching_event(x):
     return (below_ground and negative_vel)
 
 # guard function from mode 0 to mode 1
-def guard_12_fivelink(t, x):
+def guard_12_5link(x):
     return Left_Swing_Foot_Position(x)[1]
-guard_12_fivelink.direction = -1
+guard_12_5link.direction = -1
 
-gx_12_5link = jax.jacrev(guard_12_fivelink)
+gx_12_5link = jax.jacrev(guard_12_5link)
 
-def gt_12_5link(t, x):
+def gt_12_5link(x):
     return 0.0
 
 # Event for from mode 1 to mode 0
@@ -651,11 +672,53 @@ def sw_foot_descending_event(x):
     return (above_ground and negative_vel)
 
 # guard function from mode 1 to mode 0
-def guard_21_fivelink(t, x):
+def guard_21_5link(x):
     return vel_left_foot(x[0:7], x[7:14])[1]
-guard_21_fivelink.direction = -1
+guard_21_5link.direction = -1
 
-gx_21_5link = jax.jacrev(guard_21_fivelink)
+gx_21_5link = jax.jacrev(guard_21_5link)
 
-def gt_21_5link(t, x):
+def gt_21_5link(x):
     return 0.0
+
+
+# ============================
+#       Cost Functions
+# ============================
+def com_moving_cost(x, u, target_com_vel_x= 1.0):
+    com_world_velocity_x = vel_com_world(x[0:7], x[7:])[0]
+    return 0.01*jnp.linalg.norm(com_world_velocity_x-target_com_vel_x) + u.T@u/2
+
+def deltx_norm_cost(x, x_tar):
+    return jnp.linalg.norm(x-x_tar)
+
+# ====================================
+#       Event Detect Function
+# ====================================
+from dynamics.dynamics import event_detect_onestep_discrete
+
+def detect_fivelink(x0, u, t0, tf, 
+                    current_mode, 
+                    reset_args, 
+                    detect=True, backwards=False):
+    
+    smoothdyn_5link = {0:f_NL_fivelink, 1:f_NL_fivelink}
+    
+    Rxs_5link = {0:Rx_5link_12, 1:Rx_5link_21}
+    Rts_5link = {0:Rt_5link_12, 1:Rt_5link_21}
+    
+    gxs_5link = {0:gx_12_5link, 1:gx_21_5link}
+    gts_5link = {0:gt_12_5link, 1:gt_21_5link}
+    
+    guards_5link = {0:guard_12_5link, 1: guard_21_5link}
+    resetmaps_5link = {0:resetmap_5link_12, 1:resetmap_5link_21}
+    
+    return event_detect_onestep_discrete(x0, u, t0, tf, current_mode, 
+                                        smoothdyn_5link, 
+                                        guards_5link, 
+                                        gxs_5link, 
+                                        gts_5link,
+                                        resetmaps_5link, 
+                                        Rxs_5link, 
+                                        Rts_5link,
+                                        reset_args, detection=detect, backwards=backwards)

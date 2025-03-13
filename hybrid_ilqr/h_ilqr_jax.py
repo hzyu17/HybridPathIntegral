@@ -84,7 +84,7 @@ class hybrid_ilqr_jax:
         
         # Dynamics
         self._smooth_dyn = smooth_dynamics
-        self._detectfunc = partial(detect_func, detect=is_detect)
+        self._detect_func = partial(detect_func, detect=is_detect)
 
         # Jacobians of the smooth dynamics
         self._A = jax.jit(jacfwd(lambda x, u, dt: smooth_dynamics(x, u, dt), argnums=0))
@@ -122,15 +122,6 @@ class hybrid_ilqr_jax:
     
     def rollout(self):        
         
-        # fig = plt.figure()
-        # plt.subplot(1, 1, 1)
-        # plt.plot(self._timespan, self._inputs[0][:,0], label=r'$u_0 mode 0$')
-        # plt.legend(loc="best", fontsize=10)
-        # plt.title('Initial Control GUess')
-        # plt.xlabel('Time (sec)')
-        # plt.grid()
-        # plt.show()
-        
         (timespan,modes,states,inputs,
          saltations,mode_changes,event_info) = self.forward_pass(self._timespan,
                                                                     self._modes,
@@ -140,43 +131,39 @@ class hybrid_ilqr_jax:
                                                                     use_feedback=False, 
                                                                     learning_rate=1, 
                                                                     check_modemismatch=False)
+         
+        from five_link.fivelink_simulation import FiveLinkSimulator
+        
+        simulator = FiveLinkSimulator(self._initstate, self._inputs, self._dt)
+        simulator.simulate()
+        simulator.plot_results()
                 
-        fig1 = plt.figure(figsize=(16, 9))
-        inputs_whole = self.desamble_control(modes, inputs)
-        plot_3link_states(timespan, states, inputs_whole)
+        # fig1 = plt.figure(figsize=(16, 9))
+        # inputs_whole = self.desamble_control(modes, inputs)
+        # plot_3link_states(timespan, states, inputs_whole)
         
-        plt.subplot(3, 4, 9)
-        plt.plot(timespan, modes, label=r'$mode$')
-        plt.legend(loc="best", fontsize=10)
-        plt.title('Mode')
-        plt.xlabel('Time (sec)')
-        plt.grid()
+        # plt.subplot(3, 4, 9)
+        # plt.plot(timespan, modes, label=r'$mode$')
+        # plt.legend(loc="best", fontsize=10)
+        # plt.title('Mode')
+        # plt.xlabel('Time (sec)')
+        # plt.grid()
         
-        plt.subplot(3, 4, 10)
-        plt.plot(timespan, self._initial_guess[0][:,0], label=r'$u_0 mode 0$')
-        plt.plot(timespan, self._initial_guess[0][:,1], label=r'$u_1 mode 1$')
-        plt.legend(loc="best", fontsize=10)
-        plt.title('Initial Control GUess')
-        plt.xlabel('Time (sec)')
-        plt.grid()
+        # plt.subplot(3, 4, 10)
+        # plt.plot(timespan, self._initial_guess[0][:,0], label=r'$u_0 mode 0$')
+        # plt.plot(timespan, self._initial_guess[0][:,1], label=r'$u_1 mode 1$')
+        # plt.legend(loc="best", fontsize=10)
+        # plt.title('Initial Control GUess')
+        # plt.xlabel('Time (sec)')
+        # plt.grid()
         
-        plt.tight_layout()
+        # plt.tight_layout()
         
-        # fig, ax = plt.subplots()
-        anim(timespan, states, 1/30, speed=1, loop=5)
-        
-        plt.show()
-
-        # fig, ax = plt.subplots()
-        # states_arr = np.array(states)
-        
-        # ax.plot(states_arr[:,0], label='x_0')
-        # ax.plot(states_arr[:,1], label='x_1')
-        # ax.plot(states_arr[:,2], label='x_2')
-        
-        # ax.legend()
+        # # fig, ax = plt.subplots()
+        # anim(timespan, states, 1/30, speed=1, loop=5)
         
         # plt.show()
+
         
         return (timespan, modes, states, inputs, saltations, mode_changes, event_info)
 
@@ -463,7 +450,7 @@ class hybrid_ilqr_jax:
             
             (next_state, saltation, 
              mode_change, t_event, x_event, 
-             x_reset, _) = self._detectfunc(x_i, u_i, t_ii, t_ii_plus, mode_i, reset_args=None)
+             x_reset, _) = self._detect_func(x_i, u_i, t_ii, t_ii_plus, mode_i, reset_args=None)
 
             # ------------------------------
             # Update the hybrid information
@@ -539,7 +526,7 @@ class hybrid_ilqr_jax:
                                                             timespan,
                                                             self._nx, self._nu,
                                                             self._initstate, self._tarstate, 
-                                                            self._detectfunc)
+                                                            self._detect_func)
         
         # Store the rollout as default values
         self._timespan = timespan
@@ -638,7 +625,7 @@ class hybrid_ilqr_jax:
                                                                self._nx, self._nu,
                                                                self._initstate, 
                                                                self._tarstate, 
-                                                               self._detectfunc)
+                                                               self._detect_func)
             
             # ---------------------------------------------------------
             #   Compute new costs and check the optimality conditions
@@ -689,7 +676,12 @@ class hybrid_ilqr_jax:
                     self._modechanges = mode_changes
                     self._modes = new_modes
                     self._event_info = new_event_info
-                    self._refext_helper = self.compute_trejactory_extension(new_event_info)
+                    self._refext_helper = compute_trejactory_extension(new_event_info, 
+                                                                       new_timespan, 
+                                                                       self._nx, self._nu,
+                                                                       self._initstate, 
+                                                                       self._tarstate, 
+                                                                       self._detect_func)
                     states_iter.append(new_states)
                     
             if(learning_rate<low_learning_rate):
@@ -706,7 +698,12 @@ class hybrid_ilqr_jax:
                 self._event_info = new_event_info
                 
                 # Update the hybrid event maps
-                self._refext_helper = self.compute_trejactory_extension(new_event_info)
+                self._refext_helper = compute_trejactory_extension(new_event_info,
+                                                                    new_timespan, 
+                                                                    self._nx, self._nu,
+                                                                    self._initstate, 
+                                                                    self._tarstate, 
+                                                                    self._detect_func)
                 
                 states_iter.append(new_states)
                     
@@ -726,7 +723,12 @@ class hybrid_ilqr_jax:
         if show_results:
             pass
 
-        ref_ext_helper = self.compute_trejactory_extension(event_info)
+        ref_ext_helper = compute_trejactory_extension(event_info,
+                                                        timespan, 
+                                                        self._nx, self._nu,
+                                                        self._initstate, 
+                                                        self._tarstate, 
+                                                        self._detect_func)
 
         return (timespan,modes,states,inputs,
                 k_feedforward,K_feedback,

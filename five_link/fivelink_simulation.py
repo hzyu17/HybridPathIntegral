@@ -7,12 +7,9 @@ sys.path.append(root_dir)
 
 
 import jax.numpy as jnp
-import jax
-import PySimpleGUI as sg
-from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
-from rabbit_kinematics import *
-from rabbit_dynamics import *
+from five_link.rabbit_kinematics import *
+from five_link.rabbit_dynamics import *
 from dynamics.saltation_matrix import compute_saltation
 
 import numpy as np
@@ -69,7 +66,7 @@ class FiveLinkSimulator:
             xt = self.x_trj[i_t]
             ut = self.u_trj[i_t]
             dt = self.dts[i_t]
-                        
+            
             # ------------------------ 
             #    Forward integration 
             # ------------------------ 
@@ -102,9 +99,9 @@ class FiveLinkSimulator:
                         x_left = x_mid
                         break
                     
-                    elif guard_12_fivelink(t_left, x_left) * guard_12_fivelink(t_mid, x_mid) < 0:
+                    elif guard_12_5link(x_left) * guard_12_5link(x_mid) < 0:
                         t_right = t_mid  # The root is in the left half
-                        x_right = x_mid
+                        # x_right = x_mid
                     else:
                         t_left = t_mid  # The root is in the right half
                         x_left = x_mid
@@ -112,23 +109,22 @@ class FiveLinkSimulator:
                 t_event = t_left
                 x_event = x_left
                 
-                print("----- Guard function at the event state: ", guard_12_fivelink(t_event, x_event), "-----")
+                print("----- Guard function at the event state: ", guard_12_5link(x_event), "-----")
                 
                 # Apply reset map
                 x_next = impact_map(x_event)
-
                 
                 self.n_impact += 1
                 self.impact_time.append(self.t_trj[i_t] + dt)
                 
                 # Compute saltation matrix
                 
-                F_1 = f_NL(x_event, ut)
-                F_2 = f_NL(x_next, ut) # Important, the F2 is evaluated at the resetted state!
-                Rt = Rt_5link(t_event, x_event)
-                Rx = Rx_5link(x_event)
-                gt = gt_12_5link(t_event, x_event)
-                gx = gx_12_5link(t_event, x_event)
+                F_1 = f_NL_fivelink(t_event, x_event, ut)
+                F_2 = f_NL_fivelink(t_event, x_next, ut) # Important, the F2 is evaluated at the resetted state!
+                Rt = Rt_5link_12(x_event)
+                Rx = Rx_5link_12(x_event)
+                gt = gt_12_5link(x_event)
+                gx = gx_12_5link(x_event)
                 saltation = compute_saltation(F_1, F_2, Rt, Rx, gt, gx)
                 self.saltation_matrices.append(saltation)
             
@@ -310,14 +306,12 @@ def animate_trj(x_trj, step=5):
 if __name__ == '__main__':
     # q = [xbar, zbar, rotY, q1R, q2R, q1L, q2L]
     
-    q_init = jnp.array([0, 0.658, 0, -0.6828+jnp.pi, 1.20, -0.6489+jnp.pi, 1.281])
+    q_init = jnp.array([0, 0.658, 0, -0.6828+jnp.pi, 1.20, -0.6489+jnp.pi, 1.281])    
+    qdot_init = jnp.zeros(7)
+    x_init = jnp.concatenate([q_init, qdot_init])
     
     print("Initial swing foot height: ", Left_Swing_Foot_Position(q_init)[1])
     print("Initial stance foot height: ", Right_Stance_Foot_Position(q_init)[1])
-    
-    qdot_init = jnp.zeros(7)
-    
-    x_init = jnp.concatenate([q_init, qdot_init])
     
     fig, ax = plt.subplots()
     draw_5link(q_init, ax)

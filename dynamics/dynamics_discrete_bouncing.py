@@ -24,7 +24,7 @@ def stoch_integr_bouncing(mode, x0, u, dt, eps, dW):
 # --------------------------------
 def guard_cond_bouncing_12(xt, xt_next, current_mode):
     # assume time invariant guard for now
-    return (current_mode==0) and ((guard_bouncing_12(0.0,xt)>0) and (guard_bouncing_12(0.0,xt_next)<=0))
+    return (current_mode==0) and ((guard_bouncing_12(xt)>0) and (guard_bouncing_12(xt_next)<=0))
 
 def guard_true_func_bouncing_12(args):
     (xt_current, current_mode, u_current, t, xt_next, dt_int, dt_shrinkrate, RandN, eps, reset_arg) = args
@@ -68,7 +68,7 @@ def guard_false_func_bouncing_12(args):
 # --------------------------------
 def guard_cond_bouncing_21(xt, xt_next, current_mode):
     # assume time invariant guard for now
-    return (current_mode==1) and ((guard_bouncing_21(0.0,xt)>0) and (guard_bouncing_21(0.0,xt_next)<=0))
+    return (current_mode==1) and ((guard_bouncing_21(xt)>0) and (guard_bouncing_21(xt_next)<=0))
 
 def guard_true_func_bouncing_21(args):
     (xt_current, current_mode, u_current, t, xt_next, dt_int, dt_shrinkrate, RandN, eps, reset_arg) = args

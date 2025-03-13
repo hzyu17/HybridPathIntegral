@@ -248,8 +248,6 @@ def event_detect_onestep(x0, u, t0, tf, current_mode,
     
     return x_next, saltation, mode_mapping, t_event, x_event, x_reset, reset_byproduct
 
-
-
 def event_detect_onestep_discrete(x0, u, t0, tf, current_mode, 
                                     smooth_dynamics, 
                                     guards, gxs, gts,
@@ -261,7 +259,7 @@ def event_detect_onestep_discrete(x0, u, t0, tf, current_mode,
         tuple: Containing the next state and contact information if a hybrid event happens.
     """
     # Define the dynamics using the integration
-    nt = 10000
+    nt = 1000
     
     current_dyn = smooth_dynamics[current_mode]
         
@@ -305,8 +303,8 @@ def event_detect_onestep_discrete(x0, u, t0, tf, current_mode,
             x0 = x_reset
             
             # ---------- Compute saltation matrix ---------- 
-            R_x = current_Rx(t_event, x_event, current_mode, reset_args)[0]
-            R_t = current_Rt(t_event, x_event, current_mode, reset_args)[0]
+            R_x = current_Rx(t_event, x_event)
+            R_t = current_Rt(t_event, x_event)
             
             g_x = current_gx(t_event, x_event)
             g_t = current_gt(t_event, x_event)
@@ -348,3 +346,103 @@ def event_detect_onestep_discrete(x0, u, t0, tf, current_mode,
     mode_mapping = np.array([current_mode, next_mode])
     
     return x_next, saltation, mode_mapping, t_event, x_event, x_reset, reset_byproduct
+
+
+# def event_detect_onestep_discrete(x0, u, t0, tf, current_mode, 
+#                                     smooth_dynamics, 
+#                                     guards, gxs, gts,
+#                                     reset_maps, Rxs, Rts,
+#                                     reset_args, detection=True, backwards=False):
+#     """Integrate controlled dynamics in a short period of time with hybrid event detection, discrete version.
+
+#     Returns:
+#         tuple: Containing the next state and contact information if a hybrid event happens.
+#     """
+#     # Define the dynamics using the integration
+#     nt = 1000
+    
+#     current_dyn = smooth_dynamics[current_mode]
+        
+#     current_Rx = Rxs[current_mode]
+#     current_Rt = Rts[current_mode]
+    
+#     current_gx = gxs[current_mode]
+#     current_gt = gts[current_mode]
+    
+#     current_guard = guards[current_mode]
+#     current_resetmap = reset_maps[current_mode]
+    
+#     args = (u, )
+#     if backwards:
+#         # integrate backwards
+#         t_span = (t0, tf)
+#     else:
+#         t_span = (t0, tf)
+#         t_eval = np.linspace(t0, tf, nt)
+#         dyn_fun=lambda t, y: current_dyn(t, y, *args)
+    
+#     x_next = None
+#     x_event = None
+#     t_event = None
+#     x_reset = None
+#     saltation = None
+#     next_mode = current_mode
+#     reset_byproduct = (None, )
+    
+#     if detection:
+#         solution = scipy.integrate.solve_ivp(fun=dyn_fun, 
+#                                             t_span=t_span, y0=x0, 
+#                                             t_eval=t_eval, dense_output=True, 
+#                                             events=current_guard, vectorized=False)
+        
+#         # Hit guard
+#         if len(solution.t_events[0]) > 0:
+#             t_event = solution.t_events[0][0]
+#             x_event = solution.y_events[0][0]
+#             x_reset, next_mode, reset_byproduct = current_resetmap(t_event, x_event, current_mode, reset_args)
+#             x0 = x_reset
+            
+#             # ---------- Compute saltation matrix ---------- 
+#             R_x = current_Rx(t_event, x_event, current_mode, reset_args)[0]
+#             R_t = current_Rt(t_event, x_event, current_mode, reset_args)[0]
+            
+#             g_x = current_gx(t_event, x_event)
+#             g_t = current_gt(t_event, x_event)
+            
+#             next_dyn = smooth_dynamics[next_mode]
+            
+#             F_1 = current_dyn(t_event, x_event, u)
+#             F_2 = next_dyn(t_event, x_reset, u) # Important, the F2 is evaluated at the reseted state!
+#             saltation = compute_saltation(F_1, F_2, R_t, R_x, g_t, g_x)
+            
+#             t0 = t_event
+            
+#             x_next = x_reset.flatten()
+        
+#         # Had no contact
+#         else:
+#             x0 = None
+            
+#             t = np.linspace(t0, tf, nt).flatten()
+            
+#             # The solved trajecoty, in shape (nx+nx*nx, nt)
+#             f_disc = solution.sol(t) 
+            
+#             x_next = f_disc[:, -1]
+    
+#     else: # Do not detect contact 
+#         solution = scipy.integrate.solve_ivp(fun=dyn_fun, 
+#                                             t_span=t_span, y0=x0, method='RK45', 
+#                                             t_eval=t_eval, dense_output=True)
+        
+#         # Solve for the continuous trajectory before the contact 
+#         t = np.linspace(t0, tf, nt).flatten()
+        
+#         # The solved trajecoty, in shape (nx+nx*nx, nt)
+#         f_disc = solution.sol(t) 
+        
+#         x_next = f_disc[:, -1]
+    
+#     mode_mapping = np.array([current_mode, next_mode])
+    
+#     return x_next, saltation, mode_mapping, t_event, x_event, x_reset, reset_byproduct

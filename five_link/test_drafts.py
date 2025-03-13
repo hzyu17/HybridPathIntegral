@@ -208,7 +208,7 @@ if __name__ == '__main__':
     dotq = jnp.zeros(7)
     u = jnp.zeros(4)
     x_init = jnp.concatenate([q, dotq])
-    result = f_NL(x_init, u)
-    print("f_NL output:", result)
+    result = f_NL_fivelink(0.0, x_init, u)
+    print("f_NL_fivelink output:", result)
     
     
