@@ -299,7 +299,7 @@ def event_detect_onestep_discrete(x0, u, t0, tf, current_mode,
         if len(solution.t_events[0]) > 0:
             t_event = solution.t_events[0][0]
             x_event = solution.y_events[0][0]
-            x_reset, next_mode, reset_byproduct = current_resetmap(t_event, x_event, current_mode, reset_args)
+            x_reset, next_mode, reset_byproduct = current_resetmap(x_event, current_mode, reset_args)
             x0 = x_reset
             
             # ---------- Compute saltation matrix ---------- 

@@ -16,7 +16,7 @@ import numpy as np
 import jax.numpy as jnp
 
 import jax
-from jax import grad, jacfwd 
+from jax import grad 
 
 
 def mode_change_maps(current_mode):
@@ -174,12 +174,12 @@ def convert_state_21_slip(state_2, foot_contact_pos=0.0):
 def Rt_slip_12(x, current_mode, args):
     return 0.0
 
-Rx_slip_12 = jax.jit(jacfwd(lambda x, current_mode, args: reset_map_slip_12(x, current_mode, args), 0))
+Rx_slip_12 = jax.jacrev(lambda x, current_mode, args: reset_map_slip_12(x, current_mode, args), 0)
 
 def Rt_slip_21(x, current_mode, args):
     return 0.0
 
-Rx_slip_21 = jax.jit(jacfwd(lambda x, current_mode, args: reset_map_slip_21(x, current_mode, args), 0))
+Rx_slip_21 = jax.jacrev(lambda x, current_mode, args: reset_map_slip_21(x, current_mode, args), 0)
 
 gt_slip_12 = jax.jit(grad(lambda t, x: guard_slip_12(t, x), 0))
     

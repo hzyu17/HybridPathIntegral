@@ -20,7 +20,7 @@ class FiveLinkSimulator:
         
         self.nx = len(x0)
         self.nu = u_trj.shape[1]
-        self.nt = dts.shape[0]
+        self.nt = dts.shape[0] + 1 
         
         self.x0 = x0
         self.u_trj = u_trj
@@ -135,6 +135,58 @@ class FiveLinkSimulator:
         return self.x_trj
     
     
+    def test_detect_func(self):
+        """
+        Test the detect function for five link walker.
+        """
+        from rabbit_dynamics import detect_fivelink
+        
+        modes = np.zeros(self.nt)
+        for ii in range(self.nt-1):
+            
+            x_i = self.x_trj[ii]
+            mode_i = modes[ii]
+            
+            # ------------------- 
+            # Get the references 
+            # ------------------- 
+            u_i = self.u_trj[ii]
+            
+            # =================
+            # Simulate forward
+            # =================
+            t_ii = self.t_trj[ii]
+            dt_ii = self.dts[ii]
+            t_ii_plus = t_ii + dt_ii
+            
+            (next_state, saltation, 
+             mode_change, t_event, x_event, 
+             x_reset, _) = detect_fivelink(x_i, u_i, t_ii, t_ii_plus, mode_i, reset_args=None)
+
+            # ------------------------------
+            # Update the hybrid information
+            # ------------------------------
+            if saltation is not None:
+                timespan = np.concatenate(
+                    (np.concatenate(
+                        (timespan[:ii+1], np.array([t_event]))), timespan[ii+1:]))
+                nt += 1
+                
+                modes = np.concatenate(
+                    (np.concatenate(
+                        (modes[:ii+1], np.array([mode_change[1]]))), modes[ii+1:]))
+                
+                states = np.concatenate(
+                    (np.concatenate(
+                        (states[:ii+1], np.array([x_reset]))), states[ii+1:]))
+                
+                next_state = x_reset
+            
+            self.x_trj[ii+1] = next_state
+            
+        return self.x_trj
+    
+    
     def compute_info(self):
         for i_t in range(self.nt-1):
             xt = self.x_trj[i_t]
@@ -159,7 +211,7 @@ class FiveLinkSimulator:
     def plot_results(self):
         self.compute_info()
         
-        _, axs = plt.subplots(2, 2, figsize=(10, 8))
+        _, axs = plt.subplots(3, 2, figsize=(10, 8))
         axs[0, 0].plot(self.t_trj, self.u_trj[:, 0], label='Input Torque u1')
         axs[0, 0].plot(self.t_trj, self.u_trj[:, 1], label='Input Torque u2')
         axs[0, 0].plot(self.t_trj, self.u_trj[:, 2], label='Input Torque u3')
@@ -171,15 +223,35 @@ class FiveLinkSimulator:
         axs[1, 0].plot(self.t_trj, self.sw_foot_wrench[:, 0], label='Swing Foot Wrench, x')
         axs[1, 0].plot(self.t_trj, self.sw_foot_wrench[:, 1], linestyle='--', label='Swing Foot Wrench, z')
         
+        axs[2, 0].plot(self.t_trj, self.x_trj[:, 0], label='State x1')
+        axs[2, 0].plot(self.t_trj, self.x_trj[:, 1], label='State x2')
+        axs[2, 0].plot(self.t_trj, self.x_trj[:, 2], label='State x3')
+        axs[2, 0].plot(self.t_trj, self.x_trj[:, 3], label='State x4')
+        axs[2, 0].plot(self.t_trj, self.x_trj[:, 4], label='State x5')
+        axs[2, 0].plot(self.t_trj, self.x_trj[:, 5], label='State x6')
+        axs[2, 0].plot(self.t_trj, self.x_trj[:, 6], label='State x7')
+
+        axs[2, 1].plot(self.t_trj, self.x_trj[:, 7], label='State dx1')
+        axs[2, 1].plot(self.t_trj, self.x_trj[:, 8], label='State dx2')
+        axs[2, 1].plot(self.t_trj, self.x_trj[:, 9], label='State dx3')
+        axs[2, 1].plot(self.t_trj, self.x_trj[:, 10], label='State dx4')
+        axs[2, 1].plot(self.t_trj, self.x_trj[:, 11], label='State dx5')
+        axs[2, 1].plot(self.t_trj, self.x_trj[:, 12], label='State dx6')
+        axs[2, 1].plot(self.t_trj, self.x_trj[:, 13], label='State dx7')
+        
         axs[0, 0].grid(True)
         axs[0, 1].grid(True)        
         axs[1, 0].grid(True)
         axs[1, 1].grid(True)
+        axs[2, 0].grid(True)
+        axs[2, 1].grid(True)
 
         axs[0, 0].legend()
         axs[0, 1].legend()
         axs[1, 0].legend()
         axs[1, 1].legend()
+        axs[2, 0].legend()
+        axs[2, 1].legend()
         
         plt.tight_layout()
     
@@ -343,10 +415,12 @@ if __name__ == '__main__':
     
     
     fivelink_simulator = FiveLinkSimulator(x_init, u_trj, dt_trj)
-    x_trj = fivelink_simulator.simulate()
     
-    fivelink_simulator.plot_results()
+    x_trj = fivelink_simulator.test_detect_func()
     
-    for i in range(3):
-        animate_trj(x_trj, step=5)
+    # x_trj = fivelink_simulator.simulate()
+    # fivelink_simulator.plot_results()
+    
+    # for i in range(3):
+    #     animate_trj(x_trj, step=5)
     

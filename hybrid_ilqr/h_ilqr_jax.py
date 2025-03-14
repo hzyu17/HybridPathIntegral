@@ -19,9 +19,9 @@ root_dir = os.path.abspath(os.path.join(current_dir, '..'))
 sys.path.append(root_dir)
 
 from dynamics.trajectory_extension import *
-from walking_3link import *
+# from walking_3link import *
 
-from dynamics.saltation_matrix import compute_saltation
+# from dynamics.saltation_matrix import compute_saltation
 
 class hybrid_ilqr_jax:
     def __init__(self, 
@@ -132,12 +132,15 @@ class hybrid_ilqr_jax:
                                                                     learning_rate=1, 
                                                                     check_modemismatch=False)
          
-        from five_link.fivelink_simulation import FiveLinkSimulator
+        from five_link.fivelink_simulation import FiveLinkSimulator, animate_trj
         
-        simulator = FiveLinkSimulator(self._initstate, self._inputs, self._dt)
-        simulator.simulate()
+        inputs_arr = self.desamble_control(self._modes, inputs)
+        simulator = FiveLinkSimulator(self._initstate, inputs_arr, self._dt)
+        x_trj = simulator.simulate()
         simulator.plot_results()
-                
+        animate_trj(x_trj, step=5)
+        
+        
         # fig1 = plt.figure(figsize=(16, 9))
         # inputs_whole = self.desamble_control(modes, inputs)
         # plot_3link_states(timespan, states, inputs_whole)
@@ -165,7 +168,7 @@ class hybrid_ilqr_jax:
         # plt.show()
 
         
-        return (timespan, modes, states, inputs, saltations, mode_changes, event_info)
+        return timespan, modes, states, inputs, saltations, mode_changes, event_info
 
     def compute_cost(self,modes,states,inputs,timespan):
         # Initialize cost
@@ -180,6 +183,12 @@ class hybrid_ilqr_jax:
 
             total_cost = total_cost+self._running_cost(x_i, u_i)*dt[ii]
             
+            if np.isnan(total_cost):
+                print("NaN found, stopping loop")
+                print("ii: ", ii)
+                print("x: ", x_i)
+                print("u: ", u_i)
+                break
         # Compute terminal cost
         total_cost = total_cost + self._terminal_cost(states[-1], self._tarstate)
 
@@ -517,9 +526,14 @@ class hybrid_ilqr_jax:
         #  First rollout using initial guess
         # ------------------------------------
         print("--------------------- Starting initial rollout ---------------------")
-        [timespan,modes,states,inputs,saltations,modechanges,event_info] = self.rollout()
+        (timespan, modes, states, inputs, saltations, mode_changes, event_info) = self.rollout()
         
-            
+        from five_link.fivelink_simulation import FiveLinkSimulator, animate_trj
+        inputs_arr = self.desamble_control(modes, inputs)
+        simulator = FiveLinkSimulator(self._initstate, inputs_arr, self._dt)
+        x_trj = simulator.simulate()
+        simulator.plot_results()
+        
         # compute reference extensions
         print("------ Computing the reference trajectory extensions ------")
         self._refext_helper = compute_trejactory_extension(event_info, 

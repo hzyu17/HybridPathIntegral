@@ -534,10 +534,16 @@ def f_qddot_wrench(x, u):
 
 
 @jax.jit
-def f_NL_fivelink(t, x, u):
+def f_NL_fivelink(t, x, *args):
+    
     n_q = 7
+    n_u = 4
     dq = x[n_q:]
     
+    if len(args) == 0:
+        u = jnp.zeros(n_u)
+    else:
+        u = args[0]
     qddot_wrench = f_qddot_wrench(x, u)
     qddot = qddot_wrench[:n_q]
     xdot = jnp.concatenate([dq, qddot]).flatten()
@@ -571,6 +577,47 @@ def f_rk4_fivelink(x, u, dt):
         x_rk4 = x_rk4 + (dt_rk/6) * (k1 + 2*k2 + 2*k3 + k4)
     return x_rk4
 
+
+
+# ---------------------------------
+#       Uncontrolled Dynamics
+# ---------------------------------
+@jax.jit
+def f_qddot_wrench_uncontrolled(x):
+    n_q = 7
+    n_w = 2
+
+    q = x[0:n_q]
+    dq = x[n_q:]
+
+    C = jnp.zeros((n_q, n_q)) # omit Coriolis for now
+    D = D_matrix(q)
+    G = -G_vector(q).flatten()
+    
+    J_right_foot = J_stance_foot(q)
+    Jdot_right_foot = Jdot_stance_foot(q, dq)
+    
+    De = jnp.vstack([jnp.hstack([D, -J_right_foot.T]), 
+                     jnp.hstack([J_right_foot, jnp.zeros((n_w,n_w))])])
+    
+    Ce = jnp.vstack([C, Jdot_right_foot])
+    Ge = jnp.concatenate([G, jnp.zeros(n_w).flatten()]).flatten()
+    
+    # Compute ddot_q and wrench
+    qddot_wrench = jnp.linalg.solve(De, -Ce @ dq - Ge.flatten())
+    
+    return qddot_wrench
+
+@jax.jit
+def f_NL_fivelink_uncontrolled(t, x):
+    n_q = 7
+    dq = x[n_q:]
+    
+    qddot_wrench = f_qddot_wrench_uncontrolled(x)
+    qddot = qddot_wrench[:n_q]
+    xdot = jnp.concatenate([dq, qddot]).flatten()
+    
+    return xdot
 
 # ============================
 #          Impact Map
@@ -682,6 +729,16 @@ def gt_21_5link(t, x):
     return 0.0
 
 
+# -------------------------------- From mode 1 to mode 2  --------------------------------
+def guard_cond_fivelink_12(xt, xt_next, current_mode):
+    # assume time invariant guard for now
+    return (current_mode==0) and (guard_12_5link(0.0,xt)>=0) and (guard_12_5link(0.0,xt_next)<0)
+
+# -------------------------------- From mode 2 to mode 1  --------------------------------
+def guard_cond_fivelink_21(xt, xt_next, current_mode):
+    # assume time invariant guard for now
+    return (current_mode==1) and (guard_21_5link(0.0,xt)>=0) and (guard_21_5link(0.0,xt_next)<0)
+
 # ============================
 #       Cost Functions
 # ============================
@@ -695,7 +752,7 @@ def deltx_norm_cost(x, x_tar):
 # ====================================
 #       Event Detect Function
 # ====================================
-from dynamics.ode_solver.dynamics import event_detect_onestep_discrete
+from dynamics.dynamics_discrete import event_detect_onestep_discrete
 
 def detect_fivelink(x0, u, t0, tf, 
                     current_mode, 
@@ -713,7 +770,9 @@ def detect_fivelink(x0, u, t0, tf,
     guards_5link = {0:guard_12_5link, 1: guard_21_5link}
     resetmaps_5link = {0:resetmap_5link_12, 1:resetmap_5link_21}
     
-    return event_detect_onestep_discrete(x0, u, t0, tf, current_mode, 
+    return event_detect_onestep_discrete(x0, u, 
+                                        t0, tf, 
+                                        current_mode, 
                                         smoothdyn_5link, 
                                         guards_5link, 
                                         gxs_5link, 
@@ -721,4 +780,8 @@ def detect_fivelink(x0, u, t0, tf,
                                         resetmaps_5link, 
                                         Rxs_5link, 
                                         Rts_5link,
-                                        reset_args, detection=detect, backwards=backwards)
+                                        reset_args, 
+                                        guard_cond_func_0=guard_cond_fivelink_12, 
+                                        guard_cond_func_1=guard_cond_fivelink_21, 
+                                        detection=detect, 
+                                        backwards=backwards)

@@ -68,7 +68,7 @@ if __name__ == '__main__':
     u_trj[135:, 3] = 2.5 # u_2L
     
     initial_guess = [u_trj, u_trj]
-       
+    
     niters = 10
     target_com_vel = 2.0
     
@@ -77,7 +77,7 @@ if __name__ == '__main__':
     x_init = jnp.concatenate([q_init, qdot_init])
     
     target_state = x_init
-                 
+    
     hilqr_obj = hybrid_ilqr_jax(n_states, n_inputs,
                                 x_init, target_state, 
                                 initial_guess, 
