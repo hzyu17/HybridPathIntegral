@@ -152,29 +152,30 @@ class FiveLinkSimulator:
             # Update the hybrid information
             # ------------------------------
             if saltation is not None:
-                self.t_trj = np.concatenate(
-                    (np.concatenate(
-                        (self.t_trj[:ii+1], np.array([t_event]))), self.t_trj[ii+1:]))
+                # self.t_trj = np.concatenate(
+                #     (np.concatenate(
+                #         (self.t_trj[:ii+1], np.array([t_event]))), self.t_trj[ii+1:]))
                 
-                self.dts = np.concatenate(
-                    (np.concatenate(
-                        (self.dts[:ii+1], np.array([t_event - t_ii]))), self.dts[ii+1:]))
+                # self.dts = np.concatenate(
+                #     (np.concatenate(
+                #         (self.dts[:ii+1], np.array([t_event - t_ii]))), self.dts[ii+1:]))
                 
-                modes = np.concatenate(
-                    (np.concatenate(
-                        (modes[:ii+1], np.array([mode_change[1]]))), modes[ii+1:]))
+                # modes = np.concatenate(
+                #     (np.concatenate(
+                #         (modes[:ii+1], np.array([mode_change[1]]))), modes[ii+1:]))
                 
-                self.x_trj = np.concatenate(
-                    (np.concatenate(
-                        (self.x_trj[:ii+1], np.array([x_reset]))), self.x_trj[ii+1:]))
+                # self.x_trj = np.concatenate(
+                #     (np.concatenate(
+                #         (self.x_trj[:ii+1], np.array([x_reset]))), self.x_trj[ii+1:]))
                 
-                self.u_trj = np.concatenate(
-                    (np.concatenate(
-                        (self.u_trj[:ii+1], np.zeros((1, 4)))), self.u_trj[ii+1:]))
+                # self.u_trj = np.concatenate(
+                #     (np.concatenate(
+                #         (self.u_trj[:ii+1], np.zeros((1, 4)))), self.u_trj[ii+1:]))
                 
-                self.nt += 1
+                # self.nt += 1
                 # ii += 1
-                
+                self.x_trj[ii+1] = x_reset
+                self.t_trj[ii+1] = t_event 
             else:
                 self.x_trj[ii+1] = next_state
                 self.t_trj[ii+1] = self.t_trj[ii] + dt_ii

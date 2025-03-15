@@ -134,11 +134,8 @@ class hybrid_ilqr_jax:
          
         from five_link.fivelink_simulation import FiveLinkSimulator, animate_trj
         
-        inputs_arr = self.desamble_control(self._modes, inputs)
-        simulator = FiveLinkSimulator(self._initstate, inputs_arr, self._dt)
-        x_trj = simulator.simulate()
-        simulator.plot_results()
-        animate_trj(x_trj, step=5)
+        # Animte the rollout trajectory for visualization
+        # animate_trj(states, step=5)
         
         
         # fig1 = plt.figure(figsize=(16, 9))
@@ -309,7 +306,7 @@ class hybrid_ilqr_jax:
                      check_modemismatch=True):
         
         # temporary variables in the current forward pass
-        dt = timespan[1:] - timespan[:-1]
+        dts = timespan[1:] - timespan[:-1]
         nt = len(timespan)
         
         saltations = [None for i in range(nt)]
@@ -342,19 +339,10 @@ class hybrid_ilqr_jax:
         event_info = {} # The dictionary that stores all the information of the jump dynamics and states.
         
         # -------------------------------
-        # Current rollout hybrid events 
+        #  Current rollout hybrid events 
         # -------------------------------
         cnt_event = 0
         hybrid_index_ref = 0
-        
-        # fig, ax = plt.subplots()
-        
-        # ax.plot(inputs[0][:, 0], label='mode 0 u_1')
-        # ax.plot(inputs[1][:, 0], label='mode 1 u_1')
-        
-        # ax.legend()
-        
-        # plt.show()
         
         if use_feedback:
             K_fb_ext = []
@@ -371,17 +359,12 @@ class hybrid_ilqr_jax:
                 K_fb_ext.append((v_Kfb_ext_fwd[i_ext], v_Kfb_ext_bwd[i_ext]))
                 k_ff_ext.append((v_kff_ext_fwd[i_ext], v_kff_ext_bwd[i_ext]))
                 
-                # if self._verbose:
-                #     print(f"Reference trajectory bouncing event numbers: {len(v_ext_bwd)}")
-                #     for i_bounce in range(len(v_ext_bwd)):
-                #         print(f"bounce {i_bounce}: From mode {v_modechg_ref[i_bounce][0]} to mode {v_modechg_ref[i_bounce][1]} at time {v_tevents_ref[i_bounce]}")
-                #     print("------------------------------------------------")
-
         else:
             K_fb_ext = self._K_fb_ext
             k_ff_ext = self._k_ff_ext
         
-        for ii in range(nt-1):
+        ii = 0
+        while (ii < nt-1):
             
             x_i = states[ii]
             mode_i = modes[ii]
@@ -395,12 +378,12 @@ class hybrid_ilqr_jax:
             #  If it is not the first time rollout
             # ====================================
             if use_feedback:
-                           
+                
                 ref_state = self._states[ii]
                 mode_i_ref = self._modes[ii]
                 
                 # ----------------------------------------------- 
-                # Get the current (feedback, feedforward) gains 
+                #  Get the current (feedback, feedforward) gains 
                 # ----------------------------------------------- 
                 current_feedforward = learning_rate * self._k_ff[ii]
                 current_feedback = self._K_fb[ii]
@@ -419,10 +402,6 @@ class hybrid_ilqr_jax:
                     
                     # ----------------------------------- Early Arrival ----------------------------------- 
                     if ((mode_i == ref_modechange_hybrid[1]) and (mode_i_ref==ref_modechange_hybrid[0])):
-                        # if self._verbose:
-                        #     # print(f"early arrival, Time: {ii}. Current mode: {mode_i}, Reference mode: {mode_i_ref}")
-                        #     print(f"Reference mode change from mode {ref_modechange_hybrid[0]} to mode {ref_modechange_hybrid[1]} at time {v_tevents_ref[hybrid_index_ref]}")
-                        
                         trj_extension = v_ext_bwd[hybrid_index_ref]
                         
                         ff_ext_trj = v_kff_ext_bwd[hybrid_index_ref]
@@ -430,10 +409,6 @@ class hybrid_ilqr_jax:
                         
                     # ----------------------------------- Late Arrival ----------------------------------- 
                     elif ((mode_i == ref_modechange_hybrid[0]) and (mode_i_ref==ref_modechange_hybrid[1])):
-                        # if self._verbose:
-                        #     # print(f"late arrival, Time: {ii}. Current mode: {mode_i}, Reference mode: {mode_i_ref}")
-                        #     print(f"Reference mode change from mode {ref_modechange_hybrid[0]} to mode {ref_modechange_hybrid[1]} at time {v_tevents_ref[hybrid_index_ref]}")
-                        
                         trj_extension = v_ext_fwd[hybrid_index_ref]
                         
                         ff_ext_trj = v_kff_ext_fwd[hybrid_index_ref]
@@ -444,8 +419,6 @@ class hybrid_ilqr_jax:
                     current_feedback = fb_ext_trj[ii]
                     current_feedforward = learning_rate * ff_ext_trj[ii]
                     
-                    # if self._verbose:
-                    #     print("current_nominal_input: ", u_i)
                 
                 current_feedback_input = current_feedback@(x_i-ref_state)
                 u_i = u_i + current_feedback_input + current_feedforward
@@ -454,7 +427,7 @@ class hybrid_ilqr_jax:
             # Simulate forward
             # =================
             t_ii = timespan[ii]
-            dt_ii = dt[ii]
+            dt_ii = dts[ii]
             t_ii_plus = t_ii + dt_ii
             
             (next_state, saltation, 
@@ -465,55 +438,71 @@ class hybrid_ilqr_jax:
             # Update the hybrid information
             # ------------------------------
             if saltation is not None:
-                timespan = np.concatenate(
-                    (np.concatenate(
-                        (timespan[:ii+1], np.array([t_event]))), timespan[ii+1:]))
-                nt += 1
+                # timespan = np.concatenate(
+                #     (np.concatenate(
+                #         (timespan[:ii+1], np.array([t_event]))), timespan[ii+1:]))
                 
-                modes = np.concatenate(
-                    (np.concatenate(
-                        (modes[:ii+1], np.array([mode_change[1]]))), modes[ii+1:]))
-                
-                states = np.concatenate(
-                    (np.concatenate(
-                        (states[:ii+1], np.array([x_reset]))), states[ii+1:]))
-                
-                next_state = x_reset
-                
-                inputs[mode_change[1]] = np.concatenate(
-                    (np.concatenate(
-                        (inputs[mode_change[1]][:ii+1], u_i.reshape(1,-1))), inputs[mode_change[1]][ii+1:]))
+                # dts = np.concatenate(
+                #     (np.concatenate(
+                #         (dts[:ii+1], np.array([t_event - t_ii]))), dts[ii+1:]))
 
-                inputs[mode_change[0]] = np.concatenate(
-                    (np.concatenate(
-                        (inputs[mode_change[0]][:ii+1], u_i.reshape(1,-1))), inputs[mode_change[0]][ii+1:]))
+                # modes = np.concatenate(
+                #     (np.concatenate(
+                #         (modes[:ii+1], np.array([mode_change[1]]))), modes[ii+1:]))
                 
-                inputs[mode_change[0]][ii] = u_i.flatten()
+                # mode_changes = np.concatenate(
+                #     (np.concatenate(
+                #         (mode_changes[:ii+1], np.array([mode_change[0], mode_change[0]]).reshape((1,-1)))), mode_changes[ii+1:]))
+                
+                # states = np.concatenate(
+                #     (np.concatenate(
+                #         (states[:ii+1], np.array([x_reset]))), states[ii+1:]))
+                
+                # next_state = x_reset
+                
+                # inputs[mode_change[1]] = np.concatenate(
+                #     (np.concatenate(
+                #         (inputs[mode_change[1]][:ii+1], u_i.reshape(1,-1))), inputs[mode_change[1]][ii+1:]))
 
-                hybrid_index.add(ii+1)
+                # inputs[mode_change[0]] = np.concatenate(
+                #     (np.concatenate(
+                #         (inputs[mode_change[0]][:ii+1], u_i.reshape(1,-1))), inputs[mode_change[0]][ii+1:]))
                 
-                saltations = saltations[:ii+1] + [saltation] + saltations[ii+1:]
-                event_info[ii+1] = (t_event, x_event, x_reset, mode_change, K_fb_ext[hybrid_index_ref], k_ff_ext[hybrid_index_ref])
+                # inputs[mode_change[0]][ii] = u_i.flatten()
+                
+                # nt += 1
+                
+                states[ii+1] = x_reset
+
+                hybrid_index.add(ii)                
+                # saltations = saltations[:ii+1] + [saltation] + saltations[ii+1:]
+                saltations[ii] = saltation
+                event_info[ii] = (t_event, x_event, x_reset, mode_change, K_fb_ext[hybrid_index_ref], k_ff_ext[hybrid_index_ref])
             else:
                 states[ii+1] = next_state
-                inputs[mode_i][ii] = u_i.flatten()
-                
+            inputs[mode_i][ii] = u_i.flatten()
+            
             # Only consider the transition from mode 0 to mode 1 for now
             if (mode_change[0]!=mode_change[1]):
                 if self._verbose:
                     print(f"At Time {ii}, the system has a mode change from mode {mode_change[0]} to mode {mode_change[1]}")
-                # event_args.append(reset_byproduct)
-                # event_args = reset_byproduct
                 cnt_event += 1
                 
             # ---------------------
             #  Move forward in time
             # ---------------------            
-            mode_changes[ii+1] = mode_change
+            mode_changes[ii] = mode_change
             modes[ii+1] = mode_change[1]
+            
+            ii += 1
         
         if self._verbose:
             print(f"--------------------- Total number of contacts: {cnt_event} ---------------------" )
+        
+        show_forwardpass = True
+        if show_forwardpass:
+            from five_link.fivelink_simulation import animate_trj
+            animate_trj(np.array(states))
         
         return (timespan, modes,states,inputs,saltations,mode_changes,event_info)
     
@@ -529,10 +518,8 @@ class hybrid_ilqr_jax:
         (timespan, modes, states, inputs, saltations, mode_changes, event_info) = self.rollout()
         
         from five_link.fivelink_simulation import FiveLinkSimulator, animate_trj
-        inputs_arr = self.desamble_control(modes, inputs)
-        simulator = FiveLinkSimulator(self._initstate, inputs_arr, self._dt)
-        x_trj = simulator.simulate()
-        simulator.plot_results()
+
+        # animate_trj(states, step=5)
         
         # compute reference extensions
         print("------ Computing the reference trajectory extensions ------")
@@ -549,7 +536,7 @@ class hybrid_ilqr_jax:
         self._inputs = inputs
         self._saltations = saltations
         self._modes = modes
-        self._modechanges = modechanges
+        self._modechanges = mode_changes
         self._event_info = event_info    
 
         # ------------ Plot first rollout ------------ 
@@ -596,7 +583,8 @@ class hybrid_ilqr_jax:
              k_ff_trj_ext,K_fb_trj_ext,
              expected_reduction,
              updated_event_info) = self.backward_pass(self._timespan, 
-                                                      self._modes, self._states, 
+                                                      self._modes, 
+                                                      self._states, 
                                                       self._inputs, 
                                                       self._saltations, 
                                                       self._event_info)    
