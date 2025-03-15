@@ -769,19 +769,17 @@ def detect_fivelink(x0, u, t0, tf,
     
     guards_5link = {0:guard_12_5link, 1: guard_21_5link}
     resetmaps_5link = {0:resetmap_5link_12, 1:resetmap_5link_21}
-    
+                                  
     return event_detect_onestep_discrete(x0, u, 
-                                        t0, tf, 
-                                        current_mode, 
-                                        smoothdyn_5link, 
-                                        guards_5link, 
-                                        gxs_5link, 
-                                        gts_5link,
-                                        resetmaps_5link, 
-                                        Rxs_5link, 
-                                        Rts_5link,
-                                        reset_args, 
-                                        guard_cond_func_0=guard_cond_fivelink_12, 
-                                        guard_cond_func_1=guard_cond_fivelink_21, 
-                                        detection=detect, 
-                                        backwards=backwards)
+                                         t0, tf-t0, 
+                                         current_mode, 
+                                         smoothdyn_5link, 
+                                         guards_5link, 
+                                         gxs_5link, gts_5link, 
+                                         resetmaps_5link, 
+                                         Rxs_5link, Rts_5link, 
+                                         reset_args, 
+                                         guard_cond_func_0=guard_cond_fivelink_12, 
+                                         guard_cond_func_1=guard_cond_fivelink_21, 
+                                         detection=True, 
+                                         backwards=False)

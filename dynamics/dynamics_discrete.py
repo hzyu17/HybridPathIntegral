@@ -59,7 +59,9 @@ def guard_true_func_deterministic(args):
         x_mid = x_left + smooth_dyn(t_left, x_left, u_current) * dt_new
         
         if guard(t_mid, x_mid) == 0:
-            return (t_mid, x_mid)  # We've found the exact root
+            t_left  = t_mid
+            x_left = x_mid
+            break
         
         elif guard(t_left, x_left) * guard(t_mid, x_mid) < 0:
             t_right = t_mid  # The root is in the left half

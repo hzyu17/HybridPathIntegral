@@ -34,22 +34,6 @@ class FiveLinkSimulator:
         self.impact_time = []
         self.saltation_matrices = []
         
-        # information for plotting 
-        self.com_trj = np.zeros((self.nt, 2))
-        self.v_com_trj = np.zeros((self.nt, 2))
-        
-        self.pos_com_st_foot_trj = np.zeros((self.nt, 2))
-        self.vel_com_st_foot_trj = np.zeros((self.nt, 2))
-        
-        self.st_foot_wrench = np.zeros((self.nt, 2))
-        self.sw_foot_pos_trj = np.zeros((self.nt, 2))
-        self.sw_foot_vel_trj = np.zeros((self.nt, 2))
-        
-        self.st_foot_pos_trj = np.zeros((self.nt, 2))
-        self.st_foot_vel_trj = np.zeros((self.nt, 2))
-        
-        self.sw_foot_wrench = np.zeros((self.nt, 2))
-        
     
     def simulate(self):
         """
@@ -142,7 +126,8 @@ class FiveLinkSimulator:
         from rabbit_dynamics import detect_fivelink
         
         modes = np.zeros(self.nt)
-        for ii in range(self.nt-1):
+        ii = 0
+        while (ii < self.nt-1):
             
             x_i = self.x_trj[ii]
             mode_i = modes[ii]
@@ -162,32 +147,59 @@ class FiveLinkSimulator:
             (next_state, saltation, 
              mode_change, t_event, x_event, 
              x_reset, _) = detect_fivelink(x_i, u_i, t_ii, t_ii_plus, mode_i, reset_args=None)
-
+            
             # ------------------------------
             # Update the hybrid information
             # ------------------------------
             if saltation is not None:
-                timespan = np.concatenate(
+                self.t_trj = np.concatenate(
                     (np.concatenate(
-                        (timespan[:ii+1], np.array([t_event]))), timespan[ii+1:]))
-                nt += 1
+                        (self.t_trj[:ii+1], np.array([t_event]))), self.t_trj[ii+1:]))
+                
+                self.dts = np.concatenate(
+                    (np.concatenate(
+                        (self.dts[:ii+1], np.array([t_event - t_ii]))), self.dts[ii+1:]))
                 
                 modes = np.concatenate(
                     (np.concatenate(
                         (modes[:ii+1], np.array([mode_change[1]]))), modes[ii+1:]))
                 
-                states = np.concatenate(
+                self.x_trj = np.concatenate(
                     (np.concatenate(
-                        (states[:ii+1], np.array([x_reset]))), states[ii+1:]))
+                        (self.x_trj[:ii+1], np.array([x_reset]))), self.x_trj[ii+1:]))
                 
-                next_state = x_reset
-            
-            self.x_trj[ii+1] = next_state
+                self.u_trj = np.concatenate(
+                    (np.concatenate(
+                        (self.u_trj[:ii+1], np.zeros((1, 4)))), self.u_trj[ii+1:]))
+                
+                self.nt += 1
+                # ii += 1
+                
+            else:
+                self.x_trj[ii+1] = next_state
+                self.t_trj[ii+1] = self.t_trj[ii] + dt_ii
+            ii += 1
             
         return self.x_trj
     
     
     def compute_info(self):
+        # information for plotting 
+        self.com_trj = np.zeros((self.nt, 2))
+        self.v_com_trj = np.zeros((self.nt, 2))
+        
+        self.pos_com_st_foot_trj = np.zeros((self.nt, 2))
+        self.vel_com_st_foot_trj = np.zeros((self.nt, 2))
+        
+        self.st_foot_wrench = np.zeros((self.nt, 2))
+        self.sw_foot_pos_trj = np.zeros((self.nt, 2))
+        self.sw_foot_vel_trj = np.zeros((self.nt, 2))
+        
+        self.st_foot_pos_trj = np.zeros((self.nt, 2))
+        self.st_foot_vel_trj = np.zeros((self.nt, 2))
+        
+        self.sw_foot_wrench = np.zeros((self.nt, 2))
+        
         for i_t in range(self.nt-1):
             xt = self.x_trj[i_t]
             ut = self.u_trj[i_t]
@@ -212,10 +224,10 @@ class FiveLinkSimulator:
         self.compute_info()
         
         _, axs = plt.subplots(3, 2, figsize=(10, 8))
-        axs[0, 0].plot(self.t_trj, self.u_trj[:, 0], label='Input Torque u1')
-        axs[0, 0].plot(self.t_trj, self.u_trj[:, 1], label='Input Torque u2')
-        axs[0, 0].plot(self.t_trj, self.u_trj[:, 2], label='Input Torque u3')
-        axs[0, 0].plot(self.t_trj, self.u_trj[:, 3], label='Input Torque u4')
+        axs[0, 0].plot(self.t_trj[:-1], self.u_trj[:, 0], label='Input Torque u1')
+        axs[0, 0].plot(self.t_trj[:-1], self.u_trj[:, 1], label='Input Torque u2')
+        axs[0, 0].plot(self.t_trj[:-1], self.u_trj[:, 2], label='Input Torque u3')
+        axs[0, 0].plot(self.t_trj[:-1], self.u_trj[:, 3], label='Input Torque u4')
 
         axs[0, 1].plot(self.t_trj, self.st_foot_wrench[:, 0], label='Stance Foot Wrench, x')
         axs[0, 1].plot(self.t_trj, self.st_foot_wrench[:, 1], label='Stance Foot Wrench, z')
@@ -254,7 +266,7 @@ class FiveLinkSimulator:
         axs[2, 1].legend()
         
         plt.tight_layout()
-    
+
         _, axs1 = plt.subplots(3, 2, figsize=(8, 10))
         axs1[0, 0].plot(self.t_trj, self.sw_foot_pos_trj[:, 0], label='Swing Foot Position, x')
         axs1[0, 0].plot(self.t_trj, self.st_foot_pos_trj[:, 0], label='Stance Foot Position, x')
@@ -419,8 +431,8 @@ if __name__ == '__main__':
     x_trj = fivelink_simulator.test_detect_func()
     
     # x_trj = fivelink_simulator.simulate()
-    # fivelink_simulator.plot_results()
+    fivelink_simulator.plot_results()
     
-    # for i in range(3):
-    #     animate_trj(x_trj, step=5)
+    for i in range(3):
+        animate_trj(x_trj, step=5)
     
