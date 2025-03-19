@@ -71,7 +71,7 @@ Rx_bouncing_12 = jax.jacrev(impact_map_bouncing)
 
 @jax.jit
 def reset_map_bouncing_12(x_minus, current_mode, args_reset):
-    x_plus = np.array([x_minus[0], -0.6*x_minus[1]], dtype=np.float64)
+    x_plus = jnp.array([x_minus[0], -0.6*x_minus[1]], dtype=jnp.float64)
     new_mode = 1
 
     return x_plus, new_mode, args_reset

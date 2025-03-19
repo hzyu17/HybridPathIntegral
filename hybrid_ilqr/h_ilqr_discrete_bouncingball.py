@@ -114,12 +114,12 @@ if __name__ == '__main__':
     exp_data = ExpData(exp_params)
     
     hybrid_ilqr_result = solve_ilqr(exp_params, detect=True, verbose=False)
-        
+    
     (timespan, modes,states,inputs,saltations,
      k_feedforward,K_feedback,A_trj,B_trj,
      current_cost,states_iter,
      ref_modechanges,ref_ext_helper, ref_reset_args) = hybrid_ilqr_result
-        
+    
     exp_data.add_nominal_data(hybrid_ilqr_result)
 
 

@@ -755,10 +755,12 @@ def deltx_norm_cost(x, x_tar):
 # ====================================
 from dynamics.dynamics_discrete import event_detect_onestep_discrete
 
-def detect_fivelink(x0, u, t0, tf, 
-                    current_mode, 
+def detect_fivelink(current_mode, 
+                    x0, u, 
+                    t0, dt, 
                     reset_args, 
-                    detect=True, backwards=False):
+                    detect=True, 
+                    backwards=False):
     
     smoothdyn_5link = {0:f_NL_fivelink, 1:f_NL_fivelink}
     
@@ -770,9 +772,9 @@ def detect_fivelink(x0, u, t0, tf,
     
     guards_5link = {0:guard_12_5link, 1: guard_21_5link}
     resetmaps_5link = {0:resetmap_5link_12, 1:resetmap_5link_21}
-                                  
+    
     return event_detect_onestep_discrete(x0, u, 
-                                         t0, tf-t0, 
+                                         t0, dt, 
                                          current_mode, 
                                          smoothdyn_5link, 
                                          guards_5link, 

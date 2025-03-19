@@ -3,6 +3,7 @@ import numpy as np
 
 def compute_trejactory_extension(event_info, 
                                  timespan,
+                                 states,
                                  nx, nu, 
                                  init_state, target_state, 
                                  detection_func):
@@ -69,6 +70,16 @@ def compute_trejactory_extension(event_info,
         
         # Forward and backward trajectory extensions and (feedback, feedforward) gains for the two extensions
         for ii, tevent_i in enumerate(t_events[1:-1], start=1):
+            
+            if ii < len(t_events[1:-1]):
+                i_event_next = i_events[ii+1]
+            else:
+                i_event_next = len(timespan)
+            if ii > 1:
+                i_event_prev = i_events[ii-1]
+            else:
+                i_event_prev = 0
+            
             i_event_i = i_events[ii]
             x_event_i = x_events[ii]
             x_reset_i = x_resets[ii]
@@ -88,44 +99,35 @@ def compute_trejactory_extension(event_info,
             if len(dt) > 1:
                 dt_i = dt[i_event_i]
                 
-                # [0, t_event] for padding
-                time_span_ext_fwd_padding = timespan[:i_event_i]
-                # time_span_ext_fwd_padding = np.arange(0, tevent_i, dt_i)
+                # [0, t_event+1] for padding
+                time_span_ext_fwd_padding = timespan[:i_event_i+1]
+                time_span_ext_bwd_padding = timespan[i_event_i+1:]
                 
-                # # [t_event, t_trj_ext_fwd]
-                timespan_ext_fwd = timespan[i_event_i:]
-                # timespan_ext_fwd = np.arange(tevent_i, t_ext_fwd_i, dt_i)
-                
-                # # [t_trj_ext_bwd: t_event]
-                timespan_ext_bwd = timespan[:i_event_i][::-1]
-                # timespan_ext_bwd = np.arange(0, tevent_i, dt_i)[::-1]
+                timespan_ext_fwd = timespan[i_event_i+1:]
+                timespan_ext_bwd = timespan[:i_event_i+1][::-1]
                 
                 
-            else:
-                dt_i = dt
+            # else:
+            #     dt_i = dt
             
-                # [0, t_event] for padding
-                time_span_ext_fwd_padding = np.arange(0, tevent_i, dt_i)
+            #     # [0, t_event] for padding
+            #     time_span_ext_fwd_padding = np.arange(0, tevent_i, dt_i)
                 
-                # [t_event, t_trj_ext_fwd]
-                timespan_ext_fwd = np.arange(tevent_i, t_ext_fwd_i, dt_i)
+            #     # [t_event, t_trj_ext_fwd]
+            #     timespan_ext_fwd = np.arange(tevent_i, t_ext_fwd_i, dt_i)
                 
                 
-                # [t_trj_ext_bwd: t_event]
-                timespan_ext_bwd = np.arange(0, tevent_i, dt_i)[::-1]
+            #     # [t_trj_ext_bwd: t_event]
+            #     timespan_ext_bwd = np.arange(0, tevent_i, dt_i)[::-1]
             
             # time span lengths
             nt_ext_fwd = len(timespan_ext_fwd)
             nt_ext_bwd = len(timespan_ext_bwd)
-            nt_ext_padding_fwd = len(time_span_ext_fwd_padding)
-            nt_ext_padding_bwd = nt_ext_fwd
             
-            xtrj_ext_padding_fwd_i = np.zeros((nt_ext_padding_fwd, nx[mode_i]))
+            
             xtrj_ext_fwd_i = np.zeros((nt_ext_fwd, nx[mode_i]))
             xtrj_ext_fwd_i[0] = x_event_i
             
-            xtrj_ext_bwd_i = np.zeros((nt_ext_bwd, nx[next_mode_i]))
-            xtrj_ext_padding_bwd_i = np.zeros((nt_ext_padding_bwd, nx[next_mode_i]))    
             
             # Use the same gain for the whole extensions, and padding it to the whole time span
             K_feedback_ext_fwd_i = np.tile(K_feedback_fwd_extension_i, (nt, 1, 1))
@@ -152,7 +154,7 @@ def compute_trejactory_extension(event_info,
                 # Using zero control, modify if needed.
                 current_input = np.zeros(nu[mode_i])
                 
-                next_state, _, _, _, _, _, _ = detection_func(x_i, current_input, t_jj, t_jj+dt_jj, mode_i, detect=False, reset_args=None)
+                next_state, _, _, _, _, _, _ = detection_func(mode_i, x_i, current_input, t_jj, dt_jj, detect=False, reset_args=None)
                 
                 # Store states and inputs
                 xtrj_ext_fwd_i[jj+1] = next_state
@@ -160,11 +162,22 @@ def compute_trejactory_extension(event_info,
                 # Update the current state
                 x_i = next_state
             
+            # ------------------- Padding the forward extension -------------------
+            nt_ext_padding_fwd = len(time_span_ext_fwd_padding)
+            xtrj_ext_padding_fwd_i = np.zeros((nt_ext_padding_fwd, nx[mode_i]))
+            xtrj_ext_padding_fwd_i[i_event_prev+1:i_event_i+1] = np.asarray(states[i_event_prev+1:i_event_i+1])
+            
             xtrj_ext_fwd_i = np.vstack((xtrj_ext_padding_fwd_i, xtrj_ext_fwd_i))
             
             # ----------------------------------
             #   Simulate the backward extension
             # ----------------------------------
+            timespan_ext_bwd = timespan[:i_event_i+1][::-1]
+            # timespan_ext_bwd = np.arange(0, tevent_i, self.dt_)[::-1]
+            
+            # time span lengths
+            nt_ext_bwd = len(timespan_ext_bwd)
+            xtrj_ext_bwd_i = np.zeros((nt_ext_bwd, nx[next_mode_i]))
             xtrj_ext_bwd_i[0] = x_reset_i
             x_i = x_reset_i
             for jj in range(nt_ext_bwd-1):
@@ -177,7 +190,7 @@ def compute_trejactory_extension(event_info,
                 # modify if needed
                 current_input = np.zeros(nu[next_mode_i])
                 
-                next_state, _, _, _, _, _, _ = detection_func(x_i, current_input, t_jj, t_jj-dt_jj, next_mode_i, detect=False, reset_args=None)
+                next_state, _, _, _, _, _, _ = detection_func(next_mode_i, x_i, current_input, t_jj, -dt_jj, reset_args=None, detect=False)
                 
                 # Store states and inputs
                 xtrj_ext_bwd_i[jj+1] = next_state
@@ -190,7 +203,12 @@ def compute_trejactory_extension(event_info,
             # -------------------------------   
             xtrj_ext_bwd_i = xtrj_ext_bwd_i[::-1]
             
-            # --------------------- padding ---------------------
+            # --------------------- padding the backward extension ---------------------
+            
+            nt_ext_padding_bwd = len(time_span_ext_bwd_padding)
+            xtrj_ext_padding_bwd_i = np.zeros((nt_ext_padding_bwd, nx[next_mode_i]))    
+            xtrj_ext_padding_bwd_i[:i_event_next-i_event_i] = np.asarray(states[i_event_i+1:i_event_next+1])
+            
             xtrj_ext_bwd_i = np.vstack((xtrj_ext_bwd_i, xtrj_ext_padding_bwd_i))
             
             # ------------------------ collect the trajectory extensions ------------------------

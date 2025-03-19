@@ -78,10 +78,10 @@ if __name__ == '__main__':
     
     target_state = x_init
     
-    hilqr_obj = hybrid_ilqr_jax(n_states, n_inputs,
+    hilqr_obj = hybrid_ilqr_jax(n_states, n_inputs, 
                                 x_init, target_state, 
                                 initial_guess, 
-                                time_span,
+                                time_span, 
                                 niters, 
                                 is_detect=True, 
                                 detect_func=detect_fivelink, 

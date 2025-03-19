@@ -4,6 +4,7 @@ from matplotlib.font_manager import FontProperties
 font_props = FontProperties(family='serif', size=16, weight='normal')
 import sympy as sp
 
+
 def dyn_bouncing(t, x, *args):
     """
     Args:
@@ -18,6 +19,18 @@ def dyn_bouncing(t, x, *args):
         u = args[0]
     return np.array([x[1], u[0]-9.81], dtype=np.float64)
 
+
+def dyn_bouncing_jax(t, x, *args):
+      
+    if len(args) == 0:
+        u = jnp.array([0.0], dtype=jnp.float64)
+    else:
+        u = args[0]
+    return jnp.array([x[1], u[0]-9.81], dtype=jnp.float64)
+
+def f_euler_bouncing(x,u,dt):
+    return x + dyn_bouncing_jax(0.0, x, u)*dt
+    
 
 def gdWt_bouncing(x0, dWt, eps):
     B = np.array([[0],[1.0]], dtype=np.float64)
@@ -259,18 +272,14 @@ def event_detect_bouncing(x0, u, t0, tf, current_mode, reset_args, detection=Tru
     guards_bouncing_bouncing = {0:guard_bouncing_12, 1: guard_bouncing_21}
     reset_maps_bouncing_bouncing = {0:reset_map_bouncing_12, 1:reset_map_bouncing_21}
         
-    return event_detect_onestep(x0, 
-                                u, 
-                                t0, 
-                                tf, 
+    return event_detect_onestep(x0, u, 
+                                t0, tf, 
                                 current_mode, 
                                 smooth_dynamics_bouncing, 
                                 guards_bouncing_bouncing,
-                                gxs_bouncing,
-                                gts_bouncing,
+                                gxs_bouncing, gts_bouncing,
                                 reset_maps_bouncing_bouncing,
-                                Rxs_bouncing,
-                                Rts_bouncing,
+                                Rxs_bouncing, Rts_bouncing,
                                 reset_args, detection, backwards)
             
 
@@ -435,6 +444,10 @@ def plot_bouncingball(time_span, modes, states, inputs, init_state,
     ax2.set_xlabel(r"Time", fontproperties=font_props)
     ax2.set_ylabel(r"$\dot z$", fontproperties=font_props)
     ax2.set_title(r"Bouncing Ball Vertical Velocity", fontproperties=font_props)
+    
+    ax3.set_xlabel(r"$z$", fontproperties=font_props)
+    ax3.set_ylabel(r"$\dot z$", fontproperties=font_props)
+    ax3.set_title(r"Bouncing Ball State Plot", fontproperties=font_props)
 
     return fig1, axes_12, fig2, ax3
 
