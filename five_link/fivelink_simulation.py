@@ -202,6 +202,7 @@ class FiveLinkSimulator:
         self.sw_foot_wrench = np.zeros((self.nt, 2))
         
         for i_t in range(self.nt-1):
+            
             xt = self.x_trj[i_t]
             ut = self.u_trj[i_t]
 
@@ -219,16 +220,19 @@ class FiveLinkSimulator:
             
             self.st_foot_pos_trj[i_t] = Right_Stance_Foot_Position(xt[:7])
             self.st_foot_vel_trj[i_t] = vel_right_foot(xt[:7], xt[7:])
+            
+            dt = self.dts[i_t]
+            self.t_trj[i_t+1] = self.t_trj[i_t] + dt
                 
                 
     def plot_results(self):
         self.compute_info()
         
         _, axs = plt.subplots(3, 2, figsize=(10, 8))
-        axs[0, 0].plot(self.t_trj[:-1], self.u_trj[:, 0], label='Input Torque u1')
-        axs[0, 0].plot(self.t_trj[:-1], self.u_trj[:, 1], label='Input Torque u2')
-        axs[0, 0].plot(self.t_trj[:-1], self.u_trj[:, 2], label='Input Torque u3')
-        axs[0, 0].plot(self.t_trj[:-1], self.u_trj[:, 3], label='Input Torque u4')
+        axs[0, 0].plot(self.t_trj, self.u_trj[:, 0], label='Input Torque u1')
+        axs[0, 0].plot(self.t_trj, self.u_trj[:, 1], label='Input Torque u2')
+        axs[0, 0].plot(self.t_trj, self.u_trj[:, 2], label='Input Torque u3')
+        axs[0, 0].plot(self.t_trj, self.u_trj[:, 3], label='Input Torque u4')
 
         axs[0, 1].plot(self.t_trj, self.st_foot_wrench[:, 0], label='Stance Foot Wrench, x')
         axs[0, 1].plot(self.t_trj, self.st_foot_wrench[:, 1], label='Stance Foot Wrench, z')

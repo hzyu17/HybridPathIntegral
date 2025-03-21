@@ -163,7 +163,7 @@ def event_detect_bouncing_discrete(current_mode,
                                         guard_cond_bouncing_21,
                                         detect, backwards)
     
-def bouncingball_cost(x, u, args= 1.0):
+def bouncingball_cost(x, u, args= 0.0):
     return u.T@u/2
 
 @jax.jit

@@ -1,24 +1,24 @@
 import jax.numpy as jnp
 import jax
 
-def p_Torso(var1):
+def p_Torso(q):
     """
     Compute the torso position vector p_Torso from var1.
     
     Parameters:
-      var1 : a JAX array of shape (7,).)
+      q : a JAX array of shape (7,).)
              
     Returns:
       A JAX array of shape (3,)
     """
     # Ensure var1 is a flat vector of length 7.
-    var1 = jnp.ravel(var1)
-    if var1.shape[0] != 7:
+    q = jnp.ravel(q)
+    if q.shape[0] != 7:
         raise ValueError("Input var1 must be a vector of length 7")
     
-    p0 = var1[0] + 0.63 * jnp.sin(var1[2])
+    p0 = q[0] + 0.63 * jnp.sin(q[2])
     p1 = 0.0
-    p2 = 0.63 * jnp.cos(var1[2]) + var1[1]
+    p2 = 0.63 * jnp.cos(q[2]) + q[1]
     
     return jnp.array([p0, p1, p2])
 

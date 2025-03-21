@@ -650,6 +650,7 @@ def impact_map(x):
     
     return x_new.flatten()
 
+@jax.jit
 def resetmap_5link_12(x_event, current_mode, reset_args):
     next_mode = 1
     other_output = None
@@ -678,13 +679,16 @@ def impact_wrench(x):
 # ----------------------------------
 #   Reset Map from mode 2 to mode 1
 # ----------------------------------
+@jax.jit
 def resetmap_5link_21(x_event, current_mode, reset_args):
     return x_event, 0, None
 
+@jax.jit
 def Rx_5link_21(x):
     nx = x.shape[0]
     return jnp.eye(nx)
 
+@jax.jit
 def Rt_5link_21(x):
     return 0.0
 
@@ -739,16 +743,6 @@ def guard_cond_fivelink_21(xt, xt_next, current_mode):
     # assume time invariant guard for now
     return (current_mode==1) and (guard_21_5link(0.0,xt)>=0) and (guard_21_5link(0.0,xt_next)<0)
 
-# ============================
-#       Cost Functions
-# ============================
-def com_moving_cost(x, u, target_com_vel_x= 1.0):
-    # com_world_velocity_x = vel_com_world(x[0:7], x[7:])[0]
-    # return 0.01*jnp.linalg.norm(com_world_velocity_x-target_com_vel_x) + u.T@u/2
-    return u.T@u/2
-
-def deltx_norm_cost(x, x_tar):
-    return jnp.linalg.norm(x-x_tar)
 
 # ====================================
 #       Event Detect Function

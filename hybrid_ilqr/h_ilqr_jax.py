@@ -379,7 +379,7 @@ class hybrid_ilqr_jax:
             x_i = states[ii] # Not being used currently
             u_i = inputs[mode_i][ii].flatten()
 
-            total_cost = total_cost+self._running_cost(x_i, u_i)*dt[ii]
+            total_cost = total_cost+self._running_cost(x_i, u_i, self._cost_args)*dt[ii]
             
             if np.isnan(total_cost):
                 print("NaN found, stopping loop")
@@ -388,7 +388,7 @@ class hybrid_ilqr_jax:
                 print("u: ", u_i)
                 break
         # Compute terminal cost
-        total_cost = total_cost + self._terminal_cost(states[-1], self._target_state)
+        total_cost = total_cost + self._terminal_cost(states[-1], self._terminal_cost_args)
 
         return total_cost
 
@@ -433,17 +433,6 @@ class hybrid_ilqr_jax:
             A_k = self._A(x_i, u_i, dt_i)
             B_k = self._B(x_i, u_i, dt_i)
             
-            # print("self._states[-1]: ", self._states[-1])
-            # print("self._target_state: ", self._terminal_cost_args)
-            # print("V_x: ", V_x)
-            # print("V_xx: ", V_xx)
-            # print("l_x: ", l_x)
-            # print("l_u: ", l_u)
-            # print("l_xx: ", l_xx)
-            # print("l_uu: ", l_uu)
-            # print("A_k: ", A_k)
-            # print("B_k: ", B_k)
-            
             if saltation_i is None:
                 Q_x = l_x*dt_i + A_k.T@V_x
                 Q_u = l_u*dt_i + B_k.T@V_x
@@ -455,14 +444,6 @@ class hybrid_ilqr_jax:
                 k = -np.linalg.solve(Q_uu, Q_u)
                 K = -np.linalg.solve(Q_uu, Q_ux).reshape((self._nu[0], self._nx[0]))
                 
-                # print("Q_x: ", Q_x)
-                # print("Q_u: ", Q_u)
-                # print("Q_ux: ", Q_ux)
-                # print("Q_uu: ", Q_uu)
-                # print("Q_xx: ", Q_xx)
-                # print("k: ", k)
-                # print("K: ", K)
-
             else:
                 # print("saltation_i: ", saltation_i)
                 # print("Found contact dynamics! Computing the gains with saltation matrix.")
@@ -530,9 +511,18 @@ class hybrid_ilqr_jax:
         
         
         # ----- For five link system -----
-        show_forwardpass = False
+        show_forwardpass = True
         if show_forwardpass:
-            from five_link.fivelink_simulation import animate_trj
+            from five_link.fivelink_simulation import FiveLinkSimulator, animate_trj
+            u_trj_arr = self.desamble_control(modes, inputs)
+            dts = timespan[1:] - timespan[:-1]
+            fivelink_simulator = FiveLinkSimulator(self._init_state, u_trj_arr, dts)
+    
+            fivelink_simulator.simulate()
+            fivelink_simulator.plot_results()
+            
+            plt.show()
+            
             animate_trj(np.array(states))
         
         
@@ -658,6 +648,21 @@ class hybrid_ilqr_jax:
                 
                 if(armijo_flag == 1):
                     print(" -------- Next iteration, armijo condition is met --------")
+                    
+                    show_forwardpass = True
+                    if show_forwardpass:
+                        from five_link.fivelink_simulation import FiveLinkSimulator, animate_trj
+                        u_trj_arr = self.desamble_control(new_modes, new_inputs)
+                        dts = new_timespan[1:] - new_timespan[:-1]
+                        fivelink_simulator = FiveLinkSimulator(self._init_state, u_trj_arr, dts)
+                
+                        fivelink_simulator.simulate()
+                        fivelink_simulator.plot_results()
+                        
+                        plt.show()
+                        
+                        animate_trj(np.array(new_states))
+                        
                     # ------------------------------------------------------
                     # Accept the new trajectory if armijo condition is met
                     # ------------------------------------------------------
@@ -669,6 +674,7 @@ class hybrid_ilqr_jax:
                     self._modechanges = new_mode_changes
                     self._modes = new_modes
                     self._event_info = new_event_info
+                    
                     self._reference_extension_helper = compute_trejactory_extension(new_event_info, 
                                                                                     new_timespan,
                                                                                     new_states, 

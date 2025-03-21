@@ -19,6 +19,7 @@ from dynamics.trajectory_extension import *
 from five_link.fivelink_simulation import *
 from hybrid_ilqr.h_ilqr_jax import *
 from experiments.exp_params import *
+from five_link.cost_functions import *
 
 
 if __name__ == '__main__':
@@ -39,7 +40,7 @@ if __name__ == '__main__':
     n_exp = 1
     n_samples = 10
     
-    nt = 240
+    nt = 300
     
     time_span = np.linspace(0.0, 0.24, 240)
     
@@ -77,9 +78,10 @@ if __name__ == '__main__':
     x_init = jnp.concatenate([q_init, qdot_init])
     
     target_state = x_init
+    init_mode = 1
     
     hilqr_obj = hybrid_ilqr_jax(n_states, n_inputs, 
-                                x_init, target_state, 
+                                init_mode, x_init, target_state, 
                                 initial_guess, 
                                 time_span, 
                                 niters, 
@@ -88,7 +90,7 @@ if __name__ == '__main__':
                                 smooth_dynamics=f_euler_fivelink, 
                                 running_cost=com_moving_cost, 
                                 cost_args=target_com_vel,
-                                terminal_cost=deltx_norm_cost, 
+                                terminal_cost=deltx_norm_cost_fivelink, 
                                 terminal_cost_args=target_state)
     
     hybrid_ilqr_result = hilqr_obj.solve()
