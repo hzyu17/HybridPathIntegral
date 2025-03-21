@@ -28,7 +28,7 @@ if __name__ == '__main__':
     n_inputs = [1, 1]
     
     # ---------------- multiple bouncing example -----------------
-    dt = 0.0015
+    dt = 0.001
     epsilon = 2.0
     dt_shrink = 0.95
     
@@ -84,3 +84,14 @@ if __name__ == '__main__':
                                 terminal_cost_args=target_state)
     
     hybrid_ilqr_result = hilqr_obj.solve()
+    
+    
+    (timespan,modes,states,inputs,
+    k_feedforward,K_feedback,
+    current_cost,states_iter,
+    modechanges,ref_ext_helper) = hybrid_ilqr_result
+
+    show_results = True
+    if show_results:
+        plot_bouncingball(time_span, modes, states, inputs, init_state, target_state, nt, color='k')
+        plt.show()

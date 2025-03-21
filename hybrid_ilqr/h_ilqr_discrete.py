@@ -309,22 +309,22 @@ class hybrid_ilqr:
              v_Kfb_ext_trj_bwd_ref, v_Kfb_ext_trj_fwd_ref, 
              v_kff_ext_trj_bwd_ref, v_kff_ext_trj_fwd_ref, v_tevents_ref) = extract_extensions(self._reference_extension_helper)
 
-            # ------------------------ Plot reference extensions ------------------------ 
-            states_arr = np.asarray(self._states)
-            fig, ax = plt.subplots()
-            ax.grid(True)
-            ax.plot(states_arr[:,0], states_arr[:,1], 'k')
-            for i_ext_trj_bwd in v_ext_trj_bwd_ref[1:2]:
-                ax.plot(i_ext_trj_bwd[:,0], i_ext_trj_bwd[:,1], 'r', label="backward extension")
-            for i_ext_trj_fwd in v_ext_trj_fwd_ref[1:2]: 
-                ax.plot(i_ext_trj_fwd[:,0], i_ext_trj_fwd[:,1], 'b', label="forward extension")
+            # # ------------------------ Plot reference extensions ------------------------ 
+            # states_arr = np.asarray(self._states)
+            # fig, ax = plt.subplots()
+            # ax.grid(True)
+            # ax.plot(states_arr[:,0], states_arr[:,1], 'k')
+            # for i_ext_trj_bwd in v_ext_trj_bwd_ref[1:2]:
+            #     ax.plot(i_ext_trj_bwd[:,0], i_ext_trj_bwd[:,1], 'r', label="backward extension")
+            # for i_ext_trj_fwd in v_ext_trj_fwd_ref[1:2]: 
+            #     ax.plot(i_ext_trj_fwd[:,0], i_ext_trj_fwd[:,1], 'b', label="forward extension")
                 
-            ax.legend()
-            ax.set_xlabel(r"$z$")
-            ax.set_ylabel(r"$\dot z$")
-            ax.set_title(r"Bouncing Ball State Plot")
+            # ax.legend()
+            # ax.set_xlabel(r"$z$")
+            # ax.set_ylabel(r"$\dot z$")
+            # ax.set_title(r"Bouncing Ball State Plot")
 
-            plt.show()
+            # plt.show()
             
             if self._verbose:
                 print(f"Reference trajectory bouncing event numbers: {len(v_ext_trj_bwd_ref)}")
@@ -367,6 +367,7 @@ class hybrid_ilqr:
                 #  Mode Mismatch
                 # --------------- 
                 if (current_mode != current_mode_ref) and (check_modemismatch):
+                    # print("mode mismatch at: ", ii)
                     
                     trj_extension = []
                     fb_ext_trj = []
@@ -542,7 +543,7 @@ class hybrid_ilqr:
                  new_hybrid_event_info,new_reset_args)=self.forward_pass(learning_rate)
                 
                 # --------------------------------- Plot forward pass ---------------------------------
-                show_fwdpass = True
+                show_fwdpass = False
                 if show_fwdpass:
                     self._plot_states_func(self._timespan, modes, states, inputs, 
                                             self._init_state, self._target_state, 
