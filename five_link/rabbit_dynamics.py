@@ -456,6 +456,14 @@ J_hip = jax.jacrev(Hip_Position)
 
 @jax.jit
 def COM_Position(q):
+    """Compute the position of the center of mass in the world frame.
+
+    Args:
+        q (jax.array): generalized coordinates
+
+    Returns:
+        jax.array: [CoM_Pos_x, CoM_Pos_z]
+    """
     xbar,zbar,rotY,q1R,q2R,q1L,q2L = q[0],q[1],q[2],q[3],q[4],q[5],q[6]
 
     posCOM = jnp.array([(1/32)*(12*(xbar+(6/25)*jnp.sin(rotY))+(34/5)*(xbar+(11/100)*(jnp.cos( \

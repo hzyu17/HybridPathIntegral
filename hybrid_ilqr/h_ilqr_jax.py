@@ -8,6 +8,8 @@ import jax
 from jax import grad, jacfwd, hessian
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+
 from functools import partial
 
 from dynamics.dynamics_discrete_bouncing import *
@@ -165,7 +167,8 @@ class hybrid_ilqr_jax:
              x_reset, _) = self._detect_func(mode_i, x_i, u_i, t_ii, dt_ii, reset_args=None)
 
             # Hybrid event happened
-            if mode_change[0] != mode_change[1]:                 
+            if mode_change[0] != mode_change[1]:     
+                print("---- hybrid event happened at ----", t_event)            
                 states[ii+1] = x_reset
 
                 hybrid_index.add(ii)                
@@ -330,7 +333,8 @@ class hybrid_ilqr_jax:
             # --------------------------------
             #       Hybrid event happened
             # --------------------------------
-            if mode_change[0] != mode_change[1]:                
+            if mode_change[0] != mode_change[1]:      
+                print("---- hybrid event happened at ----", t_event)           
                 states[ii+1] = x_reset
 
                 hybrid_index.add(ii)                
@@ -387,7 +391,10 @@ class hybrid_ilqr_jax:
                 print("x: ", x_i)
                 print("u: ", u_i)
                 break
+        print("Running cost: ", total_cost)
+        
         # Compute terminal cost
+        print("Terminal cost: ", self._terminal_cost(states[-1], self._terminal_cost_args))
         total_cost = total_cost + self._terminal_cost(states[-1], self._terminal_cost_args)
 
         return total_cost
@@ -513,7 +520,7 @@ class hybrid_ilqr_jax:
         # ----- For five link system -----
         show_forwardpass = True
         if show_forwardpass:
-            from five_link.fivelink_simulation import FiveLinkSimulator, animate_trj
+            from five_link.fivelink_simulation import FiveLinkSimulator, animate_trj, draw_5link
             u_trj_arr = self.desamble_control(modes, inputs)
             dts = timespan[1:] - timespan[:-1]
             fivelink_simulator = FiveLinkSimulator(self._init_state, u_trj_arr, dts)
@@ -523,11 +530,39 @@ class hybrid_ilqr_jax:
             
             plt.show()
             
-            animate_trj(np.array(states))
+            # animate_trj(np.array(states))
+            
+            # ========================================
+            #       Save the animated trajectory 
+            # ========================================
+            # Assuming x_trj is defined and draw_5link is a function that draws on the given axes
+            fig, ax = plt.subplots()
+
+            states_arr = np.array(states)
+            n_time_steps = states_arr.shape[0]
+            step = 5
+            frames = range(0, n_time_steps, step)
+
+            def update(frame):
+                ax.clear()  # clear previous drawings
+                q_i = states_arr[frame, :7]
+                draw_5link(q_i, ax, legend=True)
+                return ax,
+
+            # Create the animation
+            anim = animation.FuncAnimation(fig, update, frames=frames, interval=5, blit=False)
+
+            # Save the animation to a file (e.g., as an MP4)
+            # Note: You need ffmpeg installed to save as mp4; alternatively, you can use writer='imagemagick' for a GIF.
+            animation_filename = 'rollout_animation.mp4'
+            anim.save(animation_filename, writer='ffmpeg', fps=30)
+
+            # Optionally display the animation window after saving
+            plt.show()
         
         
         # compute reference extensions
-        print("------ Computing the reference trajectory extensions ------")
+        print("====== Computing the reference trajectory extensions ======")
         self._ref_ext_helper = compute_trejactory_extension(event_info, 
                                                             timespan,
                                                             states,
@@ -574,8 +609,8 @@ class hybrid_ilqr_jax:
         #   Main Loop
         # =============
         
-        learning_speed = 0.95 # This can be modified, 0.95 is very slow
-        low_learning_rate = 0.01 # if learning rate drops to this value stop the optimization
+        learning_speed = 0.9 # This can be modified, 0.95 is very slow
+        low_learning_rate = 0.001 # if learning rate drops to this value stop the optimization
         low_expected_reduction = 1e-4 # Determines optimality
         armijo_threshold = 0.05 # Determines if current line search solve is good (this is typically labeled as "c")
         
@@ -584,6 +619,7 @@ class hybrid_ilqr_jax:
             current_cost = self.compute_cost(self._modes,self._states,self._inputs,self._timespan)
             
             print('========== Starting Iteration: ',i_iter,', Current cost: ',current_cost, ' ==========')
+            
             print("-------- Backward Pass --------")
                 
             # --------------------------------------------------------
@@ -637,7 +673,7 @@ class hybrid_ilqr_jax:
                 # ---------------------------------------------------------
                 new_cost = self.compute_cost(new_modes,new_states, new_inputs, new_timespan)
                 
-                print("new_cost: ", new_cost)
+                print("***** new_cost: ", new_cost, " ***** ")
                 
                 # Calculate armijo condition
                 cost_difference = (current_cost - new_cost)
@@ -651,7 +687,8 @@ class hybrid_ilqr_jax:
                     
                     show_forwardpass = True
                     if show_forwardpass:
-                        from five_link.fivelink_simulation import FiveLinkSimulator, animate_trj
+                        
+                        from five_link.fivelink_simulation import FiveLinkSimulator, animate_trj, draw_5link
                         u_trj_arr = self.desamble_control(new_modes, new_inputs)
                         dts = new_timespan[1:] - new_timespan[:-1]
                         fivelink_simulator = FiveLinkSimulator(self._init_state, u_trj_arr, dts)
@@ -661,7 +698,35 @@ class hybrid_ilqr_jax:
                         
                         plt.show()
                         
-                        animate_trj(np.array(new_states))
+                        # animate_trj(np.array(new_states))
+                        
+                        # ========================================
+                        #       Save the animated trajectory 
+                        # ========================================
+                        # Assuming x_trj is defined and draw_5link is a function that draws on the given axes
+                        fig, ax = plt.subplots()
+
+                        new_states_arr = np.array(new_states)
+                        n_time_steps = new_states_arr.shape[0]
+                        step = 5
+                        frames = range(0, n_time_steps, step)
+
+                        def update(frame):
+                            ax.clear()  # clear previous drawings
+                            q_i = new_states_arr[frame, :7]
+                            draw_5link(q_i, ax, legend=True)
+                            return ax,
+
+                        # Create the animation
+                        anim = animation.FuncAnimation(fig, update, frames=frames, interval=5, blit=False)
+
+                        # Save the animation to a file (e.g., as an MP4)
+                        # Note: You need ffmpeg installed to save as mp4; alternatively, you can use writer='imagemagick' for a GIF.
+                        animation_filename = 'iteration_'+str(i_iter)+'.mp4'
+                        anim.save(animation_filename, writer='ffmpeg', fps=30)
+
+                        # Optionally display the animation window after saving
+                        plt.show()
                         
                     # ------------------------------------------------------
                     # Accept the new trajectory if armijo condition is met

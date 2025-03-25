@@ -45,6 +45,7 @@ class FiveLinkSimulator:
             dts (jnp.array): discrete time intervals, in shape (nt, )
         """
         
+        print("===== Simulating the five link walker =====")
         for i_t in range(self.nt-1):
             # print("Integrating time step: ", i_t)
             xt = self.x_trj[i_t]
@@ -93,7 +94,8 @@ class FiveLinkSimulator:
                 t_event = t_left
                 x_event = x_left
                 
-                print("----- Guard function at the event state: ", guard_12_5link(t_event, x_event), "-----")
+                print("----- Guard function at the event time: ", t_event, "-----")
+                print("----- Guard function value: ", guard_12_5link(t_event, x_event), "-----")
                 
                 # Apply reset map
                 x_next = impact_map(x_event)

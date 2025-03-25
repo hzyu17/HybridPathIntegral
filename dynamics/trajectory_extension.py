@@ -32,15 +32,16 @@ def compute_trejactory_extension(event_info,
         
         mode_changes = []
         
-        i_events.append(0)
-        t_events.append(start_time)
-        x_events.append(init_state)
-        x_resets.append(init_state)
-        K_fb_fwd_extensions.append(np.zeros(1))
-        K_fb_bwd_extensions.append(np.zeros(1))
-        k_ff_fwd_extensions.append(np.zeros(1))
-        k_ff_bwd_extensions.append(np.zeros(1))
-        mode_changes.append(np.array([0, 0]))
+        if sorted_hybrid_index[0] != 0:
+            i_events.append(0)
+            t_events.append(start_time)
+            x_events.append(init_state)
+            x_resets.append(init_state)
+            K_fb_fwd_extensions.append(np.zeros(1))
+            K_fb_bwd_extensions.append(np.zeros(1))
+            k_ff_fwd_extensions.append(np.zeros(1))
+            k_ff_bwd_extensions.append(np.zeros(1))
+            mode_changes.append(np.array([0, 0]))
         
         # event_info[i_key] = (t_event, x_event, x_reset, mode_change, K_feedback_extensions, K_feedforward_extensions)
         for i_key in sorted_hybrid_index:
