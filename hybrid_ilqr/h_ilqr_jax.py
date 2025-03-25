@@ -726,7 +726,7 @@ class hybrid_ilqr_jax:
                         anim.save(animation_filename, writer='ffmpeg', fps=30)
 
                         # Optionally display the animation window after saving
-                        plt.show()
+                        # plt.show()
                         
                     # ------------------------------------------------------
                     # Accept the new trajectory if armijo condition is met

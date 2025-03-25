@@ -71,11 +71,18 @@ if __name__ == '__main__':
     initial_guess = [u_trj, u_trj]
     
     niters = 10
-    target_com_vel = 5.0
+    target_com_vel = 2.0
     
     q_init = jnp.array([0, 0.658, 0, -0.6828+jnp.pi, 1.20, -0.6489+jnp.pi, 1.281])    
     qdot_init = jnp.zeros(7)
     x_init = jnp.concatenate([q_init, qdot_init])
+    
+    from five_link.fivelink_simulation import draw_5link
+    fig, ax = plt.subplots()
+    
+    draw_5link(q_init, ax, legend=True)
+    
+    plt.show()
     
     target_state = x_init
     init_mode = 1

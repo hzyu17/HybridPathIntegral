@@ -312,7 +312,7 @@ class FiveLinkSimulator:
         axs1[2, 1].legend()
         
         plt.tight_layout()
-        plt.show()
+        # plt.show()
         
         
 def draw_5link(q, ax=None, legend=True):
