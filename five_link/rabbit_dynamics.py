@@ -542,6 +542,41 @@ def f_qddot_wrench(x, u):
 
 
 @jax.jit
+def f_qddot_wrench_double_stance(x, u):
+    n_q = 7
+    n_w = 2*2
+    n_u = 4
+    q = x[0:n_q]
+    dq = x[n_q:]
+    B = 50.0*B_matrix() # Multiply by 50 b/c of gear reduction
+    # C = C_matrix(q, dq)
+    C = jnp.zeros((n_q, n_q)) # omit Coriolis for now
+    D = D_matrix(q)
+    G = -G_vector(q).flatten()
+    
+    J_right_foot = J_stance_foot(q)
+    Jdot_right_foot = Jdot_stance_foot(q, dq)
+    
+    J_left_foot = J_swing_foot(q)
+    Jdot_left_foot = Jdot_swing_foot(q, dq)
+    
+    J_combine = jnp.vstack((J_right_foot, J_left_foot))
+    Jdot_combine = jnp.vstack((Jdot_right_foot, Jdot_left_foot))
+    
+    De = jnp.vstack([jnp.hstack([D, -J_combine.T]), 
+                     jnp.hstack([J_combine, jnp.zeros((n_w,n_w))])])
+    
+    Ce = jnp.vstack([C, Jdot_combine])
+    Ge = jnp.concatenate([G, jnp.zeros(n_w).flatten()]).flatten()
+    Be = jnp.vstack([B, jnp.zeros((n_w,n_u))])
+    
+    # Compute ddot_q and wrench
+    qddot_wrench = jnp.linalg.solve(De, -Ce @ dq - Ge.flatten() + Be@u)
+    
+    return qddot_wrench
+
+
+@jax.jit
 def f_NL_fivelink(t, x, *args):
     
     n_q = 7
