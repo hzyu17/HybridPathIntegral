@@ -38,47 +38,56 @@ def guard_bouncing_12(t, x):
 def guard_bouncing_21(t, x):
     return x[1]
 
-def reset_map_control_12(t, u_minus):
-    return u_minus
-
-def reset_map_control_21(t, u_minus):
-    return u_minus
-
-def reset_map_bouncing_21(t, x_minus, current_mode, args_reset):
-    x_plus = x_minus
-    new_mode = 0
-    return x_plus, new_mode, args_reset
-
-def reset_map_bouncing_21_jax(t, x_minus, current_mode, args_reset):
+def reset_map_bouncing_21(x_minus, current_mode, args_reset):
     x_plus = x_minus
     new_mode = 0
     return x_plus, new_mode, args_reset
 
 @jax.jit
-def reset_map_bouncing_12_jax(t, x_minus, current_mode, args_reset):
+def idendity_map_bouncing(x_event):
+    return x_event
+
+@jax.jit
+def reset_map_bouncing_21_jax(x_minus, current_mode, args_reset):
+    x_plus = x_minus
+    new_mode = 0
+    return x_plus, new_mode, args_reset
+
+@jax.jit
+def impact_map_bouncing(x_event):
+    return jnp.array([x_event[0], -0.6*x_event[1]], dtype=jnp.float64)
+
+@jax.jit
+def reset_map_bouncing_12_jax(x_minus, current_mode, args_reset):
     # coeff = jnp.array([[1.0, 0.0], [0.0, -0.6]], dtype=jnp.float64)
+    x_plus = impact_map_bouncing(x_minus)
+    new_mode = 1
+    return x_plus, new_mode, args_reset
+
+@jax.jit
+def Rt_bouncing_12(x):
+    return 0.0
+Rx_bouncing_12 = jax.jacrev(impact_map_bouncing)
+
+@jax.jit
+def reset_map_bouncing_12(x_minus, current_mode, args_reset):
     x_plus = jnp.array([x_minus[0], -0.6*x_minus[1]], dtype=jnp.float64)
     new_mode = 1
-    return x_plus, new_mode, args_reset
-        
-def reset_map_bouncing_12(t, x_minus, current_mode, args_reset):
-    x_plus = np.array([x_minus[0], -0.6*x_minus[1]], dtype=np.float64)
-    new_mode = 1
-                
+
     return x_plus, new_mode, args_reset
 
 
-Rt_bouncing_12 = jax.jit(jacfwd(lambda t, x, current_mode, args: reset_map_bouncing_12_jax(t, x, current_mode, args), 0))
-Rx_bouncing_12 = jax.jit(jacfwd(lambda t, x, current_mode, args: reset_map_bouncing_12_jax(t, x, current_mode, args), 1))
+def Rt_bouncing_21(x):
+    return 0.0
+Rx_bouncing_21 = jax.jacrev(idendity_map_bouncing)
 
-Rt_bouncing_21 = jax.jit(jacfwd(lambda t, x, current_mode, args: reset_map_bouncing_21_jax(t, x, current_mode, args), 0))
-Rx_bouncing_21 = jax.jit(jacfwd(lambda t, x, current_mode, args: reset_map_bouncing_21_jax(t, x, current_mode, args), 1))
+def gt_bouncing_12(t, x):
+    return 0.0
+gx_bouncing_12 = jax.jacrev(guard_bouncing_12, argnums=1)
 
-gt_bouncing_12 = jax.jit(jacfwd(lambda t, x: guard_bouncing_12(t, x), 0))
-gx_bouncing_12 = jax.jit(jacfwd(lambda t, x: guard_bouncing_12(t, x), 1))
-
-gt_bouncing_21 = jax.jit(jacfwd(lambda t, x: guard_bouncing_21(t, x), 0))
-gx_bouncing_21 = jax.jit(jacfwd(lambda t, x: guard_bouncing_21(t, x), 1))
+def gt_bouncing_21(t, x):
+    return 0.0
+gx_bouncing_21 = jax.jacrev(guard_bouncing_21, argnums=1)
 
 guard_bouncing_12.terminal=True
 guard_bouncing_12.direction=-1

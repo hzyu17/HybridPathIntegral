@@ -11,7 +11,7 @@ sys.path.append(root_dir)
 import time
 
 # Import pendulum dynamics
-from dynamics.dynamics_bouncing import *
+from dynamics.ode_solver.dynamics_bouncing import *
 # Import iLQR class
 from hybrid_ilqr.h_ilqr import solve_ilqr
 # Import Riccati class

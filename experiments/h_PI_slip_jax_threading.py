@@ -10,7 +10,7 @@ sys.path.append(root_dir)
 
 # Import iLQR class
 from hybrid_ilqr.h_ilqr_discrete import solve_ilqr
-from dynamics.dynamics_slip import *
+from dynamics.ode_solver.dynamics_slip import *
 from dynamics.dynamics_discrete_slip import *
 # Importing path integral control
 from hybrid_pathintegral.hybrid_pathintegral import *
