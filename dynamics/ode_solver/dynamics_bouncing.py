@@ -203,7 +203,7 @@ def stochastic_feedback_rollout_bouncing(init_mode, x0, n_inputs, xt_ref, ref_mo
         if cond_guard_function_hit_bouncing(xt, xt_next, current_guard): 
             
             args = (xt, current_mode, u, t0_i, t0_i+dt_int, xt_next, 
-                    dt_int, dt_shrinkingrate, GaussianNoise[current_mode][ii_t], epsilon, 
+                    dt_int, GaussianNoise[current_mode][ii_t], epsilon, 
                     stochastic_integration_bouncing, guards_bouncing, reset_maps_bouncing, reset_args[ii_t])
             
             xt_next, next_mode, dW_i, new_reset_args = stoch_event_reactive_fun(args)

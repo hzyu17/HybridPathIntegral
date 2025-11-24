@@ -38,7 +38,7 @@ if __name__ == '__main__':
     # mode 1 (flight): x = [px, vx, pz, vz, theta], u = [theta_dot]
     # mode 2 (stance): x = [theta, theta_dot, r, r_dot], u = [r_delta, \tau_hip]
     
-    # For the slip dynamics, mode 1 has 1 input, and mode 2 has 2 inputs. 
+    # For the slip dynamics, mode 1 has 3 input, and mode 2 has 2 inputs. 
     n_states = [5, 4]
     n_inputs = [3, 2]
     

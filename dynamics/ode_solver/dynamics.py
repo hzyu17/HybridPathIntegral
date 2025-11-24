@@ -76,7 +76,8 @@ def event_condition(xt, xt_next, guard):
     # assume time invariant guard for now
     return (guard(0.0,xt)>0) and (guard(0.0,xt_next)<=0) 
 
-def stoch_event_reactive_fun(args):
+def event_reactive_fun(args):
+                        
     (xt_current, current_mode, u, 
      t, t_next, xt_next, dt_int, 
      RandN, epsilon, 

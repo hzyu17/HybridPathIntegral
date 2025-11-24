@@ -75,7 +75,8 @@ def symbolic_flight_dynamics_slip_continuoustime():
     B_cont_func = sp.lambdify((states,inputs),B_disc)
     return (f_cont_func,A_cont_func,B_cont_func)
 
-f_flight_cont_func, _, _ = symbolic_flight_dynamics_slip_continuoustime()
+flight_dynamics_slip_return = symbolic_flight_dynamics_slip_continuoustime()
+f_flight_cont_func = flight_dynamics_slip_return[0]
 
 # ------------------------------------------------------------
 # function definition for numerical integration in scipy
@@ -94,7 +95,7 @@ def dyn_flight_slip(t, x, *args):
         # u = np.array([0.0])
     else:
         u = args[0]
-    
+        
     return f_flight_cont_func(x, u).flatten()
 
 def gdWt_flight_slip(x0, dWt, eps):
