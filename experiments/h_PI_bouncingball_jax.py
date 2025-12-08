@@ -22,7 +22,7 @@ import matplotlib.pyplot as plt
 from experiments.exp_params import *
 # Import bouncing ball dynamics
 from hybrid_pathintegral.sampling_rollout_jax_bouncing import sample_bouncing_jax
-from dynamics.dynamics_bouncing import *
+from dynamics.ode_solver.dynamics_bouncing import *
 from dynamics.dynamics_discrete_bouncing import *
 
 

@@ -19,7 +19,7 @@ from matplotlib.lines import Line2D
 from scipy.integrate import solve_ivp
 from mpl_toolkits.mplot3d import Axes3D
 from dynamics.saltation_matrix import compute_saltation
-from dynamics.dynamics import *
+from dynamics.ode_solver.dynamics import *
 
 
 # ================ dynamics parameters ================
@@ -35,7 +35,9 @@ a = [0.512, 0.073, 0.035, -0.819, -2.27, 3.26, 3.11, 1.89]
 
 # Define global variables
 t_2 = []
-torque = []
+u_finegrain = []
+x_finegrain = []
+t_finegrain = []
 y = []
 force = []
 u_trj = []
@@ -49,13 +51,13 @@ u_trj = []
 def guard_3link_12(t, x_event):
     th1, th2 = x_event[0], x_event[1]
     # swing_foot_vV = -x_event[3]*jnp.sin(x_event[0]) + x_event[4]*jnp.sin(x_event[1])
-    # # The swing foot reach the ground from under the ground for 3-link... For 5-link will be normal guard.
+    # # The swing foot reach the ground from under the ground for 3-link, due to scuffing... For 5-link will be normal guard.
     return np.cos(th1) - np.cos(th2)
 
 def guard_3link_12_jax(t, x_event):
     th1, th2 = x_event[0], x_event[1]
     # swing_foot_vV = -x_event[3]*jnp.sin(x_event[0]) + x_event[4]*jnp.sin(x_event[1])
-    # # The swing foot reach the ground from under the ground for 3-link... For 5-link will be normal guard.
+    # # The swing foot reach the ground from under the ground for 3-link due to scuffing... For 5-link will be normal guard.
     return jnp.cos(th1) - jnp.cos(th2)
 
 # Guard function from mode 2 to mode 1 (direction = -1)
@@ -204,9 +206,12 @@ Rt_3link_21 = jax.jit(jacfwd(lambda t, x, mode, byproduct: resetmap_3link_21_jax
 Rx_3link_21 = jax.jit(jacfwd(lambda t, x, mode, byproduct: resetmap_3link_21_jax(t, x), 1))
 
 
-def detect_3link(x0, u, t0, tf, current_mode, reset_args, detect=True, backwards=False):
+def detect_3link(x0, u, t0, tf, 
+                 current_mode, 
+                 reset_args, 
+                 detect=True, backwards=False):
     guard_3link_12.terminal=True
-    guard_3link_12.direction=-1
+    guard_3link_12.direction=1
     
     guard_3link_21.terminal=True
     guard_3link_21.direction=-1
@@ -586,7 +591,7 @@ def fxgu_nom(t, x, a):
         dx : ndarray
             Time derivative of the state vector.
     """
-    global t_2, torque, y, force, u_trj
+    global t_2, u_finegrain, y, force, u_trj, x_finegrain, t_finegrain
 
     # Extract dynamics matrices and control parameters
     D, C, G, B, K, dV, dVl, Al, Bl, H, LfH, dLfH = sysmat_3link(x[:6], a)
@@ -605,7 +610,9 @@ def fxgu_nom(t, x, a):
     dx[3:6] = Fx + Gx @ u
 
     # Update global variables
-    torque.append(u)
+    u_finegrain.append(u)
+    x_finegrain.append(x)
+    t_finegrain.append(t)
     t_2.append(t)
     y.append(H)
     f_tan, f_norm = stance_force_three_link(x[:6], dx[:6], u)
@@ -882,123 +889,126 @@ def swingfoot_height_jax(x):
 def swingfoot_vel_vertical_jax(x):
     return -x[:,3]*jnp.sin(x[:, 0]) + x[:,4]*jnp.sin(x[:, 1])
 
-def anim(t, x, ts, speed, fig=None):
-    # Retrieve the size of x
-    n, m = x.shape
-
-    # Calculate hip velocity
-    vV, vH = hip_vel(x)  # convert angles to horizontal position of hips
-    pH_horiz = np.zeros(n)
- 
-    # Estimate hip horizontal position by estimating integral of hip velocity
-    for j in range(1, n):
-        pH_horiz[j] = pH_horiz[j-1] + (t[j] - t[j-1]) * vH[j-1]
-
-    # Evenly sample time and hip position
-    te, pH_horiz = even_sample(t, pH_horiz.reshape(-1, 1), 1 / ts)
-    te, xe = even_sample(t, x, 1 / ts)
-    n, m = xe.shape
-
-    # Set initial limb position
-    q = xe[0, :3]
-    pFoot1, pFoot2, pH, pT = limb_position(q, pH_horiz[0])
-
-    # Set up the plot
-    if fig is None:
-        fig, ax = plt.subplots(figsize=(5, 4))
+def anim(t, x, ts, speed, fig=None, loop=1):
+    
+    for _ in range(loop):
+        # Set up the plot
+        if fig is None:
+            fig, ax = plt.subplots(figsize=(5, 4))
+            
+        else:
+            fig, ax = plt.subplots(figsize=(5, 4))
+            
+        ax.set_xlim(-2.2, 2.2)
+        ax.set_ylim(-2.2, 2.2)
+        ax.axis('off')
+        ax.grid()
         
-    else:
-        ax = plt.subplot(3,4,12)
-        
-    ax.set_xlim(-2.2, 2.2)
-    ax.set_ylim(-2.2, 2.2)
-    ax.axis('off')
-    ax.grid()
+        # Retrieve the size of x
+        n, m = x.shape
 
-    # Model parameters
-    scl = 0.04  # scaling factor for masses
-    mr_legs = m**(1/3) * scl  # radius of mass for legs
-    mr_torso = MT**(1/3) * scl  # radius of mass for torso
+        # Calculate hip velocity
+        vV, vH = hip_vel(x)  # convert angles to horizontal position of hips
+        pH_horiz = np.zeros(n)
 
-    # Draw ground
-    buffer = 5
-    ground = Line2D([-buffer, pH_horiz[-1][0] + buffer], [0, 0], color='k', linewidth=2)
-    ax.add_line(ground)
+        # Estimate hip horizontal position by estimating integral of hip velocity
+        for j in range(1, n):
+            pH_horiz[j] = pH_horiz[j-1] + (t[j] - t[j-1]) * vH[j-1]
 
-    # Draw tick marks and labels
-    ref_tick = []
-    ref_label = []
-    for k in range(-buffer, int(np.floor(pH_horiz[-1]) + buffer)):
-        tick = Line2D([k, k], [-0.1, 0], color='k')
-        label = ax.text(k, -0.2, str(k), ha='center', va='top', fontsize=8)
-        ref_tick.append(tick)
-        ref_label.append(label)
-        ax.add_line(tick)
+        # Evenly sample time and hip position
+        te, pH_horiz = even_sample(t, pH_horiz.reshape(-1, 1), 1 / ts)
+        te, xe = even_sample(t, x, 1 / ts)
+        n, m = xe.shape
 
-    # Draw leg one
-    param = np.linspace(0, 2 * np.pi, 50)
-    xmass_legs = mr_legs * np.cos(param)
-    ymass_legs = mr_legs * np.sin(param)
+        # Set initial limb position
+        q = xe[0, :3]
+        pFoot1, pFoot2, pH, pT = limb_position(q, pH_horiz[0])
 
-    xmass_torso = mr_torso * np.cos(param)
-    ymass_torso = mr_torso * np.sin(param)
+        # Model parameters
+        scl = 0.04  # scaling factor for masses
+        mr_legs = m**(1/3) * scl  # radius of mass for legs
+        mr_torso = MT**(1/3) * scl  # radius of mass for torso
 
-    leg1_color = 'green'  # Color for leg one
-    leg1, = ax.plot([pFoot1[0], pH[0]], [pFoot1[1], pH[1]], color='g', linewidth=2)
-    mass1_x = xmass_legs + (pH[0] - pFoot1[0]) / 2
-    mass1_y = ymass_legs + (pH[1] - pFoot1[1]) / 2
-    mass1 = Polygon(np.column_stack((mass1_x, mass1_y)), closed=True, color=leg1_color)
-    ax.add_patch(mass1)
+        # Draw ground
+        buffer = 5
+        ground = Line2D([-buffer, pH_horiz[-1][0] + buffer], [0, 0], color='k', linewidth=2)
+        ax.add_line(ground)
 
-    # Draw leg two
-    leg2_color = 'red'  # Color for leg two
-    leg2, = ax.plot([pFoot2[0], pH[0]], [pFoot2[1], pH[1]], color='r', linewidth=2)
-    mass2_x = xmass_legs + pH[0] - (pH[0] - pFoot2[0]) / 2
-    mass2_y = ymass_legs + pH[1] - (pH[1] - pFoot2[1]) / 2
-    mass2 = Polygon(np.column_stack((mass2_x, mass2_y)), closed=True, color=leg2_color)
-    ax.add_patch(mass2)
+        # Draw tick marks and labels
+        ref_tick = []
+        ref_label = []
+        for k in range(-buffer, int(np.floor(pH_horiz[-1]) + buffer)):
+            tick = Line2D([k, k], [-0.1, 0], color='k')
+            label = ax.text(k, -0.2, str(k), ha='center', va='top', fontsize=8)
+            ref_tick.append(tick)
+            ref_label.append(label)
+            ax.add_line(tick)
 
-    # Draw torso
-    torso_color = 'blue' 
-    torso, = ax.plot([pH[0], pT[0]], [pH[1], pT[1]], color='b', linewidth=2)
-    # Add torso mass
-    mass_torso_x = xmass_torso + pT[0]
-    mass_torso_y = ymass_torso + pT[1]
-    torso_mass = Polygon(np.column_stack((mass_torso_x, mass_torso_y)), closed=True, color=torso_color)
-    ax.add_patch(torso_mass)
+        # Draw leg one
+        param = np.linspace(0, 2 * np.pi, 50)
+        xmass_legs = mr_legs * np.cos(param)
+        ymass_legs = mr_legs * np.sin(param)
 
-    # Animation loop
-    for k in range(1, n):
-        q = xe[k, :3]
-        pFoot1, pFoot2, pH, pT = limb_position(q, pH_horiz[k])
+        xmass_torso = mr_torso * np.cos(param)
+        ymass_torso = mr_torso * np.sin(param)
 
-        # Update positions
-        leg1.set_data([pFoot1[0], pH[0]], [pFoot1[1], pH[1]])
-        mass1.set_xy(np.array([(pH[0] - pFoot1[0]) / 2 + pH_horiz[k][0], (pH[1] - pFoot1[1]) / 2]).reshape((-1, 2)))
+        leg1_color = 'green'  # Color for leg one
+        leg1, = ax.plot([pFoot1[0], pH[0]], [pFoot1[1], pH[1]], color='g', linewidth=2)
+        mass1_x = xmass_legs + (pH[0] - pFoot1[0]) / 2
+        mass1_y = ymass_legs + (pH[1] - pFoot1[1]) / 2
+        mass1 = Polygon(np.column_stack((mass1_x, mass1_y)), closed=True, color=leg1_color)
+        ax.add_patch(mass1)
 
-        leg2.set_data([pFoot2[0], pH[0]], [pFoot2[1], pH[1]])
-        mass2.set_xy(np.array([pH[0] - (pH[0] - pFoot2[0]) / 2, pH[1] - (pH[1] - pFoot2[1]) / 2]).reshape((-1,2)))
+        # Draw leg two
+        leg2_color = 'red'  # Color for leg two
+        leg2, = ax.plot([pFoot2[0], pH[0]], [pFoot2[1], pH[1]], color='r', linewidth=2)
+        mass2_x = xmass_legs + pH[0] - (pH[0] - pFoot2[0]) / 2
+        mass2_y = ymass_legs + pH[1] - (pH[1] - pFoot2[1]) / 2
+        mass2 = Polygon(np.column_stack((mass2_x, mass2_y)), closed=True, color=leg2_color)
+        ax.add_patch(mass2)
 
-        torso.set_data([pH[0], pT[0]], [pH[1], pT[1]])
-        torso_mass.set_xy(np.array([pT[0], pT[1]]).reshape((-1,2)))
+        # Draw torso
+        torso_color = 'blue' 
+        torso, = ax.plot([pH[0], pT[0]], [pH[1], pT[1]], color='b', linewidth=2)
+        # Add torso mass
+        mass_torso_x = xmass_torso + pT[0]
+        mass_torso_y = ymass_torso + pT[1]
+        torso_mass = Polygon(np.column_stack((mass_torso_x, mass_torso_y)), closed=True, color=torso_color)
+        ax.add_patch(torso_mass)
+    
+        # Animation loop
+        for k in range(1, n):
+            q = xe[k, :3]
+            pFoot1, pFoot2, pH, pT = limb_position(q, pH_horiz[k])
 
-        # Update axis and labels
-        plt.xlim(-2.2 + pH[0], 2.2 + pH[0])
+            # Update positions
+            leg1.set_data([pFoot1[0], pH[0]], [pFoot1[1], pH[1]])
+            mass1.set_xy(np.array([(pH[0] - pFoot1[0]) / 2 + pH_horiz[k][0], (pH[1] - pFoot1[1]) / 2]).reshape((-1, 2)))
 
-        for j, (label, tick) in enumerate(zip(ref_label, ref_tick)):
-            if j - buffer - 1.05 < ax.get_xlim()[0] or j - buffer - 1 > ax.get_xlim()[1]:
-                label.set_visible(False)
-                tick.set_visible(False)
-            else:
-                label.set_visible(True)
-                tick.set_visible(True)
+            leg2.set_data([pFoot2[0], pH[0]], [pFoot2[1], pH[1]])
+            mass2.set_xy(np.array([pH[0] - (pH[0] - pFoot2[0]) / 2, pH[1] - (pH[1] - pFoot2[1]) / 2]).reshape((-1,2)))
 
-        plt.title(f"T_est = {te[k]:.1f}")
+            torso.set_data([pH[0], pT[0]], [pH[1], pT[1]])
+            torso_mass.set_xy(np.array([pT[0], pT[1]]).reshape((-1,2)))
 
-        plt.draw()
-        plt.pause(ts * speed)
+            # Update axis and labels
+            plt.xlim(-2.2 + pH[0], 2.2 + pH[0])
 
-    plt.show()
+            for j, (label, tick) in enumerate(zip(ref_label, ref_tick)):
+                if j - buffer - 1.05 < ax.get_xlim()[0] or j - buffer - 1 > ax.get_xlim()[1]:
+                    label.set_visible(False)
+                    tick.set_visible(False)
+                else:
+                    label.set_visible(True)
+                    tick.set_visible(True)
+
+            plt.title(f"T_est = {te[k]:.1f}")
+
+            plt.draw()
+            plt.pause(ts * speed)
+
+        plt.show()
+    
     
     
 def events(t, x):
@@ -1040,10 +1050,12 @@ def events(t, x):
     
 
 def solve_limcycle_3link(n_steps=2):
-    global t_2, torque, y, force, u_trj
+    global t_2, u_finegrain, y, force, u_trj, t_finegrain, x_finegrain
 
     # Reset global variables
-    torque = []
+    u_finegrain = []
+    t_finegrain = []
+    x_finegrain = []
     t_2 = []
     y = []
     force = []
@@ -1059,7 +1071,6 @@ def solve_limcycle_3link(n_steps=2):
         'events': switching_leg_events, 
         'rtol': 1e-5,
         'atol': 1e-6,
-        
     }
 
     tout = [tstart]
@@ -1076,15 +1087,21 @@ def solve_limcycle_3link(n_steps=2):
     x_resets = []
     saltations = []
     
+    num_t_eval = 1000
+    t_eval = np.linspace(tstart, tfinal, num_t_eval)
+    t_span = [tstart, tfinal]
+       
     # Run five steps
     for i in range(n_steps):  
-
+        
         # Solve until the first terminal event
         sol = solve_ivp(
             fxgu_nom,
-            [tstart, tfinal],
+            t_span,
             x0,
             args=(a,),
+            # method='RK23', 
+            t_eval=t_eval,
             events=options['events'],
             rtol=options['rtol'],
             atol=options['atol']
@@ -1097,6 +1114,7 @@ def solve_limcycle_3link(n_steps=2):
         for k in range(len(sol.t)):
             t_k = sol.t[k]
             x_k = sol.y[:,k]
+            
             # Extract dynamics matrices and control parameters
             D, C, G, B, K, dV, dVl, Al, Bl, H, LfH, dLfH = sysmat_3link(x_k[:6], a)
             
@@ -1133,10 +1151,10 @@ def solve_limcycle_3link(n_steps=2):
             t_events.append(te)
             x_events.append(xe)
             
-        # down sampling and interpolation
+        # down sampling and interpolation 
         _, x = down_sample(np.array(t), np.array(x), Fs=20)
         t, u = down_sample(np.array(t), np.array(u), Fs=20)
-        t, x, u = t.tolist(), x.tolist(), u.tolist()
+        # t, x, u = t.tolist(), x.tolist(), u.tolist()
 
         # Set new initial conditions after impact
         x0,_,_ = resetmap_3link_12(t[-1],x[-1])
@@ -1144,8 +1162,10 @@ def solve_limcycle_3link(n_steps=2):
 
         x_resets.append(sol.y_events[0])
 
-        tout.extend(t[1:])
-        xout.extend(x[1:])
+        tout = tout[:-1] + (t+tout[-1]).tolist()
+        xout = xout[:-1]
+        xout.extend(x)
+        uout = uout[:-1]
         uout.extend(u)
         
         # print(f"Step: {i + 1}, Impact ratio: {x0[6] / x0[7]}")
@@ -1158,9 +1178,9 @@ def solve_limcycle_3link(n_steps=2):
     # Convert to NumPy arrays for plotting
     tout = np.array(tout)
     xout = np.array(xout)
-    uout = np.array(uout[:-1])
+    uout = np.array(uout)
 
-    return tout, xout, uout, t_events, x_events, saltations
+    return tout, xout, uout, t_finegrain, x_finegrain, u_finegrain, t_events, x_events, saltations
 
 
 def plot_3link_states(tout, xout, uout):
@@ -1188,7 +1208,7 @@ def plot_3link_states(tout, xout, uout):
     plt.plot(tout, uout[:, 0], label=r'$u_1$')
     plt.plot(tout, uout[:, 1], label=r'$u_2$')
     plt.legend(loc="best", fontsize=10)
-    plt.title('Control Input Torque')
+    plt.title('Control Input u_finegrain')
     plt.xlabel('Time (sec)')
     plt.grid()
 
@@ -1234,10 +1254,19 @@ def plot_3link_states(tout, xout, uout):
     
 def demo():
 
-    global t_2, torque, y, force
+    global t_2, u_finegrain, y, force, t_finegrain, x_finegrain
 
-    tout, xout, uout, t_events, x_events, saltations = solve_limcycle_3link()
-
+    (tout, xout, uout, 
+     t_finegrain, x_finegrain, u_finegrain, 
+     t_events, x_events, saltations) = solve_limcycle_3link()
+    
+    t_zeros = np.where(np.array(t_finegrain)==0)
+    t_zeros = np.concatenate((t_zeros[0], np.array([len(t_finegrain)])))
+    
+    for jj, j_zeros in enumerate(t_zeros):
+        if jj > 0 and jj < len(t_zeros)-1:
+            t_finegrain[j_zeros:t_zeros[jj+1]] += t_finegrain[j_zeros-1]
+            
     fig1 = plt.figure(figsize=(16, 9))
     
     plot_3link_states(tout, xout, uout)
@@ -1284,7 +1313,10 @@ def demo():
     # plt.grid()
     # fig.tight_layout()
     
-    anim(tout, xout, 1/30, speed=1, fig=fig1)
+    t_finegrain = np.array(t_finegrain)
+    x_finegrain = np.array(x_finegrain)
+    
+    anim(t_finegrain, x_finegrain, 1/30, speed=1, fig=fig1)
     
     plt.show()
 

@@ -7,10 +7,10 @@ script_filename = os.path.splitext(os.path.basename(file_path))[0]
 root_dir = os.path.abspath(os.path.join(exp_dir, '..'))
 sys.path.append(root_dir)
 
-from dynamics.dynamics_bouncing import *
+from dynamics.ode_solver.dynamics_bouncing import *
 # Import iLQR class
 from hybrid_ilqr.h_ilqr_discrete import solve_ilqr
-from dynamics.dynamics_bouncing import *
+from dynamics.ode_solver.dynamics_bouncing import *
 from dynamics.dynamics_discrete_bouncing import *
 # Importing path integral control
 from hybrid_pathintegral.hybrid_pathintegral import *

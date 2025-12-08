@@ -7,7 +7,7 @@ sys.path.append(root_dir)
 
 import jax
 import jax.numpy as jnp
-from dynamics.dynamics_slip import *
+from dynamics.ode_solver.dynamics_slip import *
 from dynamics.dynamics_discrete import *
 
 

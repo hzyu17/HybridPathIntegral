@@ -6,7 +6,7 @@ root_dir = os.path.abspath(os.path.join(current_dir, '..'))
 sys.path.append(root_dir)
 
 import numpy as np
-from dynamics.dynamics_bouncing import *
+from dynamics.ode_solver.dynamics_bouncing import *
 from dynamics.dynamics_discrete import *
 
 
@@ -116,13 +116,13 @@ from functools import partial
 
 reaction_mode_mismatch_bouncing = partial(reaction_mode_mismatch, cond_early_arrival=cond_early_arrival_bouncing)
 h_stoch_integr_bouncing = partial(h_stoch_integr, 
-                                                stoch_integr_func = stoch_integr_bouncing, 
-                                                guard_0=guard_cond_bouncing_12,
-                                                guard_true_func_0=guard_true_func_bouncing_12,
-                                                guard_false_func_0=guard_false_func_bouncing_12,
-                                                guard_1=guard_cond_bouncing_21,
-                                                guard_true_func_1=guard_true_func_bouncing_21,
-                                                guard_false_func_1=guard_false_func_bouncing_21)
+                                    stoch_integr_func = stoch_integr_bouncing, 
+                                    guard_0=guard_cond_bouncing_12,
+                                    guard_true_func_0=guard_true_func_bouncing_12,
+                                    guard_false_func_0=guard_false_func_bouncing_12,
+                                    guard_1=guard_cond_bouncing_21,
+                                    guard_true_func_1=guard_true_func_bouncing_21,
+                                    guard_false_func_1=guard_false_func_bouncing_21)
 
 
 h_stoch_fb_rollout_bouncing = partial(h_stoch_fb_rollout, 
@@ -131,10 +131,11 @@ h_stoch_fb_rollout_bouncing = partial(h_stoch_fb_rollout,
                                         h_stoch_integr_func=h_stoch_integr_bouncing)    
 
 
-def event_detect_bouncing_discrete(current_mode, x0, u, 
+def event_detect_bouncing_discrete(current_mode, 
+                                   x0, u, 
                                    t0, dt, 
                                    reset_args, 
-                                   detection=True, 
+                                   detect=True, 
                                    backwards=False):
     
     smooth_dynamics_bouncing = {0:dyn_bouncing, 1:dyn_bouncing}
@@ -160,6 +161,13 @@ def event_detect_bouncing_discrete(current_mode, x0, u,
                                         reset_args, 
                                         guard_cond_bouncing_12,
                                         guard_cond_bouncing_21,
-                                        detection, backwards)
+                                        detect, backwards)
     
-    
+def bouncingball_cost(x, u, args= 0.0):
+    return u.T@u/2
+
+@jax.jit
+def deltx_norm_cost(x, x_tar):
+    nx = x.shape[0]
+    Q_T = 60.0*np.eye(nx)
+    return (x-x_tar).T@Q_T@(x-x_tar)/2.0

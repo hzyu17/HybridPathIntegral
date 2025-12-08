@@ -14,7 +14,7 @@ import jax.numpy as jnp
 # from hybrid_ilqr.h_ilqr import solve_ilqr, extract_extensions
 from hybrid_ilqr.h_ilqr_discrete import solve_ilqr, extract_extensions
 # Importing path integral control
-from dynamics.dynamics_bouncing import *
+from dynamics.ode_solver.dynamics_bouncing import *
 from dynamics.dynamics_discrete_bouncing import *
 # Importing path integral control
 from hybrid_pathintegral.hybrid_pathintegral import *

@@ -10,7 +10,8 @@ sys.path.append(root_dir)
 
 
 # Import iLQR class
-from hybrid_ilqr.h_ilqr_discrete import solve_ilqr
+from hybrid_ilqr.h_ilqr_jax import *
+from dynamics.trajectory_extension import *
 # Import bouncing ball dynamics
 from dynamics.dynamics_discrete_bouncing import *
 # Import experiment parameter class
@@ -27,7 +28,7 @@ if __name__ == '__main__':
     n_inputs = [1, 1]
     
     # ---------------- multiple bouncing example -----------------
-    dt = 0.0015
+    dt = 0.001
     epsilon = 2.0
     dt_shrink = 0.95
     
@@ -42,44 +43,9 @@ if __name__ == '__main__':
     init_mode = 0
     target_mode = 0
     Q_T = 60*np.eye(n_states[0])
-    # Q_T[0,0] = 2000.0
 
     # ---------------- / multiple bouncing example -----------------
     
-    # # ---------------- bouncing example -----------------
-    # dt = 0.005
-    # epsilon = 2.0
-    # dt_shrink = 0.95
-    
-    # start_time = 0
-    # end_time = 2.0
-    # time_span = np.arange(start_time, end_time, dt).flatten()
-    # nt = len(time_span)
-
-    # init_state = np.array([5, 1.5])    # Define the initial state to be the origin with no velocity
-    # target_state = np.array([2.5, 0])  # Swing pendulum upright
-    
-    # init_mode = 0
-    
-    # target_mode = 0
-    # Q_T = 200*np.eye(n_states[0])
-    # Q_T[0,0] = 2000.0
-
-    # # ---------------- / bouncing example -----------------
-
-    # ===== OR =====
-    # dt = 5e-5
-    # # ------------- verification with no contact ------------- 
-    # start_time = 0
-    # end_time = 1.0
-    # time_span = np.arange(start_time, end_time, dt).flatten()
-    # nt = len(time_span)
-
-    # init_state = np.array([5, 1.5])    # Define the initial state to be the origin with no velocity
-    # target_state = np.array([1.0, 0.0])
-
-    # # ------------- /verification with no contact ------------- 
-
     # ---------------------------- 
     # Define weighting matrices
     # ----------------------------
@@ -95,34 +61,35 @@ if __name__ == '__main__':
     target_reset_args = [np.array([0.0]) for _ in range(nt)]
     
     # ====================================
-    # solve for hybrid ilqr proposal
+    #    Solve for hybrid ilqr proposal
     # ====================================
     exp_params = ExpParams()
     
     initial_guess = [1.0*np.ones((np.shape(time_span)[0],n_inputs[0])), 1.0*np.ones((np.shape(time_span)[0],n_inputs[1]))]
     
     flow_dynamics = [sym_dyn_bouncing, sym_dyn_bouncing]
+    niters = 10
     
-    exp_params.update_params(n_modes, init_mode, target_mode, n_states, init_state, target_state, 
-                             start_time, end_time, dt, initial_guess, 
-                             epsilon, n_exp, n_samples, 
-                             Q_k, R_k, Q_T, flow_dynamics, 
-                             event_detect_bouncing_discrete, 
-                             plot_bouncingball, 
-                             convert_state_21_bouncing, 
-                             init_reset_args, target_reset_args)
-    exp_data = ExpData(exp_params)
+    hilqr_obj = hybrid_ilqr_jax(n_states, n_inputs, 
+                                init_mode, init_state, target_state, 
+                                initial_guess, 
+                                time_span, 
+                                niters, 
+                                is_detect=True, 
+                                detect_func=event_detect_bouncing_discrete, 
+                                smooth_dynamics=f_euler_bouncing, 
+                                running_cost=bouncingball_cost, 
+                                cost_args=0.0,
+                                terminal_cost=deltx_norm_cost, 
+                                terminal_cost_args=target_state)
     
-    hybrid_ilqr_result = solve_ilqr(exp_params, detect=True, verbose=False)
-        
-    (timespan, modes,states,inputs,saltations,
-     k_feedforward,K_feedback,
-     A_trj,B_trj,
-     current_cost,states_iter,
-     ref_modechanges,ref_ext_helper, ref_reset_args) = hybrid_ilqr_result
+    hybrid_ilqr_result = hilqr_obj.solve()
     
-    exp_data.add_nominal_data(hybrid_ilqr_result)
-
+    
+    (timespan,modes,states,inputs,
+    k_feedforward,K_feedback,
+    current_cost,states_iter,
+    modechanges,ref_ext_helper) = hybrid_ilqr_result
 
     show_results = True
     if show_results:

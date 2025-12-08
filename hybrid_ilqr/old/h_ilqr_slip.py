@@ -9,7 +9,8 @@ sys.path.append(root_dir)
 
 
 # Import iLQR class
-from hybrid_ilqr.h_ilqr import solve_ilqr, extract_extensions
+from hybrid_ilqr.h_ilqr import solve_ilqr
+from dynamics.trajectory_extension import extract_extensions
 # Import SLIP dynamics
 from dynamics.dynamics_discrete_slip import *
 # Importing path integral control
